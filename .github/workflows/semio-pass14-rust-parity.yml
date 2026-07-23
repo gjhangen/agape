@@ -17,44 +17,27 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - name: Check out evidence branch
-        uses: actions/checkout@v4
-
-      - name: Install pinned Rust toolchain
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-
-      - name: Decode isolated fixture archive
+      - name: Clone isolated evidence branch
         shell: bash
         run: |
           set -euo pipefail
+          git clone --depth 1 --branch semio-rust-parity-pass14 https://github.com/gjhangen/agape.git evidence
+
+      - name: Verify available Rust toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustc --version --verbose
+          cargo --version --verbose
+
+      - name: Decode fixtures, compile, and execute parity gate
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd evidence
           base64 --decode semio-pass14-fixtures.tar.xz.b64 > semio-pass14-fixtures.tar.xz
           tar -xJf semio-pass14-fixtures.tar.xz
           test "$(find fixtures/candidate -name '*.json' | wc -l)" -eq 64
-
-      - name: Compile and execute Rust parity gate
-        shell: bash
-        run: |
-          set -euo pipefail
           chmod +x semio-pass14-rust/run_gate.sh
           ./semio-pass14-rust/run_gate.sh
-
-      - name: Record toolchain metadata
-        if: always()
-        shell: bash
-        run: |
-          mkdir -p reports
-          rustc --version --verbose > reports/rustc-version.txt || true
-          cargo --version --verbose > reports/cargo-version.txt || true
-
-      - name: Upload machine-readable evidence
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: semio-pass14-rust-parity
-          path: |
-            reports/rust_independent_reload_report.json
-            reports/rustc-version.txt
-            reports/cargo-version.txt
-          if-no-files-found: warn
+          cat reports/rust_independent_reload_report.json
