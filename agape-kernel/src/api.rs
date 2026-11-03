@@ -18,6 +18,7 @@ pub fn view(n: &mut Night, who: &str, v: &Value) -> Value {
         Some("player") => n.view_player(id),
         Some("business") => n.view_business(id),
         Some("parties") => n.parties(),
+        Some("glance") => n.view_glance(),
         _ => json!({ "error": "unknown lens" }),
     }
 }

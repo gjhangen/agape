@@ -316,6 +316,20 @@ impl Night {
         l.into_iter().take(8).map(|o| json!({ "id": o.id, "price": o.price, "section": o.subject.split(':').nth(1), "seats": o.sub, "mine": o.maker == viewer, "seller": self.party_name(&o.maker) })).collect()
     }
 
+    /// What anyone may see before signing in: the venue, the game right now, and how the night is going.
+    pub fn view_glance(&self) -> Value {
+        let teams: Vec<Value> = [&self.league.tonight.home, &self.league.tonight.away].iter().filter_map(|id| self.league.team(id))
+            .map(|g| json!({ "name": g.name, "short": g.short, "abbr": g.abbr, "color": g.color })).collect();
+        let moments: Vec<Value> = self.feed.iter().rev().filter(|f| matches!(f.kind.as_str(), "moment" | "score" | "game")).take(4)
+            .map(|f| json!({ "t": f.t, "text": f.text, "name": self.party_name(&f.party), "kind": f.kind })).collect();
+        let delivered: Vec<i64> = self.orders.iter().filter(|o| matches!(o.c.stage, Stage::Settled) && o.c.quote.delivery)
+            .filter_map(|o| o.delivered_at.map(|d| d - o.accepted_at)).collect();
+        let avg_min = if delivered.is_empty() { None } else { Some((delivered.iter().sum::<i64>() as f64 / delivered.len() as f64 / 60_000.0).round() as i64) };
+        json!({ "venue": self.venue_name(), "clock": self.clock(), "teams": teams, "moments": moments,
+                "orders": self.orders.len(), "on_the_way": self.orders.iter().filter(|o| matches!(o.c.stage, Stage::Assigned | Stage::PickedUp)).count(),
+                "avg_delivery_min": avg_min, "provenance": self.provenance() })
+    }
+
     pub fn venue_name(&self) -> String { if self.world.def.name.is_empty() { "the venue".into() } else { self.world.def.name.clone() } }
 
     /// Display name for any node id: a member, a group, a fan.

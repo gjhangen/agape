@@ -59,10 +59,10 @@ export type FanView = {
 
 export type Sheet = { kind: "item"; item: string; at?: number } | { kind: "checkout"; offer: Offer; claim: string } | { kind: "ride"; zone: string } | null;
 type Space = "get" | "live" | "me";
-type Ctx = { v: FanView; refresh: () => void; setSheet: (s: Sheet) => void; toast: (s: string) => void; go: (s: Space) => void; open: (id: string) => void };
+type Ctx = { v: FanView; refresh: () => void; setSheet: (s: Sheet) => void; toast: (s: string) => void; go: (s: Space) => void; open: (id: string) => void; settings?: React.ReactNode };
 const sec = (s: string) => s.slice(1);
 
-export function FanApp({ v, refresh, sheet, setSheet, toast }: Omit<Ctx, "go" | "open"> & { sheet: Sheet }) {
+export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ctx, "go" | "open"> & { sheet: Sheet }) {
   const [space, setSpace] = useState<Space>("get");
   const [q, setQ] = useState("");
   const body = useRef<HTMLDivElement>(null);
@@ -70,10 +70,20 @@ export function FanApp({ v, refresh, sheet, setSheet, toast }: Omit<Ctx, "go" | 
   const [pages, setPages] = useState<string[]>([]);
   const go = (s: Space) => { setSpace(s); setQ(""); setPages([]); body.current?.scrollTo({ top: 0 }); };
   const open = (id: string) => setPages(p => [...p, id]);
-  const ctx: Ctx = { v, refresh, setSheet, toast, go, open };
+  const ctx: Ctx = { v, refresh, setSheet, toast, go, open, settings };
   const worn = v.colors?.teams.find(t => t.id === v.colors?.wearing)?.color ?? null;
   useEffect(() => { wearColor(worn); }, [worn]);
   useEffect(() => () => wearColor(null), []);
+  // the moment something reaches the seat is worth saying out loud
+  const active = useRef<Set<number> | null>(null);
+  useEffect(() => {
+    const now = new Set(v.orders.map(o => o.id));
+    if (active.current) for (const id of active.current) if (!now.has(id)) {
+      const r = v.me.receipts.find(o => o.id === id);
+      if (r?.stage === "Settled") toast(r.delivery ? `Your ${r.items[0]?.name?.toLowerCase() ?? "order"} is here. Enjoy!` : `Your ${r.items[0]?.name?.toLowerCase() ?? "order"} is ready at ${r.stand}.`);
+    }
+    active.current = now;
+  }, [v.orders.map(o => o.id).join(",")]);
   const c = v.clock;
   const lead = v.orders[0];
   return (
@@ -156,6 +166,28 @@ function Callout({ eyebrow, text, cta, onClick }: { eyebrow: string; text: strin
 
 const CATS = [["all", "Everything"], ["food", "Food"], ["drink", "Drinks"], ["merch", "Gear"], ["cards", "Cards"], ["tickets", "Tickets"], ["around", "Around"]];
 
+/** A first-night hello: what's theirs already and three things worth trying. Gone once dismissed. */
+function Welcome({ v, go }: Ctx) {
+  const key = `agape.welcomed.${v.you.id}`;
+  const [gone, setGone] = useState(() => { try { return localStorage.getItem(key) === "1"; } catch { return false; } });
+  const fresh = v.me.earned.length <= 1 && v.me.orders.length === 0 && v.orders.length === 0;
+  if (gone || !fresh) return null;
+  const close = () => { setGone(true); try { localStorage.setItem(key, "1"); } catch { /* shown again next visit */ } };
+  return (
+    <section className="welcome" aria-label="Welcome">
+      <button className="welcome-x" onClick={close} aria-label="Dismiss">×</button>
+      <p className="eyebrow">Welcome to {BRAND.venue}</p>
+      <h2>{v.me.balance.toLocaleString()} points are yours.</h2>
+      <p>Spend them on moment cards, or earn more as the night goes. A few things to try:</p>
+      <div className="welcome-acts">
+        <button onClick={() => { document.querySelector(".item-row")?.scrollIntoView({ behavior: "smooth", block: "center" }); }}><b>Order to your seat</b><small>see when it'll arrive before you tap</small></button>
+        <button onClick={() => go("live")}><b>Call the quarter</b><small>50 points if you're right</small></button>
+        <button onClick={() => go("me")}><b>Wear your colors</b><small>the app takes your team's look</small></button>
+      </div>
+    </section>
+  );
+}
+
 function Get(ctx: Ctx) {
   const { v, setSheet } = ctx;
   const [cat, setCat] = useState("all");
@@ -163,6 +195,7 @@ function Get(ctx: Ctx) {
   const stands = [...v.get.stands].filter(s => v.items.some(i => i.stand_id === s.id && (cat === "all" || i.category === cat))).sort((a, b) => (a.eta ?? 1e15) - (b.eta ?? 1e15));
   return (
     <>
+      <Welcome {...ctx} />
       {v.orders.length === 0 && <p className="orient">You're in <b>section {sec(v.you.seat)}</b>. Anything in {BRAND.venue} can come to your seat. Every time shown is when it reaches you.</p>}
       <Nudge {...ctx} />
       {v.get.offers.length > 0 && (
@@ -422,14 +455,22 @@ function Colors({ c, toast, refresh }: { c: NonNullable<FanView["colors"]>; toas
   );
 }
 
-function Me({ v, refresh, toast, open }: Ctx) {
+function Me({ v, refresh, toast, open, settings }: Ctx) {
   const [rec, setRec] = useState<number | null>(null);
   const now = v.clock.t;
   const r = v.runner;
   const m = v.me;
   const got = m.badges.filter(b => b.earned).length;
+  const fresh = m.receipts.filter(o => o.stage === "Settled" && o.delivered != null && now - o.delivered < 10 * 60_000).slice(0, 2);
   return (
     <>
+      {fresh.length > 0 && (
+        <section className="block arrived">
+          <h2>Just arrived</h2>
+          {fresh.map(o => <div key={o.id} className="arrived-card"><ItemArt name={o.items[0]?.name ?? ""} size={40} /><div className="grow"><b>{o.items.map(i => i.name).join(", ")}</b><small>Reached section {sec(o.seat)} at {venueTime(o.delivered!)}, {Math.max(1, Math.round((o.delivered! - o.placed) / 60_000))} min after you ordered</small></div>
+            <After o={o} toast={toast} refresh={refresh} /></div>)}
+        </section>
+      )}
       {m.orders.length > 0 && (
         <section className="block">
           <h2>On the way</h2>
@@ -460,6 +501,10 @@ function Me({ v, refresh, toast, open }: Ctx) {
           <div className="deal-list">{m.deals.slice(0, 6).map(d => <DealCard key={d.id} d={d} as="you" act={actWith(toast, refresh)} open={open} now={now} />)}</div>
         </section>
       )}
+      <section className="block">
+        <LevelPanel level={m.level} tier={m.tier} floor={m.tier_floor} next={m.next_tier} balance={m.balance} />
+        <p className="passport-line">{m.passport?.venues?.length ? <>Your passport: {m.passport.venues.join(", ")} · {m.passport.nights} night{m.passport.nights === 1 ? "" : "s"}. </> : null}Your level and points go with you to every venue on Agape.</p>
+      </section>
       {(v.upgrades?.length || v.moved) ? (
         <section className="block">
           <div className="block-head"><h2>Your seat</h2><span className="sub">Section {sec(v.you.seat)}</span></div>
@@ -468,10 +513,6 @@ function Me({ v, refresh, toast, open }: Ctx) {
               <button className="btn primary sm" disabled={!u.ok} onClick={() => { const r = kernel.act({ do: "upgrade", section: u.section }); toast(r.ok ? `Moved to section ${sec(u.section)}. Your orders follow you.` : r.error); refresh(); }}>{u.ok ? `Move · ${money(u.price)}` : (u.why_not ?? "Not now")}</button></div>)}
         </section>
       ) : null}
-      <section className="block">
-        <LevelPanel level={m.level} tier={m.tier} floor={m.tier_floor} next={m.next_tier} balance={m.balance} />
-        <p className="passport-line">{m.passport?.venues?.length ? <>Your passport: {m.passport.venues.join(", ")} · {m.passport.nights} night{m.passport.nights === 1 ? "" : "s"}. </> : null}Your level and points go with you to every venue on Agape.</p>
-      </section>
       {v.colors && v.colors.teams.length > 0 && <Colors c={v.colors} toast={toast} refresh={refresh} />}
       <section className="block">
         <div className="block-head"><h2>Your collection</h2><span className="sub">{m.cards.length} card{m.cards.length === 1 ? "" : "s"}</span></div>
@@ -520,6 +561,7 @@ function Me({ v, refresh, toast, open }: Ctx) {
           </div>
         ))}
       </section>
+      {settings}
     </>
   );
 }

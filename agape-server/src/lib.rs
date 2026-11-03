@@ -168,6 +168,11 @@ async fn finish_move(app: &App, fan: &str, p: &mut passport::Passport) {
     }
 }
 
+/// Before signing in: the game and the night at a glance. Nothing about any person.
+async fn glance(State(app): State<S>, Path(vid): Path<String>) -> Response {
+    match app.venue(&vid) { Some(v) => Json(v.view("", json!({ "lens": "glance" })).await).into_response(), None => err(StatusCode::NOT_FOUND, "No such venue") }
+}
+
 async fn events(State(app): State<S>, Path(vid): Path<String>) -> Result<Sse<impl Stream<Item = Result<Event, std::convert::Infallible>>>, Response> {
     let v = app.venue(&vid).ok_or_else(|| err(StatusCode::NOT_FOUND, "No such venue"))?;
     let rx = BroadcastStream::new(v.events.subscribe());
@@ -229,6 +234,7 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/v/{venue}/view", post(view))
         .route("/api/v/{venue}/act", post(act))
         .route("/api/v/{venue}/events", get(events))
+        .route("/api/v/{venue}/glance", get(glance))
         .route("/api/admin/accounts", post(admin_account))
         .route("/api/admin/venues", post(admin_venue))
         .route("/api/admin/league-deal", post(admin_league_deal))
