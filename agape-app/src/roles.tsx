@@ -71,7 +71,7 @@ export function RunnerLens({ r, map, pick, runners, x }: { r: RunnerView; map: M
           <span className="eyebrow">Hand off</span>
           {t.orders.filter(o => o.stage === "PickedUp").map(o => (
             <div key={o.id} className="handoff">
-              <div className="grow"><b>Section {o.seat.slice(1)}{(o as any).check_id && <span className="id-chip">Check ID · 21+</span>}</b><small>{o.items.map(i => `${i.qty}× ${i.name}`).join(", ")}{o.breakdown?.tip ? ` · ${money(o.breakdown.tip)} tip` : ""}</small></div>
+              <div className="grow"><b>Section {o.seat.slice(1)}{(o as any).spot ? ` · ${(o as any).spot}` : ""}{(o as any).check_id && <span className="id-chip">Check ID · 21+</span>}</b><small>{o.items.map(i => `${i.qty}× ${i.name}`).join(", ")}{o.breakdown?.tip ? ` · ${money(o.breakdown.tip)} tip` : ""}</small></div>
               <button className="btn ghost sm" disabled={!o.handoff_ok_at || now < o.handoff_ok_at} title="After a few minutes at the seat"
                 onClick={() => staffAct(me, x, { do: "unreachable", order: o.id }, "Marked. You're still paid for the trip.")}>Can't find them</button>
               <button className="btn primary sm" onClick={() => staffAct(me, x, { do: "delivered", order: o.id }, "Handed over.")}>Handed over</button>
@@ -232,16 +232,16 @@ export function OpsLens({ o, compact, x }: { o: OpsView; compact?: boolean; x?: 
     <div className={"role ops" + (compact ? " compact" : "")}>
       {!compact && o.provenance?.crowd === "simulated" && <p className="provenance">Includes a simulated crowd of {o.provenance.simulated_fans.toLocaleString()} fans{o.provenance.people ? ` and ${o.provenance.people} real ${o.provenance.people === 1 ? "person" : "people"}` : ""}. Money figures are the ledger's; arrival times are estimates.</p>}
       {compact && o.halt && <p className="banner warn">Service stopped: {o.halt.reason}</p>}
-      {!compact && x && <div className="role-grid"><ServiceControl o={o} x={x} /><Problems o={o} x={x} /></div>}
+      {!compact && x && (o.halt || o.problems.length > 0) && <div className="role-grid">{o.halt && <ServiceControl o={o} x={x} />}<Problems o={o} x={x} /></div>}
       <div className={"tiles " + (compact ? "two" : "four")}>
         <MeasureTile label="Orders, last 5 min" value={o.orders_5m} sub={`${inFlight} in flight`} />
         <MeasureTile label="Seat waits" value={mins(o.wait_p50)} sub={`90% within ${mins(o.wait_p90)}`} tone={(o.wait_p90 ?? 0) > 1800 ? "bad" : (o.wait_p90 ?? 0) > 1200 ? "warn" : "good"} />
         <MeasureTile label="Runners out" value={`${o.runners.busy}/${o.runners.total}`} />
-        <MeasureTile label="Ledger" value={o.ledger.conserved ? "Balanced" : "Out of balance"} sub={`${o.ledger.txns.toLocaleString()} postings`} tone={o.ledger.conserved ? "good" : "bad"} />
+        <MeasureTile label="Ledger" value={o.ledger.conserved ? "Balanced" : "Out of balance"} sub={`${o.ledger.txns.toLocaleString()} entries, to the cent`} tone={o.ledger.conserved ? "good" : "bad"} />
       </div>
       <div className="role-grid">
         <section className="block">
-          <div className="block-head"><h2>Floor</h2><span className="sub">{o.signals.toLocaleString()} signals tonight</span></div>
+          <div className="block-head"><h2>Floor</h2><span className="sub">{o.signals.toLocaleString()} events recorded tonight</span></div>
           <div className="map-wrap"><PlaceView m={o.map} /></div>
           <ul className="waits">
             {stands.map(s => (
@@ -275,15 +275,19 @@ export function OpsLens({ o, compact, x }: { o: OpsView; compact?: boolean; x?: 
               <td className="num">{k.closed || "–"}</td><td className="num">{[k.money ? money(k.money) : "", k.points ? `${k.points.toLocaleString()} pts` : ""].filter(Boolean).join(" + ") || "–"}</td></tr>)}</tbody>
           </table></div>
           {o.exchanges.exits.length > 0 && <ul className="earned">{o.exchanges.exits.map((e, i) => <li key={i}><span className="grow">{e.kind}: {EXIT_COPY[e.exit] ?? e.exit}</span><small>{e.owner === "nobody" ? "nobody's fault" : `on ${e.owner}`}</small><b className="num">{e.count}</b></li>)}</ul>}
-          <div className="block-head"><h2>Money tonight</h2><span className="sub">Settled orders only</span></div>
+          <div className="block-head"><h2>Money tonight</h2><span className="sub">Every dollar fans paid, and where it went</span></div>
           <div className="lines">
-            <LedgerLine label="Stands" amount={o.ledger.stands} />
+            <LedgerLine label="Fans paid" amount={(o.ledger as any).fans_paid} strong />
+            <LedgerLine label="Stands" amount={o.ledger.stands} note="their sales, less Agape's share" />
             <LedgerLine label="Runners" amount={o.ledger.runners} note="pay and tips" />
             <LedgerLine label="Sales tax held" amount={o.ledger.tax} />
-            <LedgerLine label="Agape" amount={o.ledger.agape} strong note="after card fees and runner pay" />
+            <LedgerLine label="Card processing" amount={(o.ledger as any).processing} />
+            <LedgerLine label="Agape" amount={o.ledger.agape} note="its share and delivery fees, after runner pay and card fees" />
+            {(() => { const other = (o.ledger as any).fans_paid - o.ledger.stands - o.ledger.runners - o.ledger.tax - (o.ledger as any).processing - o.ledger.agape; return other > 0 ? <LedgerLine label="Tickets, rides and partners" amount={other} note="to the venue, drivers and businesses" /> : null; })()}
           </div>
         </section>}
       </div>
+      {!compact && x && !o.halt && <div className="ops-foot"><ServiceControl o={o} x={x} /></div>}
     </div>
   );
 }

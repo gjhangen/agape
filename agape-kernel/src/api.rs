@@ -94,7 +94,8 @@ pub fn act(n: &mut Night, who: &str, v: &Value) -> Value {
         Some("resolve") => n.resolve_problem(who, &s("problem"), v["refund"].as_bool().unwrap_or(false), &s("why")).map(|_| String::new()),
         Some("halt") => n.halt(&s("reason")).map(|_| String::new()),
         Some("resume") => n.resume().map(|_| String::new()),
-        Some("join") => n.join_named(who, &s("seat"), &s("name"), v["welcome"].as_bool().unwrap_or(true)).map(|_| String::new()),
+        Some("join") => n.join_named(who, &s("seat"), &s("name"), v["welcome"].as_bool().unwrap_or(true)).and_then(|_| n.set_spot(who, &s("row"), &s("place"))).map(|_| String::new()),
+        Some("spot") => n.set_spot(who, &s("row"), &s("place")).map(|_| String::new()),
         Some("attest_age") => n.attest_age(who).map(|_| String::new()),
         Some("cart") => {
             let lines: Vec<(String, i64)> = v["lines"].as_array().map(|a| a.iter().map(|l| (l["thing"].as_str().unwrap_or("").to_string(), l["qty"].as_i64().unwrap_or(0))).collect()).unwrap_or_default();

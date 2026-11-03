@@ -69,6 +69,25 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
   const body = useRef<HTMLDivElement>(null);
   useSecond();
   const [pages, setPages] = useState<string[]>([]);
+  const [tucked, setTucked] = useState(false);
+  // the phone's back button closes what's open (a sheet, a page) instead of leaving the app
+  const overlay = (sheet ? 1 : 0) + pages.length;
+  const depth = useRef(0), fromBack = useRef(false), skipPop = useRef(0);
+  const live = useRef({ sheet, pages }); live.current = { sheet, pages };
+  useEffect(() => {
+    if (overlay > depth.current) history.pushState({ agape: overlay }, "");
+    else if (overlay < depth.current && !fromBack.current) { skipPop.current += depth.current - overlay; history.go(overlay - depth.current); }
+    fromBack.current = false; depth.current = overlay;
+  }, [overlay]);
+  useEffect(() => {
+    const on = () => {
+      if (skipPop.current > 0) { skipPop.current--; return; }
+      fromBack.current = true;
+      if (live.current.pages.length) setPages(p => p.slice(0, -1)); else if (live.current.sheet) setSheet(null); else fromBack.current = false;
+    };
+    addEventListener("popstate", on); return () => removeEventListener("popstate", on);
+  }, []);
+  const lastY = useRef(0);
   const go = (s: Space) => { setSpace(s); setQ(""); setPages([]); body.current?.scrollTo({ top: 0 }); };
   const open = (id: string) => setPages(p => [...p, id]);
   const ctx: Ctx = { v, refresh, setSheet, toast, go, open, settings };
@@ -81,7 +100,7 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
     const now = new Set(v.orders.map(o => o.id));
     if (active.current) for (const id of active.current) if (!now.has(id)) {
       const r = v.me.receipts.find(o => o.id === id);
-      if (r?.stage === "Settled") toast(r.delivery ? `Your ${r.items[0]?.name?.toLowerCase() ?? "order"} is here. Enjoy!` : `Your ${r.items[0]?.name?.toLowerCase() ?? "order"} is ready at ${r.stand}.`);
+      if (r?.stage === "Settled" && !r.gift) toast(r.delivery ? `Your ${r.items[0]?.name?.toLowerCase() ?? "order"} is here. Enjoy!` : `Your ${r.items[0]?.name?.toLowerCase() ?? "order"} is ready at ${r.stand}.`);
     }
     active.current = now;
   }, [v.orders.map(o => o.id).join(",")]);
@@ -94,7 +113,7 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
   const c = v.clock;
   const lead = v.orders[0];
   return (
-    <div className="phone">
+    <div className={"phone" + (tucked && !q ? " tucked" : "")}>
       {space !== "live" && <button className="event-strip" onClick={() => go("live")} aria-label="Open Live">
         <span className="es-team home"><TeamMark side="home" />{BRAND.home.abbr} <b key={c.home} className="num score-bump">{c.home}</b></span>
         <span className="es-clock num">{c.label}</span>
@@ -104,13 +123,13 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
         <button className="order-pill" onClick={() => go("me")}>
           <ItemArt name={lead.items[0]?.name ?? ""} size={26} />
           <span className="grow"><b>{lead.items[0]?.name}</b>{v.orders.length > 1 ? ` +${v.orders.length - 1} more` : ""} · {stageWord(lead.stage)}</span>
-          <span className="num">{venueTime(lead.eta)}</span>
+          <span className="num">{lead.delivery ? "here by" : "ready by"} {venueTime(lead.eta)}</span>
         </button>
       )}
       <div className="finder">
-        <input id="find" type="search" placeholder="Find anything: beer, jersey, nachos…" value={q} onChange={e => setQ(e.target.value)} aria-label="Find anything" />
+        <input id="find" type="search" placeholder="Search food, drinks, gear…" value={q} onChange={e => setQ(e.target.value)} aria-label="Find anything" />
       </div>
-      <div className="scope-body" ref={body}>
+      <div className="scope-body" ref={body} onScroll={e => { const y = e.currentTarget.scrollTop; const d = y - lastY.current; lastY.current = y; if (y < 40) setTucked(false); else if (d > 6) setTucked(true); else if (d < -6) setTucked(false); }}>
         {v.halt && <div className="halt-banner" role="alert"><b>Service is paused</b><p>{v.halt.reason}</p><small>Nothing new can be ordered right now. Anything not yet being made was cancelled, and you weren't charged for it.</small></div>}
         {q ? <Search q={q} {...ctx} /> : space === "get" ? <Get {...ctx} /> : space === "live" ? <Live {...ctx} /> : <Me {...ctx} />}
       </div>
@@ -133,7 +152,7 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
   );
 }
 
-const stageWord = (s: string) => ({ Accepted: "placed", Preparing: "cooking", Ready: "ready", Assigned: "runner on it", PickedUp: "on the way", Delivered: "here" } as Record<string, string>)[s] ?? s;
+const stageWord = (s: string) => ({ Accepted: "placed", Preparing: "being made", Ready: "ready", Assigned: "runner on it", PickedUp: "on the way", Delivered: "here" } as Record<string, string>)[s] ?? s;
 
 function tapOffer(o: Offer, { refresh, setSheet, toast }: Ctx) {
   const r = kernel.act({ do: "tap", offer: o.id });
@@ -163,7 +182,7 @@ function Nudge({ v, setSheet }: Ctx) {
   const mins = (next.t - now) / 60000;
   const drink = v.items.filter(i => i.category === "drink" && i.adult && i.available).sort((a, b) => a.eta - b.eta)[0];
   if (next.kind === "halftime" && mins <= 25 && mins > 8)
-    return <Callout eyebrow={`Halftime ${rel(next.t, now)}`} text={`Every kitchen fills the moment it starts. Order now and have it waiting for you at the break.`} cta="Have it waiting at halftime" onClick={() => setSheet({ kind: "item", item: fastest.id, at: next.t })} />;
+    return <Callout eyebrow={`Halftime ${rel(next.t, now)}`} text={`Lines get long at the break. Order ahead and it's at your seat when halftime starts.`} cta="Have it waiting at halftime" onClick={() => setSheet({ kind: "item", item: fastest.id, at: next.t })} />;
   if (next.kind === "last_call" && mins <= 10 && drink)
     return <Callout eyebrow={`Last call ${rel(next.t, now)}`} text={`Beer stops when the 4th quarter starts. ${drink.name} reaches you by ${venueTime(drink.eta)}.`} cta={`Get a ${drink.name.toLowerCase()}`} onClick={() => setSheet({ kind: "item", item: drink.id })} />;
   return null;
@@ -180,7 +199,7 @@ const CAT_FEATURE: Record<string, string> = { cards: "cards", tickets: "tickets"
 function Welcome({ v, go }: Ctx) {
   const key = `agape.welcomed.${v.you.id}`;
   const [gone, setGone] = useState(() => { try { return localStorage.getItem(key) === "1"; } catch { return false; } });
-  const fresh = v.me.earned.length <= 1 && v.me.orders.length === 0 && v.orders.length === 0;
+  const fresh = v.me.earned.length <= 1 && v.me.orders.length === 0 && v.orders.length === 0 && v.clock.phase !== "postgame";
   if (gone || !fresh) return null;
   const close = () => { setGone(true); try { localStorage.setItem(key, "1"); } catch { /* shown again next visit */ } };
   return (
@@ -189,6 +208,7 @@ function Welcome({ v, go }: Ctx) {
       <p className="eyebrow">Welcome to {BRAND.venue}</p>
       <h2>{v.me.balance.toLocaleString()} points are yours.</h2>
       <p>{feature("cards") ? "Spend them on moment cards, or earn more as the night goes." : "Earn more as the night goes."} A few things to try:</p>
+      <small className="welcome-pilot">This is the Agape pilot: the game and most of the crowd are simulated, and nothing is charged.</small>
       <div className="welcome-acts">
         <button onClick={() => { document.querySelector(".item-row")?.scrollIntoView({ behavior: "smooth", block: "center" }); }}><b>Order to your seat</b><small>see when it'll arrive before you tap</small></button>
         {feature("predictions") && <button onClick={() => go("live")}><b>Call the quarter</b><small>50 points if you're right</small></button>}
@@ -279,7 +299,7 @@ function Around({ v, refresh, toast, open, setSheet }: Ctx) {
             <button className="btn sm primary" onClick={() => act({ do: "parking", lot: a.id }, "Paid. Show the code in Me at the gate.")}>Prepay exit · {money(a.service.price)}</button>)}
           {a.perk && (a.perk.yours ? <span className="tag good">Unlocked</span> : (
             <button className="btn sm primary perk" disabled={!a.perk.affordable || a.perk.left < 1} onClick={() => act({ do: "unlock", place: a.id }, "Unlocked. Show the code in Me at the counter.")}>
-              <span>{a.perk.title}</span><b className="num">{a.perk.cost} pts · {a.perk.left} left</b>
+              <span>{a.perk.title}</span><b className="num">{a.perk.affordable ? `${a.perk.cost} pts · ${a.perk.left} left` : `${(a.perk.cost - v.me.balance).toLocaleString()} more pts to unlock`}</b>
             </button>))}
         </div>
       ))}
@@ -383,7 +403,7 @@ function LiveRow({ f, open, now, collect }: { f: LiveItem; open: (id: string) =>
         {feature("cards") && f.drop && (f.drop.open && !f.drop.collected ? (
           <span className="drop-inline"><button className="btn primary sm" onClick={() => collect(f.drop!.id)}>Collect the card</button><small className="num">{f.drop.left} of {f.drop.supply} left · {countdown(f.drop.open_until - now)}</small></span>
         ) : f.drop.collected || f.drop.yours > 0 ? <button className="link-inline small" onClick={() => open(f.drop!.id)}>In your collection</button>
-          : <button className="link-inline small" onClick={() => open(f.drop!.id)}>{f.drop.rarity} card · from {f.drop.floor ? `${f.drop.floor} pts` : "sold out"}</button>)}
+          : <button className="link-inline small" onClick={() => open(f.drop!.id)}>{f.drop.rarity} card · {f.drop.floor ? `from ${f.drop.floor} pts` : "all collected"}</button>)}
       </span>
     </li>
   );
@@ -435,7 +455,7 @@ function Live(ctx: Ctx) {
             <span>{m.text}</span><time className="num">{venueTime(m.t)}</time></li>)}
           {chat.length === 0 && <li className="empty">Quiet so far. Start it.</li>}
         </ol>
-        {v.provenance?.crowd === "simulated" && <p className="provenance">Everyone here but you is a simulated crowd of {v.provenance.simulated_fans.toLocaleString()} for the pilot.</p>}</>}
+        {v.provenance?.crowd === "simulated" && <p className="provenance">Pilot: most of the crowd here is simulated ({v.provenance.simulated_fans.toLocaleString()} fans), so the chat is lively even before launch.</p>}</>}
         {feature("battle") && <div className="battle">
           <div><span className="eyebrow">Section battle · last 5 min</span>
             <b className="big num">{b.rank ? `Section ${sec(v.you.seat)} is #${b.rank}` : `Section ${sec(v.you.seat)} isn't on the board`}</b>
@@ -492,7 +512,7 @@ function Me({ v, refresh, toast, open, settings }: Ctx) {
           {r && r.busy && (
             <div className="mini-map">
               <PlaceView m={{ ...v.map, runners: v.map.runners.filter(x => x.id === r.id) }} showRunners={false} heat={false} />
-              <p className="sub">{runnerName(r.id)} is {r.to === v.you.seat ? "heading to you now" : r.to.startsWith("s") ? `dropping off at section ${sec(r.to)}, then you` : "picking up your order"}.</p>
+              <p className="sub">{runnerName(r.id)} is {r.to === v.you.seat ? "heading to you now" : /^s\d+$/.test(r.to) ? `dropping off at section ${sec(r.to)}, then you` : "picking up your order"}.</p>
             </div>
           )}
         </section>
@@ -540,7 +560,7 @@ function Me({ v, refresh, toast, open, settings }: Ctx) {
         <div className="badges">{m.badges.map(b => <div key={b.id} className={"badge-tile" + (b.earned ? " on" : "")}><b>{b.name}</b><small>{b.how}</small></div>)}</div>
       </section>
       <section className="block">
-        <h2>How you earned</h2>
+        <h2>Your points</h2>
         <ul className="earned">{m.earned.slice(0, 8).map((e, i) => <li key={i}><span className="grow">{e.why}</span><b className={"num " + (e.points > 0 ? "plus" : "minus")}>{e.points > 0 ? "+" : ""}{e.points.toLocaleString()}</b><time className="num">{e.t ? venueTime(e.t) : ""}</time></li>)}</ul>
       </section>
       {(m.following.length > 0 || m.messages.length > 0) && (
@@ -553,7 +573,7 @@ function Me({ v, refresh, toast, open, settings }: Ctx) {
       <section className="block">
         <h2>Tonight</h2>
         <div className="pair">
-          <div><span className="eyebrow">Spent</span><b className="big num">{money(m.spent)}</b><small>{m.receipts.length} receipt{m.receipts.length === 1 ? "" : "s"}</small></div>
+          <div><span className="eyebrow">Spent</span><b className="big num">{money(m.spent + m.orders.reduce((a, o) => a + (o.charge ?? 0), 0))}</b><small>{m.receipts.length} receipt{m.receipts.length === 1 ? "" : "s"}{m.orders.length ? ` · ${money(m.orders.reduce((a, o) => a + (o.charge ?? 0), 0))} on the way` : ""}</small></div>
           <div><span className="eyebrow">Events</span><b className="big num">{m.events.length}</b><small>{m.events[0]?.name} · {m.events[0]?.venue}</small></div>
         </div>
         {m.holdings.length > 0 && <div className="holdings">{m.holdings.map(h => <span key={h.thing} className="chip"><ItemArt name={h.name} size={22} />{h.qty > 1 ? `${h.qty}× ` : ""}{h.name}</span>)}</div>}
@@ -614,10 +634,10 @@ function CartBar({ v, open }: { v: FanView; open: () => void }) {
 }
 
 /** One checkout for the whole cart: one delivery fee, the tip shared by whoever carries it. */
-function CartSheet({ v, refresh, setSheet, toast }: Ctx) {
+function CartSheet({ v, refresh, setSheet, toast, go }: Ctx) {
   const lines = useCart();
   const [delivery, setDelivery] = useState(true);
-  const [tip, setTip] = useState(300);
+  const [tip, setTip] = useState(200);
   const [busy, setBusy] = useState(false);
   const key = JSON.stringify(lines) + delivery + tip;
   const [q, setQ] = useState<any>(null);
@@ -630,8 +650,8 @@ function CartSheet({ v, refresh, setSheet, toast }: Ctx) {
     const r = kernel.act({ do: "cart", lines, delivery, tip });
     setBusy(false);
     if (!r.ok) { toast(whyNot(r.error) || r.error); refresh(); return; }
-    cart.clear(); setSheet(null); refresh();
-    toast(delivery ? `On its way to section ${sec(v.you.seat)}.` : "Ordered. We'll tell you when each part is on the shelf.");
+    cart.clear(); setSheet(null); refresh(); go("me");
+    toast(delivery ? `Ordered. It'll be at section ${sec(v.you.seat)} around ${venueTime(latest)}.` : "Ordered. We'll tell you when each part is on the shelf.");
   };
   if (!lines.length) return <SheetFrame title="Your cart" onClose={() => setSheet(null)}><p className="empty">Your cart is empty. Tap anything on Get to add it.</p></SheetFrame>;
   return (
@@ -654,6 +674,7 @@ function CartSheet({ v, refresh, setSheet, toast }: Ctx) {
           <LedgerLine label="Items" amount={q.items} /><LedgerLine label="Tax" amount={q.tax} />
           {q.fee > 0 && <LedgerLine label="Delivery" amount={q.fee} note="once for the cart" />}{q.tip > 0 && <LedgerLine label="Tip" amount={q.tip} note="all to your runners" />}
           <LedgerLine label="You pay" amount={q.charge} strong />
+          <small className="pilot-note">Pilot: nothing is actually charged.</small>
         </div>}
         <button className="btn ghost sm" onClick={() => { cart.clear(); setSheet(null); }}>Empty the cart</button>
         <button className="btn primary block big" disabled={busy || !!v.halt || blocked.length > 0} onClick={place}>{v.halt ? "Service is paused" : blocked.length ? "Remove what's unavailable" : `Place order · ${money(q?.charge)}`}</button>
@@ -687,7 +708,7 @@ function Tips({ tip, setTip }: { tip: number; setTip: (n: number) => void }) {
 
 const MOMENTS: Record<string, string> = { halftime: "Halftime", last_call: "Start of the 4th", final: "Final buzzer", second_half: "Start of the 3rd", start: "Tip-off" };
 
-function ItemSheet({ v, refresh, setSheet, toast, id, at: preset }: Ctx & { id: string; at?: number }) {
+function ItemSheet({ v, refresh, setSheet, toast, go, id, at: preset }: Ctx & { id: string; at?: number }) {
   const item = v.items.find(i => i.id === id)!;
   const moments = v.get.later.filter(l => MOMENTS[l.kind] && l.t - v.clock.t > 8 * 60000).slice(0, 2);
   const [delivery0] = useState(true);
@@ -708,8 +729,8 @@ function ItemSheet({ v, refresh, setSheet, toast, id, at: preset }: Ctx & { id: 
     if (r.ok && first) { const p = kernel.act({ do: "prioritize", order: Number(r.id) }); if (!p.ok) toast(p.error === "CantAfford" ? "Not enough points to go first; it's in line as usual." : p.error); }
     if (r.ok && giftTo) { toast(`Sent to ${giftTo.startsWith("s") && /^s\d+$/.test(giftTo) ? `section ${sec(giftTo)}` : friends.find(f => f.id === giftTo)?.name ?? "them"}.`); setSheet(null); refresh(); return; }
     if (!r.ok) { toast(r.error === "SoldOut" ? "That just sold out." : r.error === "TooSoon" ? "It can't reach you that soon. Pick a later time." : whyNot(r.error) || r.error); refresh(); return; }
-    toast(at ? `Done. It'll be at section ${sec(v.you.seat)} around ${venueTime(at)}.` : delivery ? `On its way to section ${sec(v.you.seat)}.` : "Ordered. We'll tell you when it's on the shelf.");
-    setSheet(null); refresh();
+    toast(at ? `Done. It'll be at section ${sec(v.you.seat)} around ${venueTime(at)}.` : delivery ? `Ordered. It'll be at section ${sec(v.you.seat)} around ${venueTime(item.eta)}.` : "Ordered. We'll tell you when it's on the shelf.");
+    setSheet(null); refresh(); go("me");
   };
   if (item.why_not === "AgeUnverified") {
     const yes = () => { const r = kernel.act({ do: "attest_age" }); if (!r.ok) toast(r.error); refresh(); };
@@ -739,7 +760,7 @@ function ItemSheet({ v, refresh, setSheet, toast, id, at: preset }: Ctx & { id: 
           {at != null && win && <WhenPicker from={win.earliest} to={win.closes} value={Math.max(at, win.earliest)} set={setAt} marks={v.get.later.map(l => ({ t: l.t, label: MOMENTS[l.kind] ?? l.kind }))} />}
         </div>
         <div className="qty"><span className="eyebrow">How many</span>
-          <div className="stepper"><button onClick={() => setQty(Math.max(1, qty - 1))} aria-label="One fewer">−</button><b className="num">{qty}</b><button onClick={() => setQty(Math.min(4, qty + 1))} aria-label="One more">+</button></div></div>
+          <div className="stepper"><button onClick={() => setQty(Math.max(1, qty - 1))} aria-label="One fewer">−</button><b className="num">{qty}</b><button onClick={() => { if (qty >= 4) toast("Up to 4 at a time. Add more to your cart."); setQty(Math.min(4, qty + 1)); }} aria-label="One more">+</button></div></div>
         {delivery && <Tips tip={tip} setTip={setTip} />}
         {feature("gifting") && delivery && !item.adult && at == null && <div className="gift">
           <label className="check"><input type="checkbox" checked={giftTo != null} onChange={e => setGiftTo(e.target.checked ? (friends[0]?.id ?? "s101") : null)} /> Send it to someone else</label>
@@ -751,12 +772,13 @@ function ItemSheet({ v, refresh, setSheet, toast, id, at: preset }: Ctx & { id: 
             <input value={giftNote} maxLength={140} onChange={e => setGiftNote(e.target.value)} placeholder="Add a note (optional)" aria-label="Note" />
           </>}
         </div>}
-        {feature("priority") && at == null && <label className="check first"><input type="checkbox" checked={first} disabled={v.me.balance < 200} onChange={e => setFirst(e.target.checked)} /> Go first · 200 pts, only if it arrives <small>{v.me.balance < 200 ? `you have ${v.me.balance}` : `you have ${v.me.balance.toLocaleString()}`}</small></label>}
-        <p className="promise">{at ? `We hold it now and start it so it reaches section ${sec(v.you.seat)} around ${venueTime(at)}. If it's more than 10 minutes late, ${money(300)} comes back to your card on its own.` : delivery ? `At section ${sec(v.you.seat)} around ${venueTime(item.eta)}. If it takes more than 30 minutes, ${money(300)} comes back to your card on its own.` : `Ready at ${item.stand}. We'll tell you the moment it's on the shelf.`}</p>
+        {feature("priority") && at == null && delivery && v.me.balance >= 200 && <label className="check first"><input type="checkbox" checked={first} disabled={v.me.balance < 200} onChange={e => setFirst(e.target.checked)} /> Go first · 200 pts, only if it arrives <small>{v.me.balance < 200 ? `you have ${v.me.balance}` : `you have ${v.me.balance.toLocaleString()}`}</small></label>}
+        <p className="promise">{giftTo ? `It goes to ${/^s\d+$/.test(giftTo) ? `section ${sec(giftTo)}` : friends.find(f => f.id === giftTo)?.name ?? "them"}, with your note. Their runner brings it straight there.` : at && !delivery ? `We start it so it's ready at ${item.stand} around ${venueTime(at)}.` : at ? `We hold it now and start it so it reaches section ${sec(v.you.seat)} around ${venueTime(at)}. If it's more than 10 minutes late, ${money(300)} comes back to you automatically.` : delivery ? `At section ${sec(v.you.seat)} around ${venueTime(item.eta)}. If it takes more than 30 minutes, ${money(300)} comes back to you automatically.` : `Ready at ${item.stand}. We'll tell you the moment it's on the shelf.`}</p>
         {quote && <div className="lines">
           <LedgerLine label="Items" amount={quote.subtotal} /><LedgerLine label="Tax" amount={quote.tax} />
           {quote.fee > 0 && <LedgerLine label="Delivery" amount={quote.fee} />}{quote.tip > 0 && <LedgerLine label="Tip" amount={quote.tip} />}
           <LedgerLine label="You pay" amount={quote.charge} strong />
+          <small className="pilot-note">Pilot: nothing is actually charged.</small>
         </div>}
         <div className="sheet-actions">
           {at == null && !giftTo && !first && <button className="btn big" disabled={!!v.halt} onClick={() => { cart.add(id, qty); toast(`${qty > 1 ? `${qty}× ` : ""}${item.name} is in your cart.`); setSheet(null); }}>Add to cart</button>}
@@ -789,6 +811,7 @@ function CheckoutSheet({ v, refresh, setSheet, toast, offer, claim }: Ctx & { of
           <LedgerLine label="Tax" amount={quote.tax} /><LedgerLine label="Delivery" amount={quote.fee} />
           {quote.tip > 0 && <LedgerLine label="Tip" amount={quote.tip} />}
           <LedgerLine label="You pay" amount={quote.charge} strong />
+          <small className="pilot-note">Pilot: nothing is actually charged.</small>
         </div>}
         <button className="btn primary block big" disabled={!!v.halt} onClick={place}>{v.halt ? "Service is paused" : `Place order · ${money(quote?.charge)}`}</button>
       </div>

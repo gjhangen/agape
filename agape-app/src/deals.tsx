@@ -215,7 +215,7 @@ export function BusinessLens({ b, businesses, pick, toast, refresh }: { b: any; 
           : <MeasureTile label="Revenue tonight" value={money(b.money.revenue)} sub="after Agape's share" />}
         <MeasureTile label="Deal budget" value={money(b.money.budget)} sub="free to offer" />
         <MeasureTile label="Offered, not yet paid" value={money(b.money.in_escrow)} sub="held in escrow" />
-        <MeasureTile label="Paid to talent" value={money(b.money.spent_on_deals)} />
+        <MeasureTile label="Paid to players" value={money(b.money.spent_on_deals)} />
       </div>
       <div className="role-grid">
         {perks.map((x: any) => (

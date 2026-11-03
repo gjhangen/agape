@@ -33,7 +33,7 @@ impl Account { pub fn public(&self) -> Account { Account { hash: String::new(), 
 
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
-enum Rec { Account(Account), Session { token: String, account: String } }
+enum Rec { Account(Account), Session { token: String, account: String }, Ended { token: String } }
 
 pub struct Auth { path: PathBuf, accounts: HashMap<String, Account>, by_handle: HashMap<String, String>, sessions: HashMap<String, String> }
 
@@ -47,6 +47,7 @@ impl Auth {
                 match serde_json::from_str::<Rec>(&line) {
                     Ok(Rec::Account(acc)) => { a.by_handle.insert(acc.handle.to_lowercase(), acc.id.clone()); a.accounts.insert(acc.id.clone(), acc); }
                     Ok(Rec::Session { token, account }) => { a.sessions.insert(token, account); }
+                    Ok(Rec::Ended { token }) => { a.sessions.remove(&token); }
                     Err(_) => {}
                 }
             }
@@ -62,7 +63,13 @@ impl Auth {
         f.sync_data().unwrap();
     }
 
+    /// Signing out ends the session everywhere it was used.
+    pub fn sign_out(&mut self, token: &str) {
+        if self.sessions.remove(token).is_some() { self.append(&Rec::Ended { token: token.into() }); }
+    }
+
     pub fn create(&mut self, handle: &str, password: &str, role: Role, party: Option<String>, venue: Option<String>) -> Result<Account, String> {
+        let handle = handle.trim();
         if !valid_handle(handle) { return Err("Pick a name of 3 to 24 letters, numbers, dots or underscores".into()); }
         if password.chars().count() < 8 { return Err("Use a password of at least 8 characters".into()); }
         if self.by_handle.contains_key(&handle.to_lowercase()) { return Err("That name is taken".into()); }
@@ -81,6 +88,7 @@ impl Auth {
 
     pub fn sign_in(&mut self, handle: &str, password: &str) -> Result<(String, Account), String> {
         let wrong = || "That name and password don't match".to_string();
+        let handle = handle.trim();
         let id = self.by_handle.get(&handle.to_lowercase()).ok_or_else(wrong)?.clone();
         let acc = self.accounts[&id].clone();
         let parsed = PasswordHash::new(&acc.hash).map_err(|_| wrong())?;

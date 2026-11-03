@@ -359,8 +359,8 @@ ol.board li.you { background: var(--accent-soft); font-weight: 800; }
 .item-row:disabled small { color: var(--bad); font-weight: 600; }
 .price-tag { font-weight: 700; }
 
-.callout { margin: 14px 16px 0; padding: 14px; border-radius: var(--r-md); background: var(--ink); color: var(--bg); display: grid; gap: 8px; }
-.callout .eyebrow { color: color-mix(in srgb, var(--bg) 70%, var(--ink)); }
+.callout { margin: 14px 16px 0; padding: 14px; border-radius: var(--r-md); background: var(--board); color: var(--board-ink); display: grid; gap: 8px; }
+.callout .eyebrow { color: var(--board-clock); }
 .callout p { font-size: 15px; font-weight: 600; }
 .callout .btn { justify-self: start; }
 .mini-map { display: grid; justify-items: center; gap: 4px; }
@@ -969,3 +969,117 @@ button.ticket { width: 100%; text-align: left; border: 0; cursor: pointer; font:
 .sim-intro .btn:not(.primary) { background: transparent; color: var(--board-ink); border: 1px solid color-mix(in srgb, var(--board-ink) 40%, transparent); }
 .share-link { display: grid; gap: 8px; padding: 14px; border-radius: var(--r-md); background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); margin-top: 12px; }
 .share-link input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; font: inherit; background: var(--surface); color: var(--ink); }
+
+/* ---------- review round: design ---------- */
+/* sheets: a solid footer down to the safe area, a grabber, and a real entrance */
+.sheet { padding-bottom: 0; }
+.sheet-actions { margin: 0 -16px; padding: 10px 16px calc(14px + env(safe-area-inset-bottom, 0px)); box-shadow: 0 -1px 0 var(--line), 0 -10px 16px -6px color-mix(in srgb, var(--surface) 90%, transparent); }
+.sheet > .build > :last-child:not(.sheet-actions) { margin-bottom: calc(18px + env(safe-area-inset-bottom, 0px)); }
+.sheet::before { content: ""; justify-self: center; width: 40px; height: 5px; border-radius: 3px; background: var(--line); margin: -6px 0 2px; }
+/* sticky bars are opaque, with a hairline */
+.finder { background: var(--surface); position: relative; z-index: 3; }
+/* studio and tables never push the page sideways */
+.sf-table { display: block; overflow-x: auto; max-width: 100%; }
+.team-eds { grid-template-columns: repeat(auto-fit, minmax(min(300px, 100%), 1fr)); }
+.setup, .role.setup { min-width: 0; overflow-x: clip; }
+.team-ed-head { grid-template-columns: auto minmax(0, 1fr); }
+.roster-ed summary { list-style: none; display: inline-flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: var(--r-pill); border: 1px solid var(--line); }
+.roster-ed summary::-webkit-details-marker { display: none; }
+.roster-ed summary::after { content: "▾"; font-size: 11px; color: var(--muted); }
+.roster-ed[open] summary::after { content: "▴"; }
+.sf-table input[type=checkbox] { width: 20px; height: 20px; accent-color: var(--accent); }
+/* tiles keep their numbers on one line whether or not they have a note */
+.tile { display: grid; grid-template-rows: auto auto 1fr; align-content: start; }
+.tile small:empty { display: none; }
+/* numbers in one family: the body face with tabular figures */
+:root { --mono: var(--body); }
+.num, .signal time, .route-steps li time, .clock b, .es-clock, .bs-clock, .l-clock, .lock { font-variant-numeric: tabular-nums; }
+/* dark segments: the chosen one sits up, not in */
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) .seg button.on { background: color-mix(in srgb, var(--ink) 14%, var(--surface)); } }
+:root[data-theme="dark"] .seg button.on { background: color-mix(in srgb, var(--ink) 14%, var(--surface)); }
+/* quieter links on names */
+.signal .link-inline, .chat .link-inline.who { text-decoration-color: transparent; }
+.signal .link-inline:hover, .chat .link-inline.who:hover { text-decoration-color: currentColor; }
+/* no wireframe dashes */
+.world-pane, .badge-tile { border-style: solid !important; }
+
+/* ---------- review round: reach, contrast, consistency ---------- */
+:root { --muted: #626977; }
+.seat-sec.b3, .lg.b3 { fill: #C2410C; background: #C2410C; }
+/* toasts at the top, clear of the tab bar, the cart and sheet buttons */
+.toasts { top: calc(12px + env(safe-area-inset-top, 0px)); bottom: auto !important; }
+.toast { box-shadow: 0 10px 30px rgb(0 0 0 / .25); }
+/* fingers, not cursors: 44px targets */
+.seg button { min-height: 40px; }
+.sheet .seg button, .tips .seg button { min-height: 44px; }
+.stepper button, .qty .btn, .cart-line .qty .btn { min-width: 40px; min-height: 40px; }
+.sec-chip { min-height: 46px; }
+.chips button, .cats button { min-height: 40px; }
+.welcome-x { min-width: 44px; min-height: 44px; }
+.link-inline { padding-block: 8px; }
+.check { min-height: 44px; }
+/* nothing smaller than 11px */
+.mc-top, .mc-foot { font-size: 11px !important; }
+.mcard.sm .mc-top, .mcard.sm .mc-foot { font-size: 10.5px !important; }
+.team-logo { width: 22px; height: 22px; }
+.team-logo.big { width: 30px; height: 30px; }
+.pilot-note, .welcome-pilot { display: block; color: var(--muted); font-size: 12px; margin-top: 6px; }
+.welcome-pilot { color: rgb(255 255 255 / .8); margin: 0; }
+/* the live board mirrors: away score sits right */
+.bs-team.away { text-align: right; justify-items: end; }
+.l-sim-tag { margin-left: 8px; padding: 3px 7px; border-radius: var(--r-pill); background: rgb(255 255 255 / .12); color: var(--board-ink); font-size: 10.5px; letter-spacing: .08em; }
+.l-sim-link { border-color: var(--line); color: var(--ink-2); }
+.spot-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 10px; align-items: end; }
+.spot-row label { display: grid; gap: 6px; font-weight: 600; font-size: 14px; }
+.spot-row input { border: 1px solid var(--line); border-radius: var(--r-md); padding: 12px 14px; font: inherit; font-size: 16px; background: var(--surface); color: var(--ink); min-width: 0; text-transform: uppercase; }
+.info-back { position: fixed; inset: 0; z-index: 70; background: rgb(10 12 16 / .5); display: grid; place-items: center; padding: 16px; }
+.info { width: min(560px, 100%); max-height: 88dvh; overflow: auto; background: var(--surface); color: var(--ink); border-radius: var(--r-lg); padding: 20px; display: grid; gap: 8px; text-align: left; }
+.info h3 { font: 700 15px/1.2 var(--body); margin-top: 8px; }
+.info p { color: var(--ink-2); line-height: 1.5; }
+.ops-foot { margin-top: 16px; max-width: 560px; }
+.tour .btn:not(.primary) { background: transparent; color: var(--board-ink); border: 1px solid color-mix(in srgb, var(--board-ink) 35%, transparent); }
+.talk label { display: grid; gap: 6px; font-weight: 600; font-size: 14px; }
+.talk label small { color: var(--muted); font-weight: 500; }
+.talk input, .talk textarea { border: 1px solid var(--line); border-radius: var(--r-md); padding: 12px 14px; font: inherit; font-size: 16px; background: var(--bg); color: var(--ink); }
+.talk-roles { display: flex; flex-wrap: wrap; gap: 6px; }
+.talk-roles .chip.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.l-sim-acts { display: flex; flex-wrap: wrap; gap: 10px; }
+.l-sim-acts .btn { text-decoration: none; text-align: center; flex: 1 1 200px; }
+.btn.ghost-board { background: transparent; color: var(--board-ink); border: 1px solid color-mix(in srgb, var(--board-ink) 35%, transparent); }
+.l-sim-acts { display: flex; flex-wrap: wrap; gap: 10px; }
+.l-sim-acts .btn { text-decoration: none; text-align: center; flex: 1 1 200px; }
+.btn.ghost-board { background: transparent; color: var(--board-ink); border: 1px solid color-mix(in srgb, var(--board-ink) 35%, transparent); }
+/* the search tucks away while you scroll down and comes back when you scroll up */
+.finder { max-height: 80px; transition: max-height .2s ease, padding .2s ease, opacity .15s ease; overflow: hidden; }
+.phone.tucked .finder { max-height: 0; padding-block: 0; opacity: 0; }
+@media (prefers-reduced-motion: reduce) { .finder { transition: none; } }
+/* small phones */
+@media (max-width: 360px) { .l-tag { display: none; } .l-score { grid-template-columns: auto auto 1fr auto auto; } .l-team { font-size: 12px; } }
+.l-top { flex-wrap: nowrap; }
+/* tablets: the app fills the screen, readable width */
+@media (min-width: 601px) and (max-width: 1100px) {
+  .app-shell { display: block; padding: 0; background: var(--bg); }
+  .app-shell .phone { width: 100%; max-width: none; height: 100dvh; border: 0; border-radius: 0; box-shadow: none; }
+  .app-shell .scope-body > * { max-width: 760px; margin-inline: auto; }
+}
+/* desktop: the phone, and a word beside it */
+.desk-side { display: none; }
+@media (min-width: 1101px) {
+  .app-shell { grid-template-columns: 410px minmax(0, 360px); justify-content: center; gap: 48px; }
+  .desk-side { display: grid; gap: 14px; align-content: center; }
+  .desk-side .l-mark { font-size: 40px; }
+  .desk-side p { color: var(--ink-2); line-height: 1.5; }
+  .desk-side a { text-decoration: none; text-align: center; }
+}
+/* simulator on small screens: names only, no hints */
+@media (max-width: 760px) { .harness.sim .persp button small { display: none; } .harness.sim .controls .h-btn:not(.primary):not(:first-child) { padding-inline: 10px; } }
+/* long words never push the screen sideways */
+.scope-body, .chat li, .chat span, .signal .grow, .page, .sheet { overflow-wrap: anywhere; min-width: 0; }
+.chat li > span { min-width: 0; }
+.live-dot { flex: none; }
+@media (max-width: 360px) {
+  .tips .seg button { padding-inline: 4px; font-size: 13px; }
+  .cart-line { grid-template-columns: 1fr auto auto; }
+  .cart-line > .art { display: none; }
+  .sheet .seg button { font-size: 13px; padding-inline: 6px; }
+}

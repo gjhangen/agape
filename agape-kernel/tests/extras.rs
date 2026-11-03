@@ -178,7 +178,38 @@ fn a_venue_sees_its_own_teams_and_players() {
     assert_eq!(v["colors"]["teams"][0]["name"], "Austin Hawks");
     assert_eq!(v["colors"]["teams"][0]["color"], "#0A7E4F");
     assert_eq!(n.renamed("Halftime trivia: who holds the Harbor Kings' single-game scoring record?"), "Halftime trivia: who holds the Austin Hawks' single-game scoring record?");
+    assert!(n.league.upcoming.iter().all(|e| !e.title.contains("Kings")), "events carry the venue's names: {:?}", n.league.upcoming.iter().map(|e| &e.title).collect::<Vec<_>>());
     until(&mut n, 100);
     let chat: Vec<String> = n.chat.iter().map(|c| c.3.clone()).collect();
     assert!(!chat.iter().any(|c| c.contains("KINGS") || c.contains("kings") || c.contains('{')), "the crowd uses the venue's names: {chat:?}");
+}
+
+#[test]
+fn the_crowd_chat_is_kept_clean_and_runners_know_the_exact_seat() {
+    let mut n = night();
+    n.join_named("me", "s112", "Me", false).unwrap();
+    assert!(n.chat_as("me", "DM me for cheap tix at 555-201-8890").is_err());
+    assert!(n.chat_as("me", "go to tixdeals.biz").is_err());
+    n.chat_as("me", "fuck the comets").unwrap();
+    assert_eq!(n.chat.back().unwrap().3, "f••• the comets");
+    n.chat_as("me", "LET'S GO KINGS").unwrap();
+    assert_eq!(n.chat.back().unwrap().3, "LET'S GO KINGS");
+    n.set_spot("me", "f", "7").unwrap();
+    assert_eq!(n.view_fan("me")["you"]["spot"], "Row F, seat 7");
+}
+
+#[test]
+fn last_call_comes_before_the_final_and_kitchens_close_at_it() {
+    let mut n = night();
+    n.join_named("me", "s104", "Me", false).unwrap();
+    n.attest_age("me").unwrap();
+    let beer = n.world.def.things.iter().find(|t| t.constraints.iter().any(|c| matches!(c, agape_kernel::world::Constraint::MinAge(_)))).unwrap().id.clone();
+    let food = n.world.def.things.iter().find(|t| t.category == "food").unwrap().id.clone();
+    until(&mut n, 156);
+    assert!(n.order_as("me", &beer, 1, true, 0, None).unwrap_err().contains("last_call"));
+    assert!(n.order_as("me", &food, 1, true, 0, None).is_ok());
+    until(&mut n, 185);
+    assert_eq!(n.order_as("me", &food, 1, true, 0, None).unwrap_err(), "ClosedForNight");
+    let item = n.view_fan("me")["items"].as_array().unwrap().iter().find(|i| i["id"] == food.as_str()).cloned().unwrap();
+    assert_eq!(item["why_not"], "ClosedForNight");
 }

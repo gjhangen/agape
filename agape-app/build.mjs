@@ -71,3 +71,21 @@ writeFileSync("dist/server/demo/index.html", `<!doctype html><html lang="en"><he
 <meta name="theme-color" content="#B8174F"><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 </head><body>${html.replace("<title>Agape Simulator</title>", "<title>Agape Simulator</title>")}</body></html>`);
 console.log("dist/server/demo/index.html");
+
+// The team's own page: who asked to talk. Needs the operator key from the server.
+mkdirSync("dist/server/leads", { recursive: true });
+writeFileSync("dist/server/leads/index.html", `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex">
+<title>Agape · who asked to talk</title><style>
+body{font:15px/1.45 -apple-system,system-ui,sans-serif;margin:0;background:#F3F4F7;color:#14161B}main{max-width:900px;margin:0 auto;padding:24px 16px}
+h1{font-size:22px}input{font:inherit;padding:10px 12px;border:1px solid #D8DCE3;border-radius:10px;width:min(420px,100%)}button{font:inherit;font-weight:700;padding:10px 16px;border:0;border-radius:10px;background:#B8174F;color:#fff;margin-left:6px}
+.l{background:#fff;border:1px solid #E3E6EC;border-radius:12px;padding:14px;margin-top:10px}.l b{font-size:16px}.m{color:#626977;font-size:13px}p.n{white-space:pre-wrap;margin:6px 0 0}
+@media (prefers-color-scheme: dark){body{background:#0E1014;color:#EDEFF3}.l{background:#171A20;border-color:#2A2F38}input{background:#171A20;color:#EDEFF3;border-color:#2A2F38}.m{color:#8A91A0}}
+</style></head><body><main><h1>Who asked to talk</h1>
+<form id="f"><input id="k" type="password" placeholder="Operator key (AGAPE_ADMIN_TOKEN on the server)" autocomplete="current-password"><button>Show</button></form><div id="out"></div></main>
+<script>
+const out=document.getElementById('out'),k=document.getElementById('k');k.value=localStorage.getItem('agape.op')||'';
+const esc=s=>String(s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+async function load(){const r=await fetch('/api/admin/leads',{headers:{'x-admin-token':k.value}});if(!r.ok){out.textContent='That key is not right.';return}localStorage.setItem('agape.op',k.value);
+const {leads}=await r.json();out.innerHTML=leads.length?leads.reverse().map(l=>'<div class="l"><b>'+esc(l.name)+'</b> · '+esc(l.role)+(l.org?' · '+esc(l.org):'')+'<div class="m">'+esc(l.contact)+' · '+new Date(l.at*1000).toLocaleString()+(l.version?' · from shared version '+esc(l.version):'')+'</div>'+(l.note?'<p class="n">'+esc(l.note)+'</p>':'')+'</div>').join(''):'<p>Nobody yet.</p>'}
+document.getElementById('f').onsubmit=e=>{e.preventDefault();load()};if(k.value)load();
+</script></body></html>`);

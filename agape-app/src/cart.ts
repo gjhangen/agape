@@ -2,9 +2,9 @@
 import { useEffect, useState } from "./r";
 
 export type CartLine = { thing: string; qty: number };
-let lines: CartLine[] = (() => { try { return JSON.parse(sessionStorage.getItem("agape.cart") || "[]"); } catch { return []; } })();
+let lines: CartLine[] = (() => { try { return JSON.parse(localStorage.getItem("agape.cart") || "[]"); } catch { return []; } })();
 const subs = new Set<() => void>();
-const save = () => { try { sessionStorage.setItem("agape.cart", JSON.stringify(lines)); } catch { /* this page only */ } subs.forEach(f => f()); };
+const save = () => { try { localStorage.setItem("agape.cart", JSON.stringify(lines)); } catch { /* this page only */ } subs.forEach(f => f()); };
 
 export const cart = {
   get: () => lines,

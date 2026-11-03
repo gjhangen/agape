@@ -58,7 +58,7 @@ fn view_allowed(role: Role, lens: &str) -> bool {
 /// Which actions each role may take.
 fn act_allowed(role: Role, act: &str) -> bool {
     const FAN: &[&str] = &["order", "quote", "window", "tap", "checkout", "cancel", "predict", "collect", "list", "delist", "buy", "follow", "message", "unlock",
-        "tickets", "ticket_quote", "ride", "ride_quote", "cancel_ride", "parking", "deal", "withdraw", "confirm", "chat", "join", "wear", "attest_age", "cart", "cart_quote", "report", "rate", "reorder", "gift", "prioritize", "upgrade", "resell", "unlist_tickets", "buy_resale"];
+        "tickets", "ticket_quote", "ride", "ride_quote", "cancel_ride", "parking", "deal", "withdraw", "confirm", "chat", "join", "wear", "attest_age", "cart", "cart_quote", "spot", "report", "rate", "reorder", "gift", "prioritize", "upgrade", "resell", "unlist_tickets", "buy_resale"];
     match role {
         Role::Fan => FAN.contains(&act),
         Role::Player => matches!(act, "respond" | "deliver" | "reply" | "message" | "follow" | "claim"),
@@ -81,6 +81,12 @@ async fn signup(State(app): State<S>, Json(b): Json<Value>) -> Response {
 async fn signin(State(app): State<S>, Json(b): Json<Value>) -> Response {
     let r = app.auth.lock().unwrap().sign_in(b["handle"].as_str().unwrap_or(""), b["password"].as_str().unwrap_or(""));
     match r { Ok((token, acc)) => Json(json!({ "ok": true, "token": token, "account": acc.public() })).into_response(), Err(e) => err(StatusCode::UNAUTHORIZED, &e) }
+}
+
+async fn signout(State(app): State<S>, h: HeaderMap) -> Response {
+    let token = h.get("authorization").and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ")).unwrap_or("");
+    app.auth.lock().unwrap().sign_out(token);
+    Json(json!({ "ok": true })).into_response()
 }
 
 async fn me(State(app): State<S>, h: HeaderMap) -> Response {
@@ -191,6 +197,27 @@ async fn studio_load(State(app): State<S>, Path(id): Path<String>) -> Response {
     }
 }
 
+/// Someone who wants Agape at their venue, or wants to talk. Kept for the team; never shown publicly.
+async fn lead(State(app): State<S>, Json(b): Json<Value>) -> Response {
+    let get = |k: &str, n: usize| b[k].as_str().unwrap_or("").trim().chars().take(n).collect::<String>();
+    let (name, contact) = (get("name", 80), get("contact", 120));
+    if name.is_empty() || contact.is_empty() { return err(StatusCode::BAD_REQUEST, "Add your name and an email or phone number"); }
+    let at = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+    let rec = json!({ "at": at, "name": name, "contact": contact, "org": get("org", 120), "role": get("role", 40), "note": get("note", 1000), "version": get("version", 20) });
+    let mut line = rec.to_string(); line.push('\n');
+    use std::io::Write;
+    match std::fs::OpenOptions::new().create(true).append(true).open(app.data.join("leads.jsonl")).and_then(|mut f| f.write_all(line.as_bytes())) {
+        Ok(_) => Json(json!({ "ok": true })).into_response(),
+        Err(_) => err(StatusCode::INTERNAL_SERVER_ERROR, "Couldn't save that; please try again"),
+    }
+}
+
+async fn admin_leads(State(app): State<S>, h: HeaderMap) -> Response {
+    if !operator(&app, &h) { return err(StatusCode::FORBIDDEN, "Operators only"); }
+    let all: Vec<Value> = std::fs::read_to_string(app.data.join("leads.jsonl")).unwrap_or_default().lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
+    Json(json!({ "ok": true, "leads": all })).into_response()
+}
+
 /// Before signing in: the game and the night at a glance. Nothing about any person.
 async fn glance(State(app): State<S>, Path(vid): Path<String>) -> Response {
     match app.venue(&vid) { Some(v) => Json(v.view("", json!({ "lens": "glance" })).await).into_response(), None => err(StatusCode::NOT_FOUND, "No such venue") }
@@ -253,12 +280,15 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/signup", post(signup))
         .route("/api/signin", post(signin))
         .route("/api/me", get(me))
+        .route("/api/signout", post(signout))
         .route("/api/venues", get(venues))
         .route("/api/v/{venue}/view", post(view))
         .route("/api/v/{venue}/act", post(act))
         .route("/api/v/{venue}/events", get(events))
         .route("/api/v/{venue}/glance", get(glance))
         .route("/api/studio", post(studio_save))
+        .route("/api/leads", post(lead))
+        .route("/api/admin/leads", get(admin_leads))
         .route("/api/studio/{id}", get(studio_load))
         .route("/api/admin/accounts", post(admin_account))
         .route("/api/admin/venues", post(admin_venue))

@@ -272,3 +272,26 @@ async fn a_studio_version_is_kept_and_comes_back_as_a_link() {
     let (bad, _) = s.post("/api/studio", None, json!({ "nope": true })).await;
     assert_eq!(bad, StatusCode::BAD_REQUEST);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_venue_can_ask_to_talk_and_only_operators_see_it() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = start(dir.path()).await;
+    assert_eq!(s.post("/api/leads", None, json!({ "name": "" })).await.0, StatusCode::BAD_REQUEST);
+    assert!(s.post("/api/leads", None, json!({ "name": "Dana", "contact": "dana@arena.example", "org": "River Arena", "role": "venue" })).await.0.is_success());
+    assert_eq!(s.c.get(format!("{}/api/admin/leads", s.base)).send().await.unwrap().status(), StatusCode::FORBIDDEN);
+    let all: Value = s.c.get(format!("{}/api/admin/leads", s.base)).header("x-admin-token", "op-secret").send().await.unwrap().json().await.unwrap();
+    assert_eq!(all["leads"][0]["org"], "River Arena");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn signing_out_ends_the_session_everywhere() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = start(dir.path()).await;
+    let t = s.signup("ana").await;
+    assert_eq!(s.c.get(format!("{}/api/me", s.base)).bearer_auth(&t).send().await.unwrap().status(), StatusCode::OK);
+    s.post("/api/signout", Some(&t), json!({})).await;
+    assert_eq!(s.c.get(format!("{}/api/me", s.base)).bearer_auth(&t).send().await.unwrap().status(), StatusCode::UNAUTHORIZED);
+    assert_eq!(s.act(&t, json!({ "do": "join", "seat": "s104" })).await["ok"], false);
+    assert!(!s.signin(" ana ", "correct horse").await.is_empty(), "a stray space doesn't lock you out");
+}

@@ -31,14 +31,15 @@ export function worldOverride(): any { try { const s = sessionStorage.getItem("a
 export function setWorldOverride(w: any) { try { w ? sessionStorage.setItem("agape.world", JSON.stringify(w)) : sessionStorage.removeItem("agape.world"); } catch { /* storage off: the change lasts until reload */ } }
 export const setup = {
   check: (world: any) => call(x!.check, { world, template: AGAPE_TEMPLATE }),
-  preview: (world: any) => call(x!.preview, { world, template: AGAPE_TEMPLATE, fans: 1000, runners: 15 }),
+  preview: (world: any) => call(x!.preview, { world, template: AGAPE_TEMPLATE, fans: world?.pilot?.fans ?? 3000, runners: world?.pilot?.runners ?? 40 }),
 };
 
 export async function boot(seed: number, youSeat: string) {
   const bin = Uint8Array.from(atob(AGAPE_WASM), c => c.charCodeAt(0));
   const { instance } = await WebAssembly.instantiate(bin, {});
   x = instance.exports as unknown as Exports;
-  return call(x.init, { world: worldOverride() ?? AGAPE_WORLD, template: AGAPE_TEMPLATE, seed, you_seat: youSeat });
+  const w = worldOverride() ?? AGAPE_WORLD;
+  return call(x.init, { world: w, template: AGAPE_TEMPLATE, seed, you_seat: youSeat, fans: w?.pilot?.fans ?? 3000, runners: w?.pilot?.runners ?? 40 });
 }
 
 type Lens = "fan" | "runner" | "stand" | "ops" | "page" | "player" | "business" | "parties";

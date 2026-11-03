@@ -6,8 +6,9 @@ import { BRAND, runnerName, venueTime } from "./parts";
 import { BusinessLens, PlayerLens } from "./deals";
 import { SetupLens, resetVenue } from "./setup";
 import { setWorldOverride, worldOverride } from "./kernel";
-import { applyLook, applyMode, savedLook, savedMode } from "./themes";
+import { applyLook, applyMode, savedLook, savedMode, setVenueColor } from "./themes";
 import { LookPicker } from "./lookpicker";
+import { TalkToUs } from "./talk";
 void LookPicker;
 
 const SPEEDS = [
@@ -23,11 +24,13 @@ const PERSPECTIVES: [Persp, string, string][] = [["fan", "Fan", "Section 104, on
 /** A walk through the night, one seat at a time. */
 const TOUR: { persp: Persp; title: string; body: string }[] = [
   { persp: "fan", title: "A fan's phone", body: "This is Agape as a fan sees it in section 104. Tap any food or drink: the time shown is when it reaches the seat, measured, not guessed. Add a few things to the cart and order." },
-  { persp: "fan", title: "The game, live", body: "Open Live. Call the quarter for points, chat with your section, and collect the night's big plays as limited cards the moment they happen." },
+  { persp: "fan", title: "The game, live", body: "On the phone, tap Live at the bottom. Call the quarter for points, chat with your section, and collect the night's big plays as limited cards the moment they happen." },
   { persp: "stand", title: "The kitchen", body: "Every order lands here the second it's placed: stations, the queue, the ready shelf. Start a shift and you're the one cooking; the simulation steps aside." },
   { persp: "runner", title: "The runner", body: "Runners get trips batched by section, with the route on the map. Tips go entirely to them." },
   { persp: "ops", title: "The whole venue", body: "Operations sees every order, every runner and every dollar. The ledger balances to the cent all night, and one tap pauses service everywhere if something goes wrong." },
-  { persp: "business", title: "Businesses and sponsors", body: "Nearby businesses and sponsors pay players to promote them and see exactly which fans came through their door because of it." },
+  { persp: "ops", title: "Where the money goes", body: "Scroll Venue ops to Money tonight: every dollar fans paid, split between the stands, runners, sales tax, card processing and Agape. Every term is set per venue in the Studio." },
+  { persp: "business", title: "Businesses and sponsors", body: "Nearby businesses offer perks fans unlock with points, and sponsors can back players. They see exactly which fans came through their door." },
+  { persp: "player", title: "Players", body: "Players see their following and the fans who backed them, and can take on promotions, all inside the rules their team sets." },
   { persp: "setup", title: "Make it yours", body: "Put your own teams, logos, colors, players and menu on it, switch off what you don't want, and run a whole night before you open. Nothing here touches anyone else." },
   { persp: "fan", title: "Speed it up", body: "Use the speed buttons to run the night at 6×, 30× or 120×, or skip to halftime or the final. Everything stays consistent: same night, every seat." },
 ];
@@ -55,8 +58,10 @@ function App() {
   const [parties, setParties] = useState<any>(null);
   const [wide, setWide] = useState(() => matchMedia("(min-width: 1080px)").matches);
   const [tour, setTour] = useState<number | null>(null);
+  const [talk, setTalk] = useState(false);
   const [intro, setIntro] = useState(() => { try { return localStorage.getItem("agape.sim.intro") !== "seen"; } catch { return true; } });
   const closeIntro = () => { setIntro(false); try { localStorage.setItem("agape.sim.intro", "seen"); } catch { /* shown again next visit */ } };
+  useEffect(() => { try { if (sessionStorage.getItem("agape.badlink")) { sessionStorage.removeItem("agape.badlink"); setTimeout(() => toast("That link didn't open a saved version, so this is the sample venue."), 600); } } catch { /* fine */ } }, []);
   const goTour = (i: number | null) => { setTour(i); if (i != null) setPersp(TOUR[i].persp); };
   const acc = useRef(0);
   const st = useRef({ persp, runnerId, standId, wide, playerId, bizId });
@@ -123,7 +128,7 @@ function App() {
     <>
       <header className="harness sim">
         <div className="harness-in">
-          <span className="sim-brand"><b>agape</b> simulator<span className="sub"> · {BRAND.venue}{worldOverride() && <> · your version <button className="link-inline small" onClick={resetVenue}>back to the sample venue</button></>}</span></span>
+          <span className="sim-brand"><b>agape</b> simulator<span className="sub"> · {BRAND.venue}{worldOverride() && <> · {sessionStorage.getItem("agape.shared") ? "a version made for you" : "your version"} <button className="link-inline small" onClick={() => { try { sessionStorage.removeItem("agape.shared"); } catch { /* fine */ } resetVenue(); }}>see the sample venue</button></>}</span></span>
           <div className="controls">
             <button className="btn h-btn" onClick={() => setPlaying(!playing)} aria-pressed={!playing}>{done ? "Night over" : playing ? "Pause" : "Play"}</button>
             <div className="seg h-seg" role="group" aria-label="Speed">
@@ -133,7 +138,8 @@ function App() {
               <option value="">Skip to…</option><option value="half">Halftime</option><option value="q4">4th quarter</option><option value="final">Final</option>
             </select>
             <button className="btn h-btn" onClick={() => location.reload()} title="Start the night again">Restart</button>
-            <button className="btn h-btn primary" onClick={() => goTour(0)}>Take the tour</button>
+            <button className="btn h-btn" onClick={() => goTour(0)}>Tour</button>
+            <button className="btn h-btn primary" onClick={() => setTalk(true)}>Talk to us</button>
           </div>
         </div>
         <nav className="persp" aria-label="Whose screen">
@@ -148,7 +154,7 @@ function App() {
           <div>
             <span className="eyebrow">You're looking at a whole night, simulated</span>
             <h1>A full arena, running in your browser.</h1>
-            <p>A basketball night at {BRAND.venue}: {(3000).toLocaleString()} simulated fans ordering, chatting and collecting, 40 runners, every kitchen, every dollar. Agape itself is real; the crowd and the game are simulated so you can see all of it at once. Step into any seat above, speed time up, switch features off, or put your own team on it in the Studio. Nothing you do here affects anyone else.</p>
+            <p>A basketball night at {BRAND.venue}: {(worldOverride()?.pilot?.fans ?? 3000).toLocaleString()} simulated fans ordering, chatting and collecting, {worldOverride()?.pilot?.runners ?? 40} runners, every kitchen, every dollar. Agape itself is real; the crowd and the game are simulated so you can see all of it at once. Step into any seat above, speed time up, switch features off, or put your own team on it in the Studio. Nothing you do here affects anyone else.</p>
           </div>
           <div className="sim-intro-acts">
             <button className="btn primary big" onClick={() => { closeIntro(); goTour(0); }}>Take the 2-minute tour</button>
@@ -157,6 +163,7 @@ function App() {
           </div>
         </section>
       )}
+      {talk && <TalkToUs close={() => setTalk(false)} version={sessionStorage.getItem("agape.shared")} />}
       {tour != null && (
         <aside className="tour" role="dialog" aria-label="Tour">
           <span className="eyebrow">Tour · {tour + 1} of {TOUR.length}</span>
@@ -203,8 +210,10 @@ function App() {
     try {
       const w = await fetch(`/api/studio/${shared}`).then(r => r.ok ? r.json() : null);
       if (w) { setWorldOverride(w); try { sessionStorage.setItem("agape.shared", shared); } catch { /* opens again next time */ } }
+      else { setWorldOverride(null); try { sessionStorage.removeItem("agape.shared"); sessionStorage.setItem("agape.badlink", "1"); } catch { /* fine */ } }
     } catch { /* the sample venue, then */ }
   }
+  setVenueColor(worldOverride()?.brand?.home?.color || null);
   const r = await boot(7, YOU_SEAT);
   if (!r.ok) throw new Error(r.error);
   kernel.step(START_MINUTE * 6);

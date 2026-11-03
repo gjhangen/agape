@@ -239,6 +239,8 @@ pub struct Night {
     pub names: BTreeMap<String, String>,
     /// Whose colors each fan wears in the app: a team playing tonight, or "agape". Unset means the home team.
     pub wearing: BTreeMap<String, String>,
+    /// Where exactly each fan sits inside their section ("Row F, seat 7"), as they told us.
+    pub spots: BTreeMap<String, String>,
     /// League names the venue shows differently (its own teams and players).
     pub renames: BTreeMap<String, String>,
     /// Level earned at other venues, as an offset on what's been earned here.
@@ -306,7 +308,15 @@ impl Night {
         let mut renames = BTreeMap::new();
         for (a, b) in original.teams.iter().zip(&league.teams) {
             if a.name != b.name { renames.insert(a.name.clone(), b.name.clone()); }
+            if a.short != b.short { renames.insert(a.short.clone(), b.short.clone()); }
             for (x, y) in a.roster.iter().zip(&b.roster) { if x.name != y.name { renames.insert(x.name.clone(), y.name.clone()); } }
+        }
+        // upcoming events are titled with the league's names too
+        for e in league.upcoming.iter_mut() {
+            // longest names first, so "Harbor Kings" is replaced before "Kings"
+            let mut keys: Vec<(&String, &String)> = renames.iter().collect();
+            keys.sort_by_key(|(a, _)| std::cmp::Reverse(a.len()));
+            for (a, b) in keys { e.title = e.title.replace(a.as_str(), b); }
         }
         let mut n = Self::new_in(world_def, tpl, league, cfg);
         n.renames = renames;
@@ -314,7 +324,15 @@ impl Night {
     }
 
     /// Text written with the league's names, in the venue's.
-    pub fn renamed(&self, s: &str) -> String { self.renames.iter().fold(s.to_string(), |acc, (a, b)| acc.replace(a.as_str(), b)) }
+    pub fn renamed(&self, s: &str) -> String {
+        let mut keys: Vec<(&String, &String)> = self.renames.iter().collect();
+        keys.sort_by_key(|(a, _)| std::cmp::Reverse(a.len()));
+        // a placeholder per name, so a new name containing an old one isn't replaced twice
+        let mut out = s.to_string();
+        for (i, (a, _)) in keys.iter().enumerate() { out = out.replace(a.as_str(), &format!("\u{1}{i}\u{2}")); }
+        for (i, (_, b)) in keys.iter().enumerate() { out = out.replace(&format!("\u{1}{i}\u{2}"), b); }
+        out
+    }
 
     pub fn new_in(world_def: WorldDef, tpl: Template, league: crate::league::League, cfg: Config) -> Night {
         let world = World::build(world_def);
@@ -351,7 +369,7 @@ impl Night {
             report: Report::default(), placed_by_phase: BTreeMap::new(), batches: (0, 0), score: (0, 0), script, end_min, menu, t: 0,
             feed: vec![], recent: Default::default(), plans: BTreeMap::new(), done: false, chat: Default::default(), predictions: vec![], world,
             league, social: crate::social::Social::default(), last_scorer: BTreeMap::new(), seatmaps: BTreeMap::new(),
-            trade: Default::default(), claimed: BTreeSet::new(), driven: BTreeSet::new(), redeemed: BTreeMap::new(), replies: vec![], replay_check: std::cell::Cell::new((0, true)), live: BTreeSet::new(), trips: BTreeMap::new(), problems: vec![], halt: None, ratings: vec![], names: BTreeMap::new(), wearing: BTreeMap::new(), renames: BTreeMap::new(), level_offset: BTreeMap::new(), passports: BTreeMap::new(), transfers: BTreeMap::new(),
+            trade: Default::default(), claimed: BTreeSet::new(), driven: BTreeSet::new(), redeemed: BTreeMap::new(), replies: vec![], replay_check: std::cell::Cell::new((0, true)), live: BTreeSet::new(), trips: BTreeMap::new(), problems: vec![], halt: None, ratings: vec![], names: BTreeMap::new(), wearing: BTreeMap::new(), renames: BTreeMap::new(), spots: BTreeMap::new(), level_offset: BTreeMap::new(), passports: BTreeMap::new(), transfers: BTreeMap::new(),
         }.seeded_live()
     }
 
@@ -453,6 +471,7 @@ impl Night {
         let fan = self.live_fan(who)?;
         let th = self.world.thing(thing).ok_or("unknown item")?.clone();
         self.world.eligible(&fan, thing, &|s| self.engine.span_open(s), false).map_err(|r| format!("{r:?}"))?;
+        if let Some(why) = self.closed_now(thing) { return Err(why.into()); }
         let q = Quote { fan: who.into(), stand: th.stand.clone(), runner: None, lines: vec![Line { thing: th.id.clone(), qty, unit_price: th.price }],
                         discounts: vec![], points_redeemed: 0, tip, delivery, fee_waived: false };
         let c = Commitment::accept(&format!("o{}", self.orders.len()), q, &mut self.ledger).map_err(|_| "SoldOut".to_string())?;
@@ -487,6 +506,7 @@ impl Night {
             if *qty <= 0 { return Err("Pick at least one".into()); }
             let th = self.world.thing(thing).ok_or("unknown item")?.clone();
             self.world.eligible(&fan, thing, &|s| self.engine.span_open(s), false).map_err(|r| format!("{r:?}"))?;
+            if let Some(why) = self.closed_now(thing) { return Err(why.into()); }
             let have = self.ledger.balance(&acct(&th.stand, "inventory"), &Unit::Thing(th.id.clone()));
             if have < *qty { return Err(format!("{} just sold out", th.name)); }
             match groups.iter_mut().find(|g| g.0 == th.stand) {
@@ -585,6 +605,25 @@ impl Night {
         Ok(())
     }
 
+    /// Why nothing more of this can be ordered tonight: the kitchens close at the final.
+    pub fn closed_now(&self, thing: &str) -> Option<&'static str> {
+        let m = self.t / 60_000;
+        if phase(m).0 == "postgame" { return Some("ClosedForNight"); }
+        let _ = thing; // last call for alcohol is the template's own span
+        None
+    }
+
+    /// Where in the section: row and seat, so the runner walks straight to you.
+    pub fn set_spot(&mut self, who: &str, row: &str, seat: &str) -> Result<(), String> {
+        self.live_fan(who)?;
+        let clean = |x: &str| x.trim().chars().filter(|c| c.is_ascii_alphanumeric()).take(4).collect::<String>().to_uppercase();
+        let (row, seat) = (clean(row), clean(seat));
+        if row.is_empty() && seat.is_empty() { self.spots.remove(who); return Ok(()); }
+        let words = match (row.is_empty(), seat.is_empty()) { (false, false) => format!("Row {row}, seat {seat}"), (false, true) => format!("Row {row}"), _ => format!("Seat {seat}") };
+        self.spots.insert(who.into(), words);
+        Ok(())
+    }
+
     /// Wear a team's colors in the app (or Agape's own). Only a team playing tonight; "" goes back to the home team.
     pub fn wear(&mut self, who: &str, team: &str) -> Result<(), String> {
         if !self.fans.iter().any(|f| f.id == who) { return Err("Join first".into()); }
@@ -601,7 +640,8 @@ impl Night {
         let text = text.trim();
         if text.is_empty() || text.chars().count() > 140 { return Err("Say something up to 140 characters".into()); }
         let seat = self.live_fan(who)?.seat.clone();
-        self.post_chat(who, &seat, text);
+        let text = moderate(text)?;
+        self.post_chat(who, &seat, &text);
         Ok(())
     }
 
@@ -964,7 +1004,7 @@ impl Night {
         for _ in 0..count {
             let fan = self.fans[self.rng.below(sim_fans as u64) as usize].clone();
             let thing = self.world.thing(&self.menu[self.rng.below(self.menu.len() as u64) as usize]).unwrap().clone();
-            if self.world.eligible(&fan, &thing.id, &|s| self.engine.span_open(s), false).is_err() { continue; }
+            if self.world.eligible(&fan, &thing.id, &|s| self.engine.span_open(s), false).is_err() || self.closed_now(&thing.id).is_some() { continue; }
             let qty = 1 + self.rng.chance(0.3) as i64;
             if self.ledger.balance(&acct(&thing.stand, "inventory"), &Unit::Thing(thing.id.clone())) < qty { self.report.menu_sold_out += 1; continue; }
             let delivery = self.rng.chance(self.cfg.delivery_share);
@@ -1218,6 +1258,27 @@ pub(crate) fn stand_wait(stations: &BTreeMap<String, Vec<(i64, Option<usize>)>>,
 }
 
 fn sim_fans_n(c: &Config) -> usize { c.fans }
+
+/// What the crowd may say: no links, phone numbers or selling, and swearing is masked.
+pub fn moderate(text: &str) -> Result<String, String> {
+    let lower = text.to_lowercase();
+    let digits = text.chars().filter(|c| c.is_ascii_digit()).count();
+    let linky = ["http", "www.", ".com", ".net", ".org", ".biz", ".io", ".ly", "@"].iter().any(|k| lower.contains(k));
+    let selling = ["dm me", "cheap tix", "cheap tickets", "venmo", "cashapp", "cash app", "paypal", "crypto", "onlyfans"].iter().any(|k| lower.contains(k));
+    if linky || digits >= 7 || selling { return Err("Links, phone numbers and selling aren't allowed in the crowd chat".into()); }
+    const MASK: &[&str] = &["fuck", "shit", "bitch", "cunt", "asshole", "dick", "pussy", "bastard", "slut", "whore", "nigg", "fag", "retard"];
+    let mut out = String::new();
+    for word in text.split_inclusive(|c: char| c.is_whitespace()) {
+        let w = word.to_lowercase();
+        if MASK.iter().any(|m| w.contains(m)) {
+            let core = word.trim_end();
+            let mut first = true;
+            for c in core.chars() { out.push(if first || !c.is_alphanumeric() { first = false; c } else { '•' }); }
+            out.push_str(&word[core.len()..]);
+        } else { out.push_str(word); }
+    }
+    Ok(out)
+}
 
 fn last_name(n: &str) -> String { n.split(' ').last().unwrap_or(n).to_string() }
 

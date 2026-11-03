@@ -80,6 +80,9 @@ const brighten = (c: RGB, on: RGB, ratio: number) => { const [h, s0] = toHsl(c);
 const until = (c: RGB, to: RGB, on: RGB, ratio: number) => { let x = c; for (let i = 0; i < 20 && contrast(x, on) < ratio; i++) x = mix(x, to, 0.08); return x; };
 
 let wearing: string | null = null;
+/** The venue's own color, worn when nobody has chosen another (a venue trying Agape as itself). */
+let venueColor: string | null = null;
+export function setVenueColor(c: string | null) { venueColor = c; paintTeam(); }
 const TEAM_PROPS = ["--accent", "--accent-ink", "--accent-soft", "--board", "--board-2", "--board-dim"];
 export function teamTokens(color: string, dark: boolean): Record<string, string> {
   const c = hex(color);
@@ -95,10 +98,11 @@ export function teamTokens(color: string, dark: boolean): Record<string, string>
 function paintTeam() {
   const root = document.documentElement;
   TEAM_PROPS.forEach(p => root.style.removeProperty(p));
-  if (!wearing || root.hasAttribute("data-palette")) return;
+  const color = wearing ?? venueColor;
+  if (!color || root.hasAttribute("data-palette")) return;
   const t = root.getAttribute("data-theme");
   const dark = t === "dark" || (t !== "light" && typeof matchMedia === "function" && matchMedia("(prefers-color-scheme: dark)").matches);
-  Object.entries(teamTokens(wearing, dark)).forEach(([k, v]) => root.style.setProperty(k, v));
+  Object.entries(teamTokens(color, dark)).forEach(([k, v]) => root.style.setProperty(k, v));
 }
 /** Wear a team's color (a hex), or null for Agape's own. */
 export function wearColor(color: string | null) { wearing = color; paintTeam(); }

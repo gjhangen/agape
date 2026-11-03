@@ -52,7 +52,8 @@ pub fn check(w: &WorldDef, tpl: &Template) -> Vec<Issue> {
         if t.id.trim().is_empty() || !things.insert(t.id.clone()) { v.push(err(&p, format!("Each item needs its own id ({})", t.id))); }
         if !ids.contains(&t.stand) { v.push(err(&p, format!("{} is sold at {}, which isn't a stand here", t.name, t.stand))); }
         used_stands.insert(t.stand.clone());
-        if t.price <= 0 || t.price > 500_00 { v.push(err(&p, format!("{} needs a price between $0.01 and $500", t.name))); }
+        if t.name.trim().is_empty() { v.push(err(&p, format!("Item {} needs a name", i + 1))); }
+        if t.price <= 0 || t.price > 500_00 { v.push(err(&p, format!("{} needs a price between $0.01 and $500", if t.name.trim().is_empty() { "An item" } else { t.name.as_str() }))); }
         if !(10..=3600).contains(&t.prep_s) { v.push(err(&p, format!("{} takes 10 seconds to an hour to make", t.name))); }
         if !matches!(t.category.as_str(), "food" | "drink" | "merch") { v.push(err(&p, format!("{} must be food, drink or merch", t.name))); }
         for c in &t.constraints {

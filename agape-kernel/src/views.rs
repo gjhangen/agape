@@ -48,7 +48,7 @@ impl Night {
         let items: Vec<Value> = q.lines.iter().map(|l| json!({ "thing": l.thing, "name": self.world.thing(&l.thing).map(|t| t.name.clone()), "qty": l.qty, "price": l.unit_price })).collect();
         let stand = self.world.def.stands.iter().find(|s| s.id == q.stand).map(|s| s.name.clone());
         json!({ "id": id, "stage": stage_name(&o.c.stage), "items": items, "stand": stand, "stand_id": q.stand, "delivery": q.delivery,
-                "runner": q.runner, "eta": o.eta, "placed": o.accepted_at,
+                "runner": q.runner, "eta": o.eta, "placed": o.accepted_at, "spot": self.spots.get(&q.fan),
                 "check_id": q.lines.iter().any(|l| self.world.thing(&l.thing).map_or(false, |t| t.constraints.iter().any(|c| matches!(c, crate::world::Constraint::MinAge(_))))), "delivered": o.delivered_at, "source": o.source, "seat": o.seat,
                 "charge": b.as_ref().map(|b| b.charge), "breakdown": b.map(|b| json!({ "subtotal": b.subtotal, "discount": b.discount, "tax": b.tax, "fee": b.fee, "tip": b.tip })),
                 "late_credit": o.c.late_by.as_ref().map(|_| crate::commitment::LATE_CREDIT), "scheduled_for": o.scheduled_for,
@@ -112,8 +112,8 @@ impl Night {
             let adult = th.constraints.iter().any(|c| matches!(c, crate::world::Constraint::MinAge(_)));
             let closes = self.script_final();
             items.push(json!({ "id": th.id, "name": th.name, "price": th.price, "category": th.category, "adult": adult, "closes": closes, "stand": stand.name, "stand_id": th.stand, "level": stand.level,
-                "available": elig.as_ref().map_or(false, |e| e.is_ok()) && stock > 0,
-                "why_not": elig.and_then(|e| e.err()).map(|r| format!("{r:?}")).or(if stock <= 0 { Some("SoldOut".into()) } else { None }),
+                "available": elig.as_ref().map_or(false, |e| e.is_ok()) && stock > 0 && self.closed_now(&th.id).is_none(),
+                "why_not": self.closed_now(&th.id).map(String::from).or(elig.and_then(|e| e.err()).map(|r| format!("{r:?}"))).or(if stock <= 0 { Some("SoldOut".into()) } else { None }),
                 "left": if stock < 1000 { Some(stock) } else { None }, "eta": eta }));
         }
         // fastest to you right now: the quickest available food and drink, one per stand
@@ -177,13 +177,13 @@ impl Night {
             "clock": self.clock(),
             "halt": self.halt,
             "provenance": self.provenance(),
-            "you": { "id": fan, "seat": seat, "neighbours": neighbours },
+            "you": { "id": fan, "seat": seat, "neighbours": neighbours, "spot": self.spots.get(fan) },
             "colors": self.colors_json(fan),
             "orders": active, "runner": runner,
             "upgrades": self.trade.offers().filter(|o| o.kind == crate::exchange::Kind::Upgrade && o.open).map(|o| {
                 let g = self.gate(&o.id, fan, 1, None);
                 json!({ "id": o.id, "section": o.subject, "title": o.title, "blurb": o.blurb, "price": o.price, "left": o.limit.map(|l| l - self.trade.taken(&o.id)), "ok": g.is_ok(), "why_not": g.err() })
-            }).filter(|u| u["why_not"] != "You've already moved seats tonight" && u["why_not"] != "You're already in one of the best sections" && u["why_not"] != "You're already there").collect::<Vec<_>>(),
+            }).filter(|u| u["why_not"] != "The game's over" && u["why_not"] != "You've already moved seats tonight" && u["why_not"] != "You're already in one of the best sections" && u["why_not"] != "You're already there").collect::<Vec<_>>(),
             "moved": self.trade.of_kind(crate::exchange::Kind::Upgrade).find(|a| a.buyer == fan).map(|a| json!({ "section": self.trade.offer(&a.offer).map(|o| o.subject.clone()), "at": a.made })),
             "get": { "offers": offers, "fastest": fastest, "stands": stands, "later": later, "market": self.market_json(fan, 12), "events": self.events_json(fan), "around": self.around_json(fan) },
             "items": items,
@@ -295,6 +295,8 @@ impl Night {
             "stands": self.world.def.stands.iter().map(|s| self.ledger.balance(&acct(&s.id, "revenue"), &usd)).sum::<i64>(),
             "runners": self.runners.iter().map(|r| self.ledger.balance(&acct(&r.id, "pay"), &usd) + self.ledger.balance(&acct(&r.id, "tips"), &usd)).sum::<i64>(),
             "tax": self.ledger.balance(&acct("tax_authority", "payable"), &usd),
+            "processing": self.ledger.balance(&acct("processor", "fees"), &usd),
+            "fans_paid": -self.ledger.balances_iter().filter(|((a, u), _)| a.purpose == "card" && *u == usd).map(|(_, v)| *v).sum::<i64>(),
             "conserved": self.ledger.units().iter().all(|u| self.ledger.total(u) == 0),
             "txns": self.ledger.txns.len(),
         });
@@ -326,7 +328,7 @@ impl Night {
         let teams: Vec<Value> = [&self.league.tonight.home, &self.league.tonight.away].iter().filter_map(|id| self.league.team(id))
             .map(|g| json!({ "name": g.name, "short": g.short, "abbr": g.abbr, "color": g.color })).collect();
         let moments: Vec<Value> = self.feed.iter().rev().filter(|f| matches!(f.kind.as_str(), "moment" | "score" | "game")).take(4)
-            .map(|f| json!({ "t": f.t, "text": f.text, "name": self.party_name(&f.party), "kind": f.kind })).collect();
+            .map(|f| json!({ "t": f.t, "text": f.text, "name": self.party_name(&f.party), "kind": f.kind, "team": f.team })).collect();
         let delivered: Vec<i64> = self.orders.iter().filter(|o| matches!(o.c.stage, Stage::Settled) && o.c.quote.delivery)
             .filter_map(|o| o.delivered_at.map(|d| d - o.accepted_at)).collect();
         let avg_min = if delivered.is_empty() { None } else { Some((delivered.iter().sum::<i64>() as f64 / delivered.len() as f64 / 60_000.0).round() as i64) };

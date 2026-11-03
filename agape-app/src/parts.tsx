@@ -56,7 +56,7 @@ export function countdown(ms: number) {
 
 export const STAGES: Record<string, { label: string; step: number; tone?: "good" | "bad" | "info" }> = {
   Accepted: { label: "Order placed", step: 0 },
-  Preparing: { label: "Cooking", step: 1 },
+  Preparing: { label: "Being made", step: 1 },
   Ready: { label: "Ready at the stand", step: 2 },
   Assigned: { label: "Runner heading to the stand", step: 2 },
   PickedUp: { label: "On the way to you", step: 3 },
@@ -75,6 +75,7 @@ export const WHY_NOT: Record<string, string> = {
   AgeUnverified: "21+ · tap to unlock",
   WrongLevel: "Upper level only",
   SoldOut: "Sold out",
+  ClosedForNight: "Kitchens are closed for the night",
   PlaceClosed: "Stand closed",
   StandBusy: "Kitchen is backed up",
 };
@@ -179,8 +180,8 @@ export type Order = {
   late?: boolean; can_report?: boolean; gift?: { to: string; note: string } | null; priority?: boolean; rated?: { who: string; stars: number }[]; problem?: { id: string; words: string; state: { state: "open" | "refunded" | "declined"; amount?: number; why?: string } } | null;
 };
 
-const TRACK = ["Placed", "Cooking", "Ready", "On the way", "Here"];
-const TRACK_PICKUP = ["Placed", "Cooking", "Ready", "Collected", "Done"];
+const TRACK = ["Placed", "Making", "Ready", "On the way", "Here"];
+const TRACK_PICKUP = ["Placed", "Making", "Ready", "Collected", "Done"];
 
 export type Viewer = "fan" | "runner" | "stand";
 

@@ -5,7 +5,7 @@
 import { React, useEffect, useState } from "./r";
 import { actWith, Deal, DealCard, Rates, Say, Thread } from "./deals";
 import { kernel } from "./kernel";
-import { countdown, money, venueTime, SignalRow, momentText, LedgerLine } from "./parts";
+import { feature, countdown, money, venueTime, SignalRow, momentText, LedgerLine } from "./parts";
 import { R, SECS, wedge } from "./geo";
 import { CardArt } from "./cardart";
 
@@ -51,7 +51,7 @@ export function LevelPanel({ level, tier, floor, next, balance }: { level: numbe
       <div className="lp-right">
         <span className="eyebrow">Balance</span>
         <b className="num lp-balance">{balance.toLocaleString()}</b>
-        <small>Spend on cards from other fans. Sell yours for more.</small>
+        <small>{feature("cards") ? "Spend them on cards and offers. Points can't be bought or cashed out." : "Spend them on offers around the venue. Points can't be bought or cashed out."}</small>
       </div>
     </div>
   );

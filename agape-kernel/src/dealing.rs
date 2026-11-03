@@ -256,6 +256,7 @@ impl Night {
             }
             Kind::Upgrade => {
                 let me = self.fans.iter().find(|f| f.id == party).ok_or("Join the night first")?;
+                if self.phase() == "postgame" { return Err("The game's over".into()); }
                 if self.trade.of_kind(Kind::Upgrade).any(|a| a.buyer == party) { return Err("You've already moved seats tonight".into()); }
                 if me.seat == o.subject { return Err("You're already there".into()); }
                 if self.world.level_of(&me.seat) == Some(1) && self.section_view(&me.seat) == "Sideline" { return Err("You're already in one of the best sections".into()); }

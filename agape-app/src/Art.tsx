@@ -96,7 +96,7 @@ const art: Record<string, JSX.Element> = {
     <rect x="36" y="6" width="3" height="16" rx="1" transform="rotate(14 37 14)" fill={C.ink} />
   </g>,
   jersey: <g>
-    <path d="M22 10l-12 8 4 12 6-3v29h24V27l6 3 4-12-12-8c-2 4-6 6-10 6s-8-2-10-6z" fill={C.jersey} />
+    <path d="M22 10l-12 8 4 12 6-3v29h24V27l6 3 4-12-12-8c-2 4-6 6-10 6s-8-2-10-6z" fill="var(--accent, #B8174F)" />
     <path d="M22 10c2 4 6 6 10 6s8-2 10-6" stroke={C.jerseyD} strokeWidth="3" fill="none" />
     <text x="32" y="44" textAnchor="middle" fontSize="16" fontWeight="800" fill={C.num} fontFamily="Big Shoulders Display, Impact, sans-serif">23</text>
   </g>,

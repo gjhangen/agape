@@ -34,7 +34,7 @@ function Upload({ label, value, set, round }: { label: string; value?: string; s
       {value ? <img src={value} alt="" /> : <span className="upload-empty">+</span>}
       <span className="upload-l">{value ? "Change" : label}</span>
       <input type="file" accept="image/*" onChange={async e => { const el = e.currentTarget; const f = el.files?.[0]; if (f) set(await picture(f)); el.value = ""; }} />
-      {value && <button type="button" className="link-inline small" onClick={e => { e.preventDefault(); set(undefined); }}>Remove</button>}
+      {value && <button type="button" className="link-inline small" onClick={e => { e.preventDefault(); set(undefined); }}aria-label="Remove" title="Remove">×</button>}
     </label>
   );
 }
@@ -66,16 +66,16 @@ function TeamEditor({ side, w, edit, roster }: { side: "home" | "away"; w: W; ed
       <div className="team-ed-head">
         <Upload label="Logo" value={t.logo} set={v => set("logo", v)} />
         <div className="sf-grid">
-          <label className="sf wide"><span>{side === "home" ? "Home team" : "Visitors"}</span><input value={t.name ?? ""} placeholder={d.name} onChange={e => set("name", e.target.value)} /></label>
-          <label className="sf"><span>Short name</span><input value={t.short ?? ""} placeholder={d.short} onChange={e => set("short", e.target.value)} /></label>
-          <label className="sf"><span>Initials</span><input value={t.abbr ?? ""} placeholder={d.abbr} maxLength={4} onChange={e => set("abbr", e.target.value.toUpperCase())} /></label>
+          <label className="sf wide"><span>{side === "home" ? "Home team" : "Visitors"}</span><input value={t.name ?? ""} placeholder={d.name} maxLength={40} onChange={e => set("name", e.target.value)} /></label>
+          <label className="sf"><span>Short name</span><input value={t.short ?? ""} placeholder={d.short} maxLength={16} onChange={e => set("short", e.target.value)} /></label>
+          <label className="sf"><span>Initials</span><input value={t.abbr ?? ""} placeholder={d.abbr} maxLength={4} onChange={e => set("abbr", e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} /></label>
           <label className="sf color"><span>Color</span><input type="color" value={t.color || d.color} onChange={e => set("color", e.target.value)} /></label>
         </div>
       </div>
       <details className="roster-ed"><summary>Players</summary>
         {roster.slice(0, 8).map((p, i) => <div key={i} className="roster-row">
           <input className="num-in" type="number" value={players[i]?.number ?? ""} placeholder={String(p.number)} onChange={e => setPlayer(i, "number", e.target.value === "" ? undefined : Number(e.target.value))} aria-label="Number" />
-          <input value={players[i]?.name ?? ""} placeholder={p.name} onChange={e => setPlayer(i, "name", e.target.value)} aria-label="Player name" />
+          <input value={players[i]?.name ?? ""} placeholder={p.name} maxLength={32} onChange={e => setPlayer(i, "name", e.target.value)} aria-label="Player name" />
         </div>)}
       </details>
     </div>
@@ -96,7 +96,7 @@ export function SetupLens({ toast }: { toast: (s: string) => void }) {
   const stands: any[] = w.stands;
   const parties = useMemo(() => kernel.view("parties" as any) as any, []);
   const roster = (team: string) => ((parties?.players ?? []) as any[]).filter(p => String(p.id).startsWith(team + "-")).sort((a, b) => Number(a.id.split("-")[1]) - Number(b.id.split("-")[1])).map(p => ({ name: p.name, number: p.number ?? 0 }));
-  const run = () => { setRunning(true); setReport(null); setTimeout(() => { setReport(setup.preview(w)); setRunning(false); }, 30); };
+  const run = () => { setRunning(true); setReport(null); setTimeout(() => { setReport(setup.preview(w)); setRunning(false); setTimeout(() => document.querySelector(".preview-results")?.scrollIntoView({ behavior: "smooth", block: "start" }), 60); }, 30); };
   const open = () => { setWorldOverride(w); location.reload(); };
   const [link, setLink] = useState<string | null>(null);
   const [sharing, setSharing] = useState(false);
@@ -104,7 +104,7 @@ export function SetupLens({ toast }: { toast: (s: string) => void }) {
     setSharing(true);
     try {
       const r = await fetch("/api/studio", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(w) }).then(r => r.json());
-      if (r.ok) setLink(`${location.origin}/demo/?v=${r.id}`); else toast(r.error);
+      if (r.ok) { setLink(`${location.origin}/demo/?v=${r.id}`); setTimeout(() => document.querySelector(".share-link")?.scrollIntoView({ behavior: "smooth", block: "center" }), 60); } else toast(r.error);
     } catch { toast("Sharing works on agapetoyourseat.com, not in this preview."); }
     setSharing(false);
   };
@@ -140,6 +140,8 @@ export function SetupLens({ toast }: { toast: (s: string) => void }) {
             <Field label="Name fans know it by" value={w.name ?? ""} set={v => edit(d => { d.name = v; })} wide />
             <Field label="Address" value={w.address ?? ""} set={v => edit(d => { d.address = v; })} wide />
             <Field label="Capacity" type="number" value={w.capacity ?? 0} set={v => edit(d => { d.capacity = num(v); })} />
+            <Field label="Fans using Agape tonight" type="number" value={w.pilot?.fans ?? 3000} set={v => edit(d => { d.pilot = { ...(d.pilot ?? {}), fans: Math.max(100, Math.min(20000, num(v))) }; })} />
+            <Field label="Runners on shift" type="number" value={w.pilot?.runners ?? 40} set={v => edit(d => { d.pilot = { ...(d.pilot ?? {}), runners: Math.max(1, Math.min(300, num(v))) }; })} />
             <Field label="Levels" type="number" value={w.levels} set={v => edit(d => { d.levels = num(v); })} />
             <Field label="Sections a level" type="number" value={w.sections_per_level} set={v => edit(d => { d.sections_per_level = num(v); })} />
           </div>
@@ -151,6 +153,13 @@ export function SetupLens({ toast }: { toast: (s: string) => void }) {
             <Field label="Sales tax %" type="number" step="0.25" value={w.terms.tax_bps / 100} set={v => edit(d => { d.terms.tax_bps = Math.round(num(v) * 100); })} />
           </div>
         </section>
+        <section className="block span2">
+          <div className="block-head"><h2>Around the venue</h2><span className="sub">Your rideshare, parking and partner businesses, as fans will see them</span></div>
+          <div className="sf-grid">
+            {(w.businesses ?? []).map((b: any, i: number) => <Field key={b.id} label={b.kind === "rideshare" ? "Rideshare" : b.kind === "parking" ? "Parking" : "Partner"} value={b.name} set={v => edit(d => { d.businesses[i].name = v; (d.around ?? []).forEach((a: any) => { if (a.operator === b.id || a.id === b.id) a.name = a.name === b.name ? v : a.name; }); })} />)}
+            {(w.around ?? []).filter((a: any) => !(w.businesses ?? []).some((b: any) => b.id === a.id || b.id === a.operator)).map((a: any) => <Field key={a.id} label="Place nearby" value={a.name} set={v => edit(d => { const x = d.around.find((y: any) => y.id === a.id); if (x) x.name = v; })} />)}
+          </div>
+        </section>
         <section className="block">
           <div className="block-head"><h2>Stands</h2><button className="btn ghost sm" onClick={() => edit(d => { const n = d.stands.length + 1; d.stands.push({ id: `stand-${n}`, name: `Stand ${n}`, level: 1, ring: 0, stations: 2 }); })}>Add a stand</button></div>
           <table className="sf-table"><thead><tr><th>Name</th><th>Level</th><th>By section</th><th>Stations</th><th /></tr></thead>
@@ -159,7 +168,7 @@ export function SetupLens({ toast }: { toast: (s: string) => void }) {
               <td><input type="number" value={s.level} onChange={e => edit(d => { d.stands[i].level = num(e.target.value); })} aria-label="Level" /></td>
               <td><input type="number" value={s.ring + 1} onChange={e => edit(d => { d.stands[i].ring = num(e.target.value) - 1; })} aria-label="Nearest section on its level" /></td>
               <td><input type="number" value={s.stations} onChange={e => edit(d => { d.stands[i].stations = num(e.target.value); })} aria-label="Stations" /></td>
-              <td><button className="link-inline small" onClick={() => edit(d => { d.stands.splice(i, 1); })}>Remove</button></td></tr>)}</tbody></table>
+              <td><button className="link-inline small" onClick={() => edit(d => { d.stands.splice(i, 1); })}aria-label="Remove" title="Remove">×</button></td></tr>)}</tbody></table>
         </section>
         <section className="block span2">
           <div className="block-head"><h2>Menu</h2><button className="btn ghost sm" onClick={() => edit(d => { d.things.push({ id: `item-${d.things.length + 1}`, name: "New item", stand: d.stands[0]?.id ?? "", price: 800, prep_s: 120, category: "food", constraints: [] }); })}>Add an item</button></div>
@@ -175,11 +184,11 @@ export function SetupLens({ toast }: { toast: (s: string) => void }) {
                 <td><input type="number" step="0.5" value={Math.round(t.prep_s / 6) / 10} onChange={e => edit(d => { d.things[i].prep_s = Math.round(num(e.target.value) * 60); })} aria-label="Minutes to make" /></td>
                 <td><select value={t.category} onChange={e => edit(d => { d.things[i].category = e.target.value; })} aria-label="Kind"><option value="food">Food</option><option value="drink">Drink</option><option value="merch">Gear</option></select></td>
                 <td><input type="checkbox" checked={adult} onChange={e => edit(d => { const c = (d.things[i].constraints ?? []).filter((x: any) => !x.min_age); if (e.target.checked) c.push({ min_age: 21 }); d.things[i].constraints = c; })} aria-label="21 and over" /></td>
-                <td><button className="link-inline small" onClick={() => edit(d => { d.things.splice(i, 1); })}>Remove</button></td></tr>;
+                <td><button className="link-inline small" onClick={() => edit(d => { d.things.splice(i, 1); })}aria-label="Remove" title="Remove">×</button></td></tr>;
             })}</tbody></table>
         </section>
         <section className="block span2">
-          <div className="block-head"><h2>Try a night on it</h2><span className="sub">1,000 simulated fans, 15 runners, a whole game</span></div>
+          <div className="block-head"><h2>Try a night on it</h2><span className="sub">{(w.pilot?.fans ?? 3000).toLocaleString()} fans using Agape, {w.pilot?.runners ?? 40} runners, a whole game</span></div>
           <div className="setup-actions">
             <button className="btn primary big" disabled={blocking.length > 0 || running} onClick={run}>{running ? "Running a night…" : "Preview a night"}</button>
             <button className="btn ghost big" disabled={blocking.length > 0} onClick={open}>Open it here</button>
@@ -189,7 +198,7 @@ export function SetupLens({ toast }: { toast: (s: string) => void }) {
           </div>
           {link && <div className="share-link" role="status"><span>Anyone with this link opens the simulator as this venue, with your teams, menu and settings:</span>
             <div className="row gap"><input readOnly value={link} onFocus={e => e.currentTarget.select()} aria-label="Link to this version" /><button className="btn primary" onClick={() => { navigator.clipboard?.writeText(link).then(() => toast("Link copied."), () => toast("Select the link and copy it.")); }}>Copy</button></div></div>}
-          {r && <>
+          {r && <div className="preview-results">
             <div className="tiles four">
               <MeasureTile label="Orders" value={r.orders.toLocaleString()} sub={`${r.delivered.toLocaleString()} delivered`} />
               <MeasureTile label="Seat waits" value={`${Math.round(r.wait_p50_s / 60)} min`} sub={`90% within ${Math.round(r.wait_p90_s / 60)} min`} tone={r.wait_p90_s > 1800 ? "bad" : r.wait_p90_s > 1200 ? "warn" : "good"} />
@@ -197,14 +206,16 @@ export function SetupLens({ toast }: { toast: (s: string) => void }) {
               <MeasureTile label="Runners earn" value={`${money(r.runner_hourly)}/h`} sub={`${r.batch_avg.toFixed(1)} orders a trip`} />
             </div>
             <div className="lines">
-              <div className="ll"><span>Fans paid</span><b className="num">{money(m["fans charged"])}</b></div>
+              <div className="ll"><span><b>Fans paid</b></span><b className="num">{money(m["fans charged"])}</b></div>
               <div className="ll"><span>Stands</span><b className="num">{money(m["stands net"])}</b></div>
               <div className="ll"><span>Runners, pay and tips</span><b className="num">{money((m["runner pay"] ?? 0) + (m["runner tips"] ?? 0))}</b></div>
               <div className="ll"><span>Agape</span><b className="num">{money(m["agape net"])}</b></div>
               <div className="ll"><span>Sales tax held</span><b className="num">{money(m["tax"])}</b></div>
+              <div className="ll"><span>Card processing</span><b className="num">{money(m["processing"])}</b></div>
+              {(() => { const other = (m["fans charged"] ?? 0) - (m["stands net"] ?? 0) - (m["runner pay"] ?? 0) - (m["runner tips"] ?? 0) - (m["agape net"] ?? 0) - (m["tax"] ?? 0) - (m["processing"] ?? 0); return Math.abs(other) >= 1 ? <div className="ll"><span>Tickets, rides and partners</span><b className="num">{money(other)}</b></div> : null; })()}
             </div>
-            <p className="provenance">A simulation of this template, not a forecast. Every unit {r.conserved ? "balanced to zero" : "did NOT balance"}. Busiest stands: {r.stands.slice(0, 3).map((s: any) => `${s.name} ${money(s.revenue)}`).join(", ")}.</p>
-          </>}
+            <p className="provenance">Agape keeps its share of each sale ({(w.terms.platform_share_bps / 100).toFixed(1)}%) and the delivery fee ({money(w.terms.delivery_fee)}), pays each runner {money(w.terms.runner_pay)} a delivery plus every tip, and pays card fees. Every one of those terms is set per venue. A simulation of this setup, not a forecast. Every unit {r.conserved ? "balanced to zero" : "did NOT balance"}. Busiest stands: {r.stands.slice(0, 3).map((s: any) => `${s.name} ${money(s.revenue)}`).join(", ")}.</p>
+          </div>}
         </section>
       </div>
     </div>
