@@ -906,3 +906,66 @@ button.ticket { width: 100%; text-align: left; border: 0; cursor: pointer; font:
 .mcard > span:not(.mc-shine) { position: relative; z-index: 1; }
 .mcard .mc-title { text-shadow: 0 1px 6px rgb(0 0 0 / .45); }
 .mcard.r-legendary { box-shadow: 0 0 0 1px #FFE08A55, 0 6px 22px rgb(233 185 73 / .35); }
+.team-logo { width: 18px; height: 18px; border-radius: 4px; object-fit: contain; vertical-align: middle; background: rgb(255 255 255 / .9); }
+.team-logo.big { width: 26px; height: 26px; margin-right: 6px; }
+.art.photo { object-fit: cover; border-radius: var(--r-sm); }
+/* ---------- studio ---------- */
+.team-eds { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); }
+.team-ed { border: 1px solid var(--line); border-top: 6px solid var(--team); border-radius: var(--r-md); padding: 14px; display: grid; gap: 10px; background: var(--surface); }
+.team-ed-head { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: start; }
+.upload { position: relative; display: grid; justify-items: center; gap: 4px; width: 84px; cursor: pointer; font-size: 12px; color: var(--ink-2); }
+.upload img, .upload-empty { width: 76px; height: 76px; border-radius: var(--r-md); object-fit: contain; background: var(--sunk); border: 1px dashed var(--line); display: grid; place-items: center; font-size: 28px; color: var(--muted); }
+.upload input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+.upload .link-inline { position: relative; z-index: 1; }
+.sf.color input { height: 40px; padding: 2px; }
+.roster-ed summary { cursor: pointer; font-weight: 700; font-size: 14px; }
+.roster-row { display: grid; grid-template-columns: 64px 1fr; gap: 6px; margin-top: 6px; }
+.roster-row input { border: 1px solid var(--line); border-radius: var(--r-sm); padding: 8px 10px; font: inherit; background: var(--bg); color: var(--ink); min-width: 0; }
+.studio-look { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-top: 12px; }
+.studio-look small { color: var(--muted); }
+.features { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); }
+.feature { display: flex; gap: 10px; align-items: flex-start; padding: 12px; border: 1px solid var(--line); border-radius: var(--r-md); cursor: pointer; background: var(--surface); opacity: .65; }
+.feature.on { opacity: 1; border-color: color-mix(in srgb, var(--accent) 45%, var(--line)); background: var(--accent-soft); }
+.feature input { width: 20px; height: 20px; accent-color: var(--accent); flex: none; margin-top: 2px; }
+.feature span { display: grid; gap: 2px; } .feature small { color: var(--ink-2); }
+.photo-cell { width: 48px; }
+.photo-pick { position: relative; display: grid; place-items: center; width: 40px; height: 40px; border-radius: var(--r-sm); overflow: hidden; cursor: pointer; border: 1px dashed var(--line); }
+.photo-pick img { width: 100%; height: 100%; object-fit: cover; }
+.photo-pick input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+/* ---------- the simulator ---------- */
+.sim-brand { display: flex; align-items: baseline; gap: 6px; font: 700 15px/1 var(--body); color: var(--muted); flex-wrap: wrap; }
+.sim-brand b { font: 800 24px/1 var(--display); color: var(--accent); }
+.sim-brand .sub { font-weight: 500; font-size: 13px; }
+.btn.h-btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.harness.sim .persp { gap: 6px; overflow-x: auto; scrollbar-width: none; }
+.harness.sim .persp button { display: grid; gap: 1px; text-align: left; padding: 7px 12px; line-height: 1.15; white-space: nowrap; }
+.harness.sim .persp button small { font-size: 11px; font-weight: 500; color: var(--muted); }
+.harness.sim .persp button.on small { color: inherit; opacity: .8; }
+.harness.sim .persp button.studio:not(.on) { border-color: var(--accent); color: var(--accent); }
+.sim-intro { max-width: 1320px; margin: 16px auto 0; padding: 22px 24px; border-radius: var(--r-lg); background: var(--board); color: var(--board-ink); display: grid; gap: 18px; grid-template-columns: 1fr auto; align-items: center; margin-inline: max(16px, calc((100% - 1320px) / 2)); }
+.sim-intro h1 { font: 800 32px/1.05 var(--display); text-transform: var(--case, uppercase); margin: 6px 0 8px; }
+.sim-intro p { color: var(--board-dim); max-width: 70ch; line-height: 1.5; }
+.sim-intro .eyebrow { color: var(--board-clock); }
+.sim-intro-acts { display: grid; gap: 8px; justify-items: stretch; }
+.sim-intro-acts .link-inline { color: var(--board-dim); justify-self: center; }
+@media (max-width: 760px) { .sim-intro { grid-template-columns: 1fr; } .sim-intro h1 { font-size: 26px; } }
+.tour { position: fixed; z-index: 60; right: 18px; bottom: 18px; width: min(380px, calc(100% - 32px)); padding: 16px; border-radius: var(--r-lg); background: var(--board); color: var(--board-ink); box-shadow: 0 20px 50px rgb(0 0 0 / .35); display: grid; gap: 6px; animation: welcome-in .3s ease-out both; }
+.tour .eyebrow { color: var(--board-clock); }
+.tour b { font: 800 22px/1.05 var(--display); text-transform: var(--case, uppercase); }
+.tour p { color: var(--board-dim); line-height: 1.45; font-size: 14px; }
+.tour-acts { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.tour-acts .grow { flex: 1; } .tour-acts .link-inline { color: var(--board-dim); }
+.l-top { position: relative; }
+.l-sim-link { margin-left: auto; font: 700 13px/1 var(--body); color: var(--accent); text-decoration: none; padding: 8px 12px; border: 1px solid color-mix(in srgb, var(--accent) 40%, var(--line)); border-radius: var(--r-pill); }
+.l-sim { display: grid; gap: 14px; padding: 20px; border-radius: var(--r-lg); background: var(--board); color: var(--board-ink); }
+.l-sim .eyebrow { color: var(--board-clock); }
+.l-sim h2 { font: 800 28px/1.05 var(--display); text-transform: var(--case, uppercase); margin: 6px 0; }
+.l-sim p { color: var(--board-dim); line-height: 1.5; }
+.l-roles { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.l-roles li { display: grid; gap: 2px; padding: 10px 12px; border-radius: var(--r-md); background: var(--board-2); }
+.l-roles span { color: var(--board-dim); font-size: 14px; }
+.l-sim a.btn { text-align: center; text-decoration: none; }
+@media (min-width: 900px) { .landing:not(.join) .l-sim { grid-column: 1 / -1; grid-template-columns: 1.2fr 1fr; align-items: center; } .landing:not(.join) .l-sim a.btn { grid-column: 1 / -1; justify-self: start; width: auto; padding-inline: 32px; } }
+.sim-intro .btn:not(.primary) { background: transparent; color: var(--board-ink); border: 1px solid color-mix(in srgb, var(--board-ink) 40%, transparent); }
+.share-link { display: grid; gap: 8px; padding: 14px; border-radius: var(--r-md); background: var(--accent-soft); border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line)); margin-top: 12px; }
+.share-link input { flex: 1; min-width: 0; border: 1px solid var(--line); border-radius: var(--r-sm); padding: 10px 12px; font: inherit; background: var(--surface); color: var(--ink); }

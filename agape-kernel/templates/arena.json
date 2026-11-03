@@ -1,6 +1,6 @@
 {
  "venue": "arena",
-  "name": "Harbor Arena",
+ "name": "Harbor Arena",
  "levels": 2,
  "sections_per_level": 24,
  "ring_s": 14,
@@ -13,7 +13,7 @@
    "name": "Grill 104",
    "level": 1,
    "ring": 3,
-   "stations": 4
+   "stations": 6
   },
   {
    "id": "slice-110",
@@ -34,7 +34,7 @@
    "name": "Taqueria 121",
    "level": 1,
    "ring": 20,
-   "stations": 3
+   "stations": 6
   },
   {
    "id": "shop-101",

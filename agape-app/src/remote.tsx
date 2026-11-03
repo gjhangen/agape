@@ -42,7 +42,7 @@ function Gate({ done }: { done: (token: string, a: Account) => void }) {
   const latest = g?.moments.find(m => m.text !== "Gates open");
   return (
     <div className="landing">
-      <header className="l-top"><span className="l-mark">agape</span><span className="l-tag">to your seat</span></header>
+      <header className="l-top"><span className="l-mark">agape</span><span className="l-tag">to your seat</span><a className="l-sim-link" href="/demo/">Simulator</a></header>
       <section className="l-live" aria-live="polite">
         <p className="l-on"><i className="live-dot" />Live at {g?.venue ?? BRAND.venue}</p>
         {g && home && away ? <>
@@ -72,6 +72,19 @@ function Gate({ done }: { done: (token: string, a: Account) => void }) {
         <button className="btn primary big wide" disabled={busy}>{busy ? "One moment…" : mode === "up" ? "Take me to my seat" : "Sign in"}</button>
         <button type="button" className="link-inline" onClick={() => { setMode(mode === "up" ? "in" : "up"); setError(""); }}>{mode === "up" ? "I already have an account" : "I'm new here"}</button>
       </form>
+      <section className="l-sim">
+        <div>
+          <span className="eyebrow">For venues, teams, businesses and investors</span>
+          <h2>See the whole night, from every seat.</h2>
+          <p>The simulator runs a full arena night in your browser: thousands of fans, the runners, every kitchen and every dollar. Watch it as anyone, speed it up, and put your own team, logo, menu and rules on it in the Studio.</p>
+        </div>
+        <ul className="l-roles">
+          <li><b>Venues</b><span>Orders to every seat, live operations, a ledger that balances to the cent</span></li>
+          <li><b>Teams and players</b><span>Fans who play along all game, and paid promotions they control</span></li>
+          <li><b>Businesses</b><span>Offers fans unlock with points, and proof of who walked in</span></li>
+        </ul>
+        <a className="btn primary big wide" href="/demo/">Open the simulator</a>
+      </section>
       <p className="l-note">This is the Agape pilot. The game and the {g ? g.provenance.simulated_fans.toLocaleString() : "3,000"} other fans are simulated, and nothing is charged. Your account, orders, picks and points are real.</p>
     </div>
   );

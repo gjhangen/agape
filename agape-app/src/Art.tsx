@@ -1,4 +1,5 @@
 import { React } from "./r";
+import { world } from "./kernel";
 
 // Flat illustrations for menu items, drawn on a 64×64 grid. Colors are the food's own,
 // placed on a themed tile so they read in light and dark.
@@ -152,6 +153,9 @@ export function artKey(name: string): string {
 }
 
 export function ItemArt({ name, size = 64, className }: { name: string; size?: number; className?: string }) {
+  // a venue's own product photo, when it has given one
+  const photo = (world()?.things as any[] | undefined)?.find(t => t.name === name && t.image)?.image;
+  if (photo) return <img className={"art photo " + (className ?? "")} src={photo} width={size} height={size} alt="" />;
   return <svg className={"art " + (className ?? "")} width={size} height={size} viewBox="0 0 64 64" aria-hidden="true">{art[artKey(name)]}</svg>;
 }
 

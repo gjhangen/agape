@@ -8,19 +8,31 @@ import { R, SECS, ang, pt, wedge, walk, along, path, placePoint, Stand } from ".
 
 // ---------- what the screens call things (display only; the kernel uses ids) ----------
 
+type TeamLook = { name: string; short: string; abbr: string; color?: string; logo?: string };
+const side = (k: "home" | "away", d: TeamLook): TeamLook => {
+  const b = world()?.brand?.[k] ?? {};
+  return { name: b.name?.trim() || d.name, short: b.short?.trim() || d.short, abbr: (b.abbr?.trim() || d.abbr).toUpperCase(), color: b.color || d.color, logo: b.logo || undefined };
+};
 export const BRAND = {
   get venue(): string { return world()?.name || "Harbor Arena"; },
-  home: { name: "Harbor Kings", short: "Kings", abbr: "HBK" },
-  away: { name: "Mesa Comets", short: "Comets", abbr: "MSC" },
-  star: "J. Ayers",
+  get home(): TeamLook { return side("home", { name: "Harbor Kings", short: "Kings", abbr: "HBK", color: "#B8174F" }); },
+  get away(): TeamLook { return side("away", { name: "Mesa Comets", short: "Comets", abbr: "MSC", color: "#2F6DB5" }); },
+  get star(): string { const p = world()?.brand?.home?.players?.[0]?.name?.trim(); if (!p) return "J. Ayers"; const w = p.split(/\s+/); return w.length > 1 ? `${w[0][0]}. ${w[w.length - 1]}` : p; },
   sponsors: { sponsor_cola: "Crown Cola", sponsor_water: "Clearwater" } as Record<string, string>,
   gatesAt: 18 * 60 + 45, // 6:45 PM; the kernel's clock starts when the gates open
 };
+/** What the venue has switched on for its fans; anything it hasn't mentioned is on. */
+export const feature = (k: string): boolean => world()?.features?.[k] !== false;
+/** A team's logo when the venue has given one, otherwise its color dot. */
+export function TeamMark({ side, big }: { side: "home" | "away"; big?: boolean }) {
+  const t = side === "home" ? BRAND.home : BRAND.away;
+  return t.logo ? <img className={"team-logo" + (big ? " big" : "")} src={t.logo} alt="" /> : <i />;
+}
 export const team = (t: string) => (t === "home" ? BRAND.home.short : t === "away" ? BRAND.away.short : "");
 
 export const OFFER_COPY: Record<string, { title: string; blurb: string }> = {
   halftime_combo: { title: "Halftime combo", blurb: "Cheeseburger and a fountain soda" },
-  run_merch: { title: "Kings run · foam finger", blurb: "Wave it while it's hot" },
+  get run_merch() { return { title: `${BRAND.home.short} run · foam finger`, blurb: "Wave it while it's hot" }; },
   water_break: { title: "Water break", blurb: "On the house" },
 };
 

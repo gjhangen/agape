@@ -154,7 +154,8 @@ impl Night {
             let n = p.picks.len().max(1);
             let yours = p.picks.get(fan).cloned();
             let shares: Vec<Value> = p.options.iter().map(|(id, _, _)| json!({ "id": id, "share": p.picks.values().filter(|v| *v == id).count() as f64 / n as f64 })).collect();
-            json!({ "question": p.question, "options": shares, "locks": p.locks, "open": p.result.is_none() && t < p.locks, "result": p.result,
+            let labels: serde_json::Map<String, Value> = p.options.iter().map(|(id, _, _)| (id.clone(), json!(self.renamed(id)))).collect();
+            json!({ "question": self.renamed(&p.question), "labels": labels, "options": shares, "locks": p.locks, "open": p.result.is_none() && t < p.locks, "result": p.result,
                     "home_share": home as f64 / n as f64, "picks": p.picks.len(), "yours": yours,
                     "won": p.result.is_some() && yours.is_some() && p.result == yours, "points": p.points })
         });

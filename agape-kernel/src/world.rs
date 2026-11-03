@@ -70,7 +70,29 @@ pub struct WorldDef {
     /// People who work for those businesses and have their own profiles (drivers).
     #[serde(default)]
     pub drivers: Vec<Driver>,
+    /// The venue's own teams, colors and players, laid over the league (a venue trying Agape as itself).
+    #[serde(default)]
+    pub brand: Option<Brand>,
+    /// What the venue switches on for its fans. Anything not named is on.
+    #[serde(default)]
+    pub features: std::collections::BTreeMap<String, bool>,
 }
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct Brand { #[serde(default)] pub home: Option<TeamBrand>, #[serde(default)] pub away: Option<TeamBrand> }
+
+/// A team as the venue presents it. Empty fields keep the league's.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct TeamBrand {
+    #[serde(default)] pub name: String, #[serde(default)] pub short: String, #[serde(default)] pub abbr: String, #[serde(default)] pub color: String,
+    /// A picture of the logo (a data URL), shown by the apps; the kernel only carries it.
+    #[serde(default)] pub logo: String,
+    /// Players in roster order: name and number. Fewer than the roster keeps the rest.
+    #[serde(default)] pub players: Vec<PlayerBrand>,
+}
+
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct PlayerBrand { #[serde(default)] pub name: String, #[serde(default)] pub number: Option<i64> }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Business { pub id: String, pub kind: String, pub name: String, pub blurb: String, #[serde(default)] pub hours: String }

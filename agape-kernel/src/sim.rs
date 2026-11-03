@@ -48,14 +48,14 @@ pub fn sports_schema() -> Schema {
         .kind("social", &[("act", Ty::Str), ("target", Ty::Str), ("text", Ty::Str)], None)
 }
 
-const CHAT: &[&str] = &["LET'S GO KINGS", "defense!!", "that was a foul", "who's getting nachos?", "this section is LOUD", "Ayers is cooking tonight",
-    "refs??", "need a pretzel run", "Comets can't miss right now", "best seats in the house", "one more stop", "anyone else freezing?",
+const CHAT: &[&str] = &["LET'S GO {HOME}", "defense!!", "that was a foul", "who's getting nachos?", "this section is LOUD", "{star} is cooking tonight",
+    "refs??", "need a pretzel run", "{away} can't miss right now", "best seats in the house", "one more stop", "anyone else freezing?",
     "drinks on me next round", "WHAT A PASS", "my runner was so fast", "free throws please", "we're winning the section battle",
-    "first game here, this place is wild", "box out!!", "Mbeki needs the ball more", "who's got the halftime pick?", "hot dog came in 4 min, unreal",
+    "first game here, this place is wild", "box out!!", "{p2} needs the ball more", "who's got the halftime pick?", "hot dog came in 4 min, unreal",
     "upper deck making noise", "that's a travel all day", "ref you're missing a great game", "can we get a stop", "my kid caught a shirt!!",
-    "anyone collecting the cards tonight?", "Fontaine with the hustle", "sweep the boards", "love this building", "big run coming, I can feel it"];
-const CHAT_RUN: &[&str] = &["KINGS RUN", "here we go!!", "they can't stop us", "LOUDER", "WHAT A PLAY", "this building is shaking", "AYERSSSS", "get that card!!", "we're so back"];
-const CHAT_AWAY: &[&str] = &["ugh", "wake up kings", "timeout please", "we're fine. we're fine.", "defense??", "they can't keep shooting like this", "still plenty of time", "need a stop here", "come on kings"];
+    "anyone collecting the cards tonight?", "{p3} with the hustle", "sweep the boards", "love this building", "big run coming, I can feel it"];
+const CHAT_RUN: &[&str] = &["{HOME} RUN", "here we go!!", "they can't stop us", "LOUDER", "WHAT A PLAY", "this building is shaking", "{STAR}!!!", "get that card!!", "we're so back"];
+const CHAT_AWAY: &[&str] = &["ugh", "wake up {home}", "timeout please", "we're fine. we're fine.", "defense??", "they can't keep shooting like this", "still plenty of time", "need a stop here", "come on {home}"];
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -239,6 +239,8 @@ pub struct Night {
     pub names: BTreeMap<String, String>,
     /// Whose colors each fan wears in the app: a team playing tonight, or "agape". Unset means the home team.
     pub wearing: BTreeMap<String, String>,
+    /// League names the venue shows differently (its own teams and players).
+    pub renames: BTreeMap<String, String>,
     /// Level earned at other venues, as an offset on what's been earned here.
     pub level_offset: BTreeMap<String, i64>,
     /// What each fan's passport says about them (venues, nights), as carried in.
@@ -284,9 +286,35 @@ pub const PREDICTION_POINTS: i64 = 50;
 
 impl Night {
     pub fn new(world_def: WorldDef, tpl: Template, cfg: Config) -> Night {
-        let league: crate::league::League = serde_json::from_str(include_str!("../templates/league.json")).expect("league");
-        Self::new_in(world_def, tpl, league, cfg)
+        let mut league: crate::league::League = serde_json::from_str(include_str!("../templates/league.json")).expect("league");
+        let original = league.clone();
+        if let Some(b) = &world_def.brand {
+            let ids = [league.tonight.home.clone(), league.tonight.away.clone()];
+            for (id, tb) in ids.iter().zip([&b.home, &b.away]) {
+                let (Some(tb), Some(g)) = (tb, league.teams.iter_mut().find(|g| &g.id == id)) else { continue };
+                if !tb.name.trim().is_empty() { g.name = tb.name.trim().into(); }
+                if !tb.short.trim().is_empty() { g.short = tb.short.trim().into(); }
+                if !tb.abbr.trim().is_empty() { g.abbr = tb.abbr.trim().to_uppercase(); }
+                if tb.color.starts_with('#') { g.color = tb.color.clone(); }
+                for (m, p) in g.roster.iter_mut().zip(&tb.players) {
+                    if !p.name.trim().is_empty() { m.name = p.name.trim().into(); }
+                    if let Some(n) = p.number { m.number = n; }
+                }
+            }
+        }
+        // words the template wrote with the league's names, shown with the venue's
+        let mut renames = BTreeMap::new();
+        for (a, b) in original.teams.iter().zip(&league.teams) {
+            if a.name != b.name { renames.insert(a.name.clone(), b.name.clone()); }
+            for (x, y) in a.roster.iter().zip(&b.roster) { if x.name != y.name { renames.insert(x.name.clone(), y.name.clone()); } }
+        }
+        let mut n = Self::new_in(world_def, tpl, league, cfg);
+        n.renames = renames;
+        n
     }
+
+    /// Text written with the league's names, in the venue's.
+    pub fn renamed(&self, s: &str) -> String { self.renames.iter().fold(s.to_string(), |acc, (a, b)| acc.replace(a.as_str(), b)) }
 
     pub fn new_in(world_def: WorldDef, tpl: Template, league: crate::league::League, cfg: Config) -> Night {
         let world = World::build(world_def);
@@ -323,7 +351,7 @@ impl Night {
             report: Report::default(), placed_by_phase: BTreeMap::new(), batches: (0, 0), score: (0, 0), script, end_min, menu, t: 0,
             feed: vec![], recent: Default::default(), plans: BTreeMap::new(), done: false, chat: Default::default(), predictions: vec![], world,
             league, social: crate::social::Social::default(), last_scorer: BTreeMap::new(), seatmaps: BTreeMap::new(),
-            trade: Default::default(), claimed: BTreeSet::new(), driven: BTreeSet::new(), redeemed: BTreeMap::new(), replies: vec![], replay_check: std::cell::Cell::new((0, true)), live: BTreeSet::new(), trips: BTreeMap::new(), problems: vec![], halt: None, ratings: vec![], names: BTreeMap::new(), wearing: BTreeMap::new(), level_offset: BTreeMap::new(), passports: BTreeMap::new(), transfers: BTreeMap::new(),
+            trade: Default::default(), claimed: BTreeSet::new(), driven: BTreeSet::new(), redeemed: BTreeMap::new(), replies: vec![], replay_check: std::cell::Cell::new((0, true)), live: BTreeSet::new(), trips: BTreeMap::new(), problems: vec![], halt: None, ratings: vec![], names: BTreeMap::new(), wearing: BTreeMap::new(), renames: BTreeMap::new(), level_offset: BTreeMap::new(), passports: BTreeMap::new(), transfers: BTreeMap::new(),
         }.seeded_live()
     }
 
@@ -332,6 +360,17 @@ impl Night {
     /// For each delivered order: how many seconds after its first estimate it actually arrived (negative: early).
     pub fn eta_errors(&self) -> Vec<(i64, i64)> {
         self.orders.iter().filter(|o| o.c.quote.delivery && o.scheduled_for.is_none()).filter_map(|o| o.delivered_at.map(|d| ((o.quoted - o.accepted_at) / 1000, (d - o.quoted) / 1000))).collect()
+    }
+
+    /// A crowd line in tonight's names: the home team, the visitors, the home stars.
+    fn crowd_words(&self, line: &str) -> String {
+        let home = self.league.team(&self.league.tonight.home);
+        let away = self.league.team(&self.league.tonight.away).map(|g| g.short.clone()).unwrap_or_default();
+        let short = home.map(|g| g.short.clone()).unwrap_or_default();
+        let who = |i: usize| home.and_then(|g| g.roster.get(i)).map(|m| last_name(&m.name)).unwrap_or_default();
+        let star = home.and_then(|g| g.roster.iter().find(|m| m.star)).map(|m| last_name(&m.name)).unwrap_or_else(|| who(0));
+        line.replace("{HOME}", &short.to_uppercase()).replace("{home}", &short.to_lowercase()).replace("{away}", &away)
+            .replace("{STAR}", &star.to_uppercase()).replace("{star}", &star).replace("{p2}", &who(1)).replace("{p3}", &who(2))
     }
 
     pub fn stand_wait(&self, stand: &str) -> i64 { stand_wait(&self.stations, &self.queues, &self.orders, stand, self.t) }
@@ -846,7 +885,8 @@ impl Night {
                 let pool = match &last_moment { Some((_, team)) if team == "home" => CHAT_RUN, Some((_, team)) if team == "away" => CHAT_AWAY, _ => CHAT };
                 let text = pool[self.rng.below(pool.len() as u64) as usize];
                 if self.chat.iter().rev().take(12).any(|c| c.3 == text) { continue; }
-                self.post_chat(&fan.id, &fan.seat, text);
+                let text = self.crowd_words(text);
+                self.post_chat(&fan.id, &fan.seat, &text);
             }
         }
         // the crowd unlocks perks around the arena with their points (more of them for a business a

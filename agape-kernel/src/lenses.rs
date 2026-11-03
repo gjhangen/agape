@@ -146,7 +146,7 @@ impl Night {
         let biz: Vec<Value> = self.world.def.businesses.iter().map(|b| json!({ "id": b.id, "name": b.name, "kind": b.kind })).collect();
         let mut players: Vec<Value> = vec![];
         for g in [&self.league.tonight.home, &self.league.tonight.away] {
-            if let Some(t) = self.league.team(g) { for m in &t.roster { players.push(json!({ "id": m.id, "name": m.name, "team": t.short, "claimed": self.claimed.contains(&m.id), "star": m.star })); } }
+            if let Some(t) = self.league.team(g) { for m in &t.roster { players.push(json!({ "id": m.id, "name": m.name, "number": m.number, "team": t.short, "claimed": self.claimed.contains(&m.id), "star": m.star })); } }
         }
         json!({ "businesses": biz, "players": players })
     }

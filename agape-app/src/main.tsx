@@ -5,9 +5,10 @@ import { OpsLens, OpsView, RunnerLens, RunnerView, StandLens, StandView } from "
 import { BRAND, runnerName, venueTime } from "./parts";
 import { BusinessLens, PlayerLens } from "./deals";
 import { SetupLens, resetVenue } from "./setup";
-import { worldOverride } from "./kernel";
+import { setWorldOverride, worldOverride } from "./kernel";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 import { LookPicker } from "./lookpicker";
+void LookPicker;
 
 const SPEEDS = [
   { id: "live", label: "1×", tps: 0.1 },
@@ -16,7 +17,20 @@ const SPEEDS = [
   { id: "x120", label: "120×", tps: 12 },
 ];
 type Persp = "fan" | "runner" | "stand" | "player" | "business" | "ops" | "setup";
-const PERSPECTIVES: [Persp, string][] = [["fan", "Fan in 104"], ["runner", "Runner"], ["stand", "Stand"], ["player", "Player"], ["business", "Business"], ["ops", "Operations"], ["setup", "Set up"]];
+const PERSPECTIVES: [Persp, string, string][] = [["fan", "Fan", "Section 104, on their phone"], ["runner", "Runner", "Carries orders to seats"], ["stand", "Kitchen", "Makes the orders"],
+  ["ops", "Venue ops", "The whole night, live"], ["business", "Business", "Sponsors and nearby partners"], ["player", "Player", "Deals and fans"], ["setup", "Studio", "Make it yours"]];
+
+/** A walk through the night, one seat at a time. */
+const TOUR: { persp: Persp; title: string; body: string }[] = [
+  { persp: "fan", title: "A fan's phone", body: "This is Agape as a fan sees it in section 104. Tap any food or drink: the time shown is when it reaches the seat, measured, not guessed. Add a few things to the cart and order." },
+  { persp: "fan", title: "The game, live", body: "Open Live. Call the quarter for points, chat with your section, and collect the night's big plays as limited cards the moment they happen." },
+  { persp: "stand", title: "The kitchen", body: "Every order lands here the second it's placed: stations, the queue, the ready shelf. Start a shift and you're the one cooking; the simulation steps aside." },
+  { persp: "runner", title: "The runner", body: "Runners get trips batched by section, with the route on the map. Tips go entirely to them." },
+  { persp: "ops", title: "The whole venue", body: "Operations sees every order, every runner and every dollar. The ledger balances to the cent all night, and one tap pauses service everywhere if something goes wrong." },
+  { persp: "business", title: "Businesses and sponsors", body: "Nearby businesses and sponsors pay players to promote them and see exactly which fans came through their door because of it." },
+  { persp: "setup", title: "Make it yours", body: "Put your own teams, logos, colors, players and menu on it, switch off what you don't want, and run a whole night before you open. Nothing here touches anyone else." },
+  { persp: "fan", title: "Speed it up", body: "Use the speed buttons to run the night at 6×, 30× or 120×, or skip to halftime or the final. Everything stays consistent: same night, every seat." },
+];
 
 const START_MINUTE = 47; // a couple of minutes into the first quarter
 const YOU_SEAT = "s104";
@@ -40,6 +54,10 @@ function App() {
   const [biz, setBiz] = useState<any>(null);
   const [parties, setParties] = useState<any>(null);
   const [wide, setWide] = useState(() => matchMedia("(min-width: 1080px)").matches);
+  const [tour, setTour] = useState<number | null>(null);
+  const [intro, setIntro] = useState(() => { try { return localStorage.getItem("agape.sim.intro") !== "seen"; } catch { return true; } });
+  const closeIntro = () => { setIntro(false); try { localStorage.setItem("agape.sim.intro", "seen"); } catch { /* shown again next visit */ } };
+  const goTour = (i: number | null) => { setTour(i); if (i != null) setPersp(TOUR[i].persp); };
   const acc = useRef(0);
   const st = useRef({ persp, runnerId, standId, wide, playerId, bizId });
   st.current = { persp, runnerId, standId, wide, playerId, bizId };
@@ -103,27 +121,55 @@ function App() {
   const runners = (ops ?? (kernel.view("ops") as OpsView)).map.runners;
   return (
     <>
-      <header className="harness">
+      <header className="harness sim">
         <div className="harness-in">
-          <span className="eyebrow">Simulated night · {BRAND.venue}{worldOverride() && <> · your template <button className="link-inline small" onClick={resetVenue}>back to the pilot venue</button></>}</span>
+          <span className="sim-brand"><b>agape</b> simulator<span className="sub"> · {BRAND.venue}{worldOverride() && <> · your version <button className="link-inline small" onClick={resetVenue}>back to the sample venue</button></>}</span></span>
           <div className="controls">
             <button className="btn h-btn" onClick={() => setPlaying(!playing)} aria-pressed={!playing}>{done ? "Night over" : playing ? "Pause" : "Play"}</button>
             <div className="seg h-seg" role="group" aria-label="Speed">
               {SPEEDS.map((s, i) => <button key={s.id} className={speed === i ? "on" : ""} title={i === 0 ? "Real time" : `${s.label} real time`} onClick={() => setSpeed(i)}>{s.label}</button>)}
             </div>
-            <LookPicker />
             <select id="skip" className="h-btn" value="" onChange={e => { skip(e.target.value); e.target.value = ""; }} aria-label="Skip ahead">
               <option value="">Skip to…</option><option value="half">Halftime</option><option value="q4">4th quarter</option><option value="final">Final</option>
             </select>
+            <button className="btn h-btn" onClick={() => location.reload()} title="Start the night again">Restart</button>
+            <button className="btn h-btn primary" onClick={() => goTour(0)}>Take the tour</button>
           </div>
         </div>
         <nav className="persp" aria-label="Whose screen">
           <span className="eyebrow">See it as</span>
-          {PERSPECTIVES.map(([id, label]) => (
-            <button key={id} className={persp === id ? "on" : ""} aria-current={persp === id} onClick={() => setPersp(id)}>{label}</button>
+          {PERSPECTIVES.map(([id, label, hint]) => (
+            <button key={id} className={(persp === id ? "on" : "") + (id === "setup" ? " studio" : "")} aria-current={persp === id} title={hint} onClick={() => { setPersp(id); setTour(null); }}><b>{label}</b><small>{hint}</small></button>
           ))}
         </nav>
       </header>
+      {intro && (
+        <section className="sim-intro" aria-label="About the simulator">
+          <div>
+            <span className="eyebrow">You're looking at a whole night, simulated</span>
+            <h1>A full arena, running in your browser.</h1>
+            <p>A basketball night at {BRAND.venue}: {(3000).toLocaleString()} simulated fans ordering, chatting and collecting, 40 runners, every kitchen, every dollar. Agape itself is real; the crowd and the game are simulated so you can see all of it at once. Step into any seat above, speed time up, switch features off, or put your own team on it in the Studio. Nothing you do here affects anyone else.</p>
+          </div>
+          <div className="sim-intro-acts">
+            <button className="btn primary big" onClick={() => { closeIntro(); goTour(0); }}>Take the 2-minute tour</button>
+            <button className="btn big" onClick={() => { closeIntro(); setPersp("setup"); }}>Put my team on it</button>
+            <button className="link-inline" onClick={closeIntro}>Just let me explore</button>
+          </div>
+        </section>
+      )}
+      {tour != null && (
+        <aside className="tour" role="dialog" aria-label="Tour">
+          <span className="eyebrow">Tour · {tour + 1} of {TOUR.length}</span>
+          <b>{TOUR[tour].title}</b>
+          <p>{TOUR[tour].body}</p>
+          <div className="tour-acts">
+            <button className="link-inline small" onClick={() => setTour(null)}>End tour</button>
+            <span className="grow" />
+            {tour > 0 && <button className="btn sm" onClick={() => goTour(tour - 1)}>Back</button>}
+            {tour < TOUR.length - 1 ? <button className="btn primary sm" onClick={() => goTour(tour + 1)}>Next</button> : <button className="btn primary sm" onClick={() => setTour(null)}>Done</button>}
+          </div>
+        </aside>
+      )}
       <main className={"stage " + persp}>
         {persp === "fan" && (
           <div className="fan-layout">
@@ -151,6 +197,14 @@ function App() {
 
 (async () => {
   applyLook(savedLook()); applyMode(savedMode());
+  // a shared Studio version: open the simulator as that venue
+  const shared = new URLSearchParams(location.search).get("v");
+  if (shared && /^[0-9a-f]{12}$/.test(shared) && sessionStorage.getItem("agape.shared") !== shared) {
+    try {
+      const w = await fetch(`/api/studio/${shared}`).then(r => r.ok ? r.json() : null);
+      if (w) { setWorldOverride(w); try { sessionStorage.setItem("agape.shared", shared); } catch { /* opens again next time */ } }
+    } catch { /* the sample venue, then */ }
+  }
   const r = await boot(7, YOU_SEAT);
   if (!r.ok) throw new Error(r.error);
   kernel.step(START_MINUTE * 6);

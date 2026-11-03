@@ -165,3 +165,20 @@ fn a_cart_across_two_stands_pays_one_delivery_fee_and_splits_the_tip() {
     assert_eq!(charge, q["charge"].as_i64().unwrap(), "the quote is what you pay");
     assert!(n.order_cart("me", &[], true, 0).is_err());
 }
+
+#[test]
+fn a_venue_sees_its_own_teams_and_players() {
+    let mut w: WorldDef = serde_json::from_str(include_str!("../templates/arena.json")).unwrap();
+    w.brand = serde_json::from_value(serde_json::json!({ "home": { "name": "Austin Hawks", "short": "Hawks", "abbr": "ATX", "color": "#0A7E4F",
+        "players": [{ "name": "Maya Ortiz", "number": 11 }] } })).unwrap();
+    let t: Template = serde_json::from_str(include_str!("../templates/basketball.json")).unwrap();
+    let mut n = Night::new(w, t, Config { you_seat: Some("s104".into()), ..Config::default() });
+    n.join_named("me", "s104", "Me", false).unwrap();
+    let v = n.view_fan("me");
+    assert_eq!(v["colors"]["teams"][0]["name"], "Austin Hawks");
+    assert_eq!(v["colors"]["teams"][0]["color"], "#0A7E4F");
+    assert_eq!(n.renamed("Halftime trivia: who holds the Harbor Kings' single-game scoring record?"), "Halftime trivia: who holds the Austin Hawks' single-game scoring record?");
+    until(&mut n, 100);
+    let chat: Vec<String> = n.chat.iter().map(|c| c.3.clone()).collect();
+    assert!(!chat.iter().any(|c| c.contains("KINGS") || c.contains("kings") || c.contains('{')), "the crowd uses the venue's names: {chat:?}");
+}

@@ -254,3 +254,21 @@ async fn a_night_from_another_kernel_is_closed_and_the_next_opened() {
     assert!(!next.over.load(std::sync::atomic::Ordering::Relaxed));
     assert_eq!(next.init.build, agape_server::venue::BUILD);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_studio_version_is_kept_and_comes_back_as_a_link() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = start(dir.path()).await;
+    let mut w: Value = serde_json::from_str(include_str!("../../agape-kernel/templates/arena.json")).unwrap();
+    w["brand"] = json!({ "home": { "name": "Austin Hawks", "color": "#0A7E4F" } });
+    w["features"] = json!({ "chat": false });
+    let (st, r) = s.post("/api/studio", None, w.clone()).await;
+    assert!(st.is_success(), "{r}");
+    let id = r["id"].as_str().unwrap().to_string();
+    let back: Value = s.c.get(format!("{}/api/studio/{id}", s.base)).send().await.unwrap().json().await.unwrap();
+    assert_eq!(back["brand"]["home"]["name"], "Austin Hawks");
+    assert_eq!(back["features"]["chat"], false);
+    assert_eq!(s.c.get(format!("{}/api/studio/../../accounts", s.base)).send().await.unwrap().status(), StatusCode::NOT_FOUND);
+    let (bad, _) = s.post("/api/studio", None, json!({ "nope": true })).await;
+    assert_eq!(bad, StatusCode::BAD_REQUEST);
+}

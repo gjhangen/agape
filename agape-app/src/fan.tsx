@@ -11,7 +11,7 @@ import { kernel } from "./kernel";
 import { wearColor } from "./themes";
 import { cart, useCart } from "./cart";
 import { ItemArt } from "./Art";
-import {
+import { feature, TeamMark,
   BRAND, CommitmentCard, FeedItem, LedgerLine, MapView, Offer, OfferCard, Order, PlaceView, SignalRow,
   countdown, momentText, money, rel, runnerName, team, useSecond, venueTime, whyNot,
 } from "./parts";
@@ -96,9 +96,9 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
   return (
     <div className="phone">
       {space !== "live" && <button className="event-strip" onClick={() => go("live")} aria-label="Open Live">
-        <span className="es-team home"><i />{BRAND.home.abbr} <b key={c.home} className="num score-bump">{c.home}</b></span>
+        <span className="es-team home"><TeamMark side="home" />{BRAND.home.abbr} <b key={c.home} className="num score-bump">{c.home}</b></span>
         <span className="es-clock num">{c.label}</span>
-        <span className="es-team away"><b key={c.away} className="num score-bump">{c.away}</b> {BRAND.away.abbr}<i /></span>
+        <span className="es-team away"><b key={c.away} className="num score-bump">{c.away}</b> {BRAND.away.abbr}<TeamMark side="away" /></span>
       </button>}
       {lead && space !== "me" && (
         <button className="order-pill" onClick={() => go("me")}>
@@ -173,7 +173,8 @@ function Callout({ eyebrow, text, cta, onClick }: { eyebrow: string; text: strin
   return <div className="callout"><span className="eyebrow">{eyebrow}</span><p>{text}</p><button className="btn primary" onClick={onClick}>{cta}</button></div>;
 }
 
-const CATS = [["all", "Everything"], ["food", "Food"], ["drink", "Drinks"], ["merch", "Gear"], ["cards", "Cards"], ["tickets", "Tickets"], ["around", "Around"]];
+const ALL_CATS = [["all", "Everything"], ["food", "Food"], ["drink", "Drinks"], ["merch", "Gear"], ["cards", "Cards"], ["tickets", "Tickets"], ["around", "Around"]];
+const CAT_FEATURE: Record<string, string> = { cards: "cards", tickets: "tickets", around: "around" };
 
 /** A first-night hello: what's theirs already and three things worth trying. Gone once dismissed. */
 function Welcome({ v, go }: Ctx) {
@@ -187,11 +188,12 @@ function Welcome({ v, go }: Ctx) {
       <button className="welcome-x" onClick={close} aria-label="Dismiss">×</button>
       <p className="eyebrow">Welcome to {BRAND.venue}</p>
       <h2>{v.me.balance.toLocaleString()} points are yours.</h2>
-      <p>Spend them on moment cards, or earn more as the night goes. A few things to try:</p>
+      <p>{feature("cards") ? "Spend them on moment cards, or earn more as the night goes." : "Earn more as the night goes."} A few things to try:</p>
       <div className="welcome-acts">
         <button onClick={() => { document.querySelector(".item-row")?.scrollIntoView({ behavior: "smooth", block: "center" }); }}><b>Order to your seat</b><small>see when it'll arrive before you tap</small></button>
-        <button onClick={() => go("live")}><b>Call the quarter</b><small>50 points if you're right</small></button>
-        <button onClick={() => go("me")}><b>Wear your colors</b><small>the app takes your team's look</small></button>
+        {feature("predictions") && <button onClick={() => go("live")}><b>Call the quarter</b><small>50 points if you're right</small></button>}
+        {feature("cards") && !feature("predictions") && <button onClick={() => go("live")}><b>Collect the big plays</b><small>limited cards, gone fast</small></button>}
+        {feature("colors") && <button onClick={() => go("me")}><b>Wear your colors</b><small>the app takes your team's look</small></button>}
       </div>
     </section>
   );
@@ -225,18 +227,18 @@ function Get(ctx: Ctx) {
         {v.get.fastest.map(it => <ItemRow key={it.id} it={it} now={now} onPick={() => setSheet({ kind: "item", item: it.id })} />)}
       </section>
       <div className="cats-bar"><div className="cats chips" role="group" aria-label="What you want">
-        {CATS.map(([id, label]) => <button key={id} className={cat === id ? "on" : ""} onClick={() => { setCat(id); requestAnimationFrame(() => document.querySelector(".cats-bar")?.scrollIntoView({ block: "start", behavior: "smooth" })); }}>{label}</button>)}
+        {ALL_CATS.filter(([id]) => !CAT_FEATURE[id] || feature(CAT_FEATURE[id])).map(([id, label]) => <button key={id} className={cat === id ? "on" : ""} onClick={() => { setCat(id); requestAnimationFrame(() => document.querySelector(".cats-bar")?.scrollIntoView({ block: "start", behavior: "smooth" })); }}>{label}</button>)}
       </div></div>
       {!["cards", "tickets", "around"].includes(cat) && stands.slice(0, cat === "all" ? 3 : 99).map(standBlock)}
-      {(cat === "cards" || cat === "all") && v.get.market.length > 0 && (
+      {feature("cards") && (cat === "cards" || cat === "all") && v.get.market.length > 0 && (
         <section className="block">
           <div className="block-head"><h2>Cards from fans</h2><span className="sub">Pay in points · you have {v.me.balance.toLocaleString()}</span></div>
           <div className="card-grid">{(cat === "all" ? v.get.market.slice(0, 4) : v.get.market).map(l => (
             <div key={l.listing} className="market-item"><MomentCard c={l.card} size="sm" onClick={() => ctx.open(l.card.id)} /><b className="num">{l.price.toLocaleString()} pts</b><small>{l.seller_name}</small></div>))}</div>
         </section>
       )}
-      {(cat === "tickets" || cat === "all") && <Events {...ctx} />}
-      {(cat === "around" || cat === "all") && <Around {...ctx} />}
+      {feature("tickets") && (cat === "tickets" || cat === "all") && <Events {...ctx} />}
+      {feature("around") && (cat === "around" || cat === "all") && <Around {...ctx} />}
       {cat === "all" && stands.slice(3).map(standBlock)}
     </>
   );
@@ -378,7 +380,7 @@ function LiveRow({ f, open, now, collect }: { f: LiveItem; open: (id: string) =>
     <li className={"signal " + f.kind + " " + f.team}>
       <time className="num">{venueTime(f.t)}</time><span className="dot" aria-hidden="true" />
       <span className="grow">{body}
-        {f.drop && (f.drop.open && !f.drop.collected ? (
+        {feature("cards") && f.drop && (f.drop.open && !f.drop.collected ? (
           <span className="drop-inline"><button className="btn primary sm" onClick={() => collect(f.drop!.id)}>Collect the card</button><small className="num">{f.drop.left} of {f.drop.supply} left · {countdown(f.drop.open_until - now)}</small></span>
         ) : f.drop.collected || f.drop.yours > 0 ? <button className="link-inline small" onClick={() => open(f.drop!.id)}>In your collection</button>
           : <button className="link-inline small" onClick={() => open(f.drop!.id)}>{f.drop.rarity} card · from {f.drop.floor ? `${f.drop.floor} pts` : "sold out"}</button>)}
@@ -403,25 +405,25 @@ function Live(ctx: Ctx) {
     <>
       <section className="block event">
         <div className="big-score">
-          <button className="bs-team home" onClick={() => open("hbk")}><span>{BRAND.home.name}</span><b className="num">{c.home}</b></button>
+          <button className="bs-team home" onClick={() => open("hbk")}><span><TeamMark side="home" big />{BRAND.home.name}</span><b className="num">{c.home}</b></button>
           <div className="bs-clock num">{c.label}</div>
-          <button className="bs-team away" onClick={() => open("msc")}><span>{BRAND.away.name}</span><b className="num">{c.away}</b></button>
+          <button className="bs-team away" onClick={() => open("msc")}><span><TeamMark side="away" big />{BRAND.away.name}</span><b className="num">{c.away}</b></button>
         </div>
         {fresh && (
           <div className={"moment-hero " + latest!.team}>
             <span className="eyebrow">{venueTime(latest!.t)}</span><b>{momentText(latest!.text, latest!.team)}</b>
-            {latest!.drop && latest!.drop.open && !latest!.drop.collected && (
+            {feature("cards") && latest!.drop && latest!.drop.open && !latest!.drop.collected && (
               <button className="btn hero-cta" onClick={() => collect(latest!.drop!.id)}>Collect this moment · {latest!.drop.left} of {latest!.drop.supply} left</button>)}
           </div>
         )}
-        <Prediction {...ctx} />
+        {feature("predictions") && <Prediction {...ctx} />}
       </section>
       <section className="block">
         <h2>Play by play</h2>
         <ol className="signals">{v.live.event.slice(0, 16).map((f, i) => <LiveRow key={f.t + f.text + i} f={f} open={open} now={c.t} collect={collect} />)}</ol>
       </section>
-      <section className="block">
-        <div className="block-head"><h2>The crowd</h2>
+      {(feature("chat") || feature("battle")) && <section className="block">
+        {feature("chat") && <><div className="block-head"><h2>The crowd</h2>
           <div className="seg" role="group" aria-label="Whose chat"><button className={scope === "all" ? "on" : ""} onClick={() => setScope("all")}>Everyone</button><button className={scope === "section" ? "on" : ""} onClick={() => setScope("section")}>Section {sec(v.you.seat)}</button></div></div>
         <form className="say" onSubmit={send}>
           <input id="say" value={text} maxLength={140} onChange={e => setText(e.target.value)} placeholder="Say something" aria-label="Message the crowd" />
@@ -433,14 +435,14 @@ function Live(ctx: Ctx) {
             <span>{m.text}</span><time className="num">{venueTime(m.t)}</time></li>)}
           {chat.length === 0 && <li className="empty">Quiet so far. Start it.</li>}
         </ol>
-        {v.provenance?.crowd === "simulated" && <p className="provenance">Everyone here but you is a simulated crowd of {v.provenance.simulated_fans.toLocaleString()} for the pilot.</p>}
-        <div className="battle">
+        {v.provenance?.crowd === "simulated" && <p className="provenance">Everyone here but you is a simulated crowd of {v.provenance.simulated_fans.toLocaleString()} for the pilot.</p>}</>}
+        {feature("battle") && <div className="battle">
           <div><span className="eyebrow">Section battle · last 5 min</span>
             <b className="big num">{b.rank ? `Section ${sec(v.you.seat)} is #${b.rank}` : `Section ${sec(v.you.seat)} isn't on the board`}</b>
             <small>{b.rank === 1 ? "Leading the arena." : b.ahead ? `${gap} order${gap === 1 ? "" : "s"} to pass section ${sec(b.ahead.section)}` : "One order puts you on it"}</small></div>
           <button className="btn primary" onClick={() => go("get")}>{b.rank === 1 ? "Hold the lead" : "Order to climb"}</button>
-        </div>
-      </section>
+        </div>}
+      </section>}
       <section className="block">
         <h2>Around the league</h2>
         <ul className="league">{v.live.league.map(g => (
@@ -517,7 +519,7 @@ function Me({ v, refresh, toast, open, settings }: Ctx) {
         <LevelPanel level={m.level} tier={m.tier} floor={m.tier_floor} next={m.next_tier} balance={m.balance} />
         <p className="passport-line">{m.passport?.venues?.length ? <>Your passport: {m.passport.venues.join(", ")} · {m.passport.nights} night{m.passport.nights === 1 ? "" : "s"}. </> : null}Your level and points go with you to every venue on Agape.</p>
       </section>
-      {(v.upgrades?.length || v.moved) ? (
+      {feature("upgrades") && (v.upgrades?.length || v.moved) ? (
         <section className="block">
           <div className="block-head"><h2>Your seat</h2><span className="sub">Section {sec(v.you.seat)}</span></div>
           {v.moved ? <p className="sub">You moved here at {venueTime(v.moved.at)}. Everything you order now comes to this section.</p> :
@@ -525,14 +527,14 @@ function Me({ v, refresh, toast, open, settings }: Ctx) {
               <button className="btn primary sm" disabled={!u.ok} onClick={() => { const r = kernel.act({ do: "upgrade", section: u.section }); toast(r.ok ? `Moved to section ${sec(u.section)}. Your orders follow you.` : r.error); refresh(); }}>{u.ok ? `Move · ${money(u.price)}` : (u.why_not ?? "Not now")}</button></div>)}
         </section>
       ) : null}
-      {v.colors && v.colors.teams.length > 0 && <Colors c={v.colors} toast={toast} refresh={refresh} />}
-      <section className="block">
+      {feature("colors") && v.colors && v.colors.teams.length > 0 && <Colors c={v.colors} toast={toast} refresh={refresh} />}
+      {feature("cards") && <section className="block">
         <div className="block-head"><h2>Your collection</h2><span className="sub">{m.cards.length} card{m.cards.length === 1 ? "" : "s"}</span></div>
         {m.cards.length === 0 ? <p className="empty">Moments become cards. When something big happens in Live, collect it before it's gone.</p> :
           <div className="card-grid">{m.cards.map(x => (
             <div key={x.card.id} className="market-item"><MomentCard c={x.card} size="sm" onClick={() => open(x.card.id)} />
               <small>{x.listing ? `Listed at ${x.listing.price.toLocaleString()} pts` : x.count > 1 ? `You hold ${x.count}` : x.card.floor ? `Others ask ${x.card.floor.toLocaleString()}` : "Tap to sell"}</small></div>))}</div>}
-      </section>
+      </section>}
       <section className="block">
         <div className="block-head"><h2>Badges</h2><span className="sub">{got} of {m.badges.length}</span></div>
         <div className="badges">{m.badges.map(b => <div key={b.id} className={"badge-tile" + (b.earned ? " on" : "")}><b>{b.name}</b><small>{b.how}</small></div>)}</div>
@@ -739,7 +741,7 @@ function ItemSheet({ v, refresh, setSheet, toast, id, at: preset }: Ctx & { id: 
         <div className="qty"><span className="eyebrow">How many</span>
           <div className="stepper"><button onClick={() => setQty(Math.max(1, qty - 1))} aria-label="One fewer">−</button><b className="num">{qty}</b><button onClick={() => setQty(Math.min(4, qty + 1))} aria-label="One more">+</button></div></div>
         {delivery && <Tips tip={tip} setTip={setTip} />}
-        {delivery && !item.adult && at == null && <div className="gift">
+        {feature("gifting") && delivery && !item.adult && at == null && <div className="gift">
           <label className="check"><input type="checkbox" checked={giftTo != null} onChange={e => setGiftTo(e.target.checked ? (friends[0]?.id ?? "s101") : null)} /> Send it to someone else</label>
           {giftTo != null && <>
             <select value={giftTo} onChange={e => setGiftTo(e.target.value)} aria-label="Who it's for">
@@ -749,7 +751,7 @@ function ItemSheet({ v, refresh, setSheet, toast, id, at: preset }: Ctx & { id: 
             <input value={giftNote} maxLength={140} onChange={e => setGiftNote(e.target.value)} placeholder="Add a note (optional)" aria-label="Note" />
           </>}
         </div>}
-        {at == null && <label className="check first"><input type="checkbox" checked={first} disabled={v.me.balance < 200} onChange={e => setFirst(e.target.checked)} /> Go first · 200 pts, only if it arrives <small>{v.me.balance < 200 ? `you have ${v.me.balance}` : `you have ${v.me.balance.toLocaleString()}`}</small></label>}
+        {feature("priority") && at == null && <label className="check first"><input type="checkbox" checked={first} disabled={v.me.balance < 200} onChange={e => setFirst(e.target.checked)} /> Go first · 200 pts, only if it arrives <small>{v.me.balance < 200 ? `you have ${v.me.balance}` : `you have ${v.me.balance.toLocaleString()}`}</small></label>}
         <p className="promise">{at ? `We hold it now and start it so it reaches section ${sec(v.you.seat)} around ${venueTime(at)}. If it's more than 10 minutes late, ${money(300)} comes back to your card on its own.` : delivery ? `At section ${sec(v.you.seat)} around ${venueTime(item.eta)}. If it takes more than 30 minutes, ${money(300)} comes back to your card on its own.` : `Ready at ${item.stand}. We'll tell you the moment it's on the shelf.`}</p>
         {quote && <div className="lines">
           <LedgerLine label="Items" amount={quote.subtotal} /><LedgerLine label="Tax" amount={quote.tax} />

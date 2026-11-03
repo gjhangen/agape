@@ -168,6 +168,29 @@ async fn finish_move(app: &App, fan: &str, p: &mut passport::Passport) {
     }
 }
 
+/// A venue's own version from the Studio, saved so it can be sent as a link. The simulator opens
+/// it in the visitor's browser; nothing on the server runs it. Checked before it's kept.
+async fn studio_save(State(app): State<S>, body: axum::body::Bytes) -> Response {
+    if body.len() > 3_000_000 { return err(StatusCode::PAYLOAD_TOO_LARGE, "That's too big to share; try smaller pictures"); }
+    let w: agape_kernel::world::WorldDef = match serde_json::from_slice(&body) { Ok(w) => w, Err(_) => return err(StatusCode::BAD_REQUEST, "That isn't a venue the Studio made") };
+    let tpl: agape_kernel::rules::Template = serde_json::from_str(include_str!("../../agape-kernel/templates/basketball.json")).unwrap();
+    if agape_kernel::setup::check(&w, &tpl).iter().any(|i| i.blocking) { return err(StatusCode::BAD_REQUEST, "Fix what the Studio flags first"); }
+    let dir = app.data.join("studio");
+    let _ = std::fs::create_dir_all(&dir);
+    let mut b = [0u8; 6];
+    rand::RngCore::fill_bytes(&mut rand::rng(), &mut b);
+    let id: String = b.iter().map(|x| format!("{x:02x}")).collect();
+    match std::fs::write(dir.join(format!("{id}.json")), &body) { Ok(_) => Json(json!({ "ok": true, "id": id })).into_response(), Err(_) => err(StatusCode::INTERNAL_SERVER_ERROR, "Couldn't save it") }
+}
+
+async fn studio_load(State(app): State<S>, Path(id): Path<String>) -> Response {
+    if !id.chars().all(|c| c.is_ascii_hexdigit()) || id.len() != 12 { return err(StatusCode::NOT_FOUND, "No such version"); }
+    match std::fs::read(app.data.join("studio").join(format!("{id}.json"))) {
+        Ok(b) => ([("content-type", "application/json")], b).into_response(),
+        Err(_) => err(StatusCode::NOT_FOUND, "No such version"),
+    }
+}
+
 /// Before signing in: the game and the night at a glance. Nothing about any person.
 async fn glance(State(app): State<S>, Path(vid): Path<String>) -> Response {
     match app.venue(&vid) { Some(v) => Json(v.view("", json!({ "lens": "glance" })).await).into_response(), None => err(StatusCode::NOT_FOUND, "No such venue") }
@@ -235,9 +258,12 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/v/{venue}/act", post(act))
         .route("/api/v/{venue}/events", get(events))
         .route("/api/v/{venue}/glance", get(glance))
+        .route("/api/studio", post(studio_save))
+        .route("/api/studio/{id}", get(studio_load))
         .route("/api/admin/accounts", post(admin_account))
         .route("/api/admin/venues", post(admin_venue))
         .route("/api/admin/league-deal", post(admin_league_deal))
+        .layer(axum::extract::DefaultBodyLimit::max(3_500_000))
         .with_state(app);
     match static_dir { Some(d) => api.fallback_service(tower_http::services::ServeDir::new(d)), None => api }
 }

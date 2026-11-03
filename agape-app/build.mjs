@@ -10,7 +10,7 @@ const r = await build({ entryPoints: ["src/main.tsx"], bundle: true, write: fals
   jsxFactory: "React.createElement", jsxFragment: "React.Fragment", logLevel: "warning" });
 const js = r.outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
 const css = readFileSync("src/styles.css", "utf8");
-const html = `<title>Agape Live Night</title>
+const html = `<title>Agape Simulator</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -61,3 +61,13 @@ import { copyFileSync } from "fs";
 for (const f of ["og.png", "icon-512.png", "icon-192.png", "apple-touch-icon.png", "favicon.png"]) copyFileSync(`brand/${f}`, `dist/server/${f}`);
 writeFileSync("dist/server/manifest.json", JSON.stringify({ name: "Agape", short_name: "Agape", start_url: "/", display: "standalone", background_color: "#F3F4F7", theme_color: "#B8174F",
   icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png" }] }));
+
+// The simulator, hosted next to the app: a whole night in the visitor's own browser.
+mkdirSync("dist/server/demo", { recursive: true });
+writeFileSync("dist/server/demo/index.html", `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="A whole arena night on Agape, simulated in your browser. See every seat, speed up time, and put your own team on it.">
+<meta property="og:title" content="Agape Simulator"><meta property="og:description" content="A whole arena night on Agape, simulated in your browser.">
+<meta property="og:image" content="http://agapetoyourseat.com:8080/og.png"><meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#B8174F"><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
+</head><body>${html.replace("<title>Agape Simulator</title>", "<title>Agape Simulator</title>")}</body></html>`);
+console.log("dist/server/demo/index.html");
