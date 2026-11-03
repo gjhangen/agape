@@ -32,7 +32,10 @@ impl Night {
                     label = format!("Q{} {}:{:02}", i + 1, left / 60, left % 60);
                 }
             }
-        } else if label.is_empty() { label = "Break".into(); }
+            // the period is still open after its clock ran out (the last possessions): show 0:00
+            if label.is_empty() { if let Some(i) = starts.iter().rposition(|s| m >= *s) { period = i + 1; label = format!("Q{} 0:00", i + 1); } }
+        }
+        if label.is_empty() { label = "Break".into(); }
         let spans: Vec<&str> = self.engine.tpl.spans.iter().map(|s| s.name.as_str()).filter(|s| self.engine.span_open(s)).collect();
         json!({ "t": self.t, "label": label, "period": period, "phase": self.phase(), "spans": spans,
                 "home": self.score.0, "away": self.score.1, "margin": self.engine.measure("margin", self.t) })

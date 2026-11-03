@@ -1,5 +1,15 @@
 <!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Agape</title>
+<title>Agape · to your seat</title>
+<meta name="description" content="The game, and everything around it, from your seat. Order to your seat, play along live, and keep points that travel with you.">
+<meta property="og:title" content="Agape · to your seat">
+<meta property="og:description" content="The game, and everything around it, from your seat.">
+<meta property="og:image" content="http://agapetoyourseat.com:8080/og.png">
+<meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="theme-color" content="#B8174F">
+<meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Agape"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="icon" href="/favicon.png"><link rel="manifest" href="/manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;600;700&family=Oswald:wght@600;700&family=Inter:wght@400;500;600;700&family=Anton&family=Work+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&family=DM+Sans:wght@400;500;700&family=Fraunces:opsz,wght@9..144,700&family=Nunito:wght@400;600;700;900&family=Bebas+Neue&family=Barlow:wght@400;500;600;700&display=swap">
@@ -866,6 +876,19 @@ button.ticket { width: 100%; text-align: left; border: 0; cursor: pointer; font:
 .arrived-card .grow { display: grid; gap: 2px; }
 .arrived-card small { color: var(--ink-2); }
 .arrived-card .after { grid-column: 1 / -1; }
+.landing > * { min-width: 0; }
+.l-score > b { font-size: clamp(34px, 11vw, 48px); }
+.l-score { gap: clamp(6px, 2.5vw, 12px); }
+.l-head { font-size: clamp(26px, 8.4vw, 34px); overflow-wrap: anywhere; }
+@media (max-width: 360px) { .l-team { font-size: 13px; } .l-clock { min-width: 56px; font-size: 12px; } .sec-chip { font-size: 14px; padding: 10px 0; } .welcome h2 { font-size: 22px; } }
+@media (min-width: 900px) {
+  .landing:not(.join) { max-width: 980px; grid-template-columns: 1fr 1fr; column-gap: 56px; align-items: start; padding-top: 48px; }
+  .landing:not(.join) .l-top, .landing:not(.join) .l-note { grid-column: 1 / -1; }
+  .landing:not(.join) .l-live { grid-column: 1; }
+  .landing:not(.join) .l-head { grid-column: 2; grid-row: 2; align-self: end; font-size: 44px; }
+  .landing:not(.join) .l-points { grid-column: 1; }
+  .landing:not(.join) .l-form { grid-column: 2; grid-row: 3; }
+}
 </style></head><body>
 <div id="root"><div class="gate"><h1>Harbor Arena</h1><p>Opening the doors…</p></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>

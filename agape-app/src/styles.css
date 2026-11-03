@@ -861,3 +861,16 @@ button.ticket { width: 100%; text-align: left; border: 0; cursor: pointer; font:
 .arrived-card .grow { display: grid; gap: 2px; }
 .arrived-card small { color: var(--ink-2); }
 .arrived-card .after { grid-column: 1 / -1; }
+.landing > * { min-width: 0; }
+.l-score > b { font-size: clamp(34px, 11vw, 48px); }
+.l-score { gap: clamp(6px, 2.5vw, 12px); }
+.l-head { font-size: clamp(26px, 8.4vw, 34px); overflow-wrap: anywhere; }
+@media (max-width: 360px) { .l-team { font-size: 13px; } .l-clock { min-width: 56px; font-size: 12px; } .sec-chip { font-size: 14px; padding: 10px 0; } .welcome h2 { font-size: 22px; } }
+@media (min-width: 900px) {
+  .landing:not(.join) { max-width: 980px; grid-template-columns: 1fr 1fr; column-gap: 56px; align-items: start; padding-top: 48px; }
+  .landing:not(.join) .l-top, .landing:not(.join) .l-note { grid-column: 1 / -1; }
+  .landing:not(.join) .l-live { grid-column: 1; }
+  .landing:not(.join) .l-head { grid-column: 2; grid-row: 2; align-self: end; font-size: 44px; }
+  .landing:not(.join) .l-points { grid-column: 1; }
+  .landing:not(.join) .l-form { grid-column: 2; grid-row: 3; }
+}
