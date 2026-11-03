@@ -844,7 +844,7 @@ impl Night {
         let t = self.t;
         let in_flight = self.orders.iter().any(|o| !matches!(o.c.stage, Stage::Settled | Stage::Closed(_)))
             || self.trade.of_kind(crate::exchange::Kind::Ride).any(|r| r.live());
-        if t > self.end_min * 60_000 && (!in_flight || t > (self.end_min + 180) * 60_000) { self.done = true; return false; }
+        if t > self.end_min * 60_000 && (!in_flight || t > (self.end_min + 30) * 60_000) { self.done = true; return false; }
         let (ph, rate) = phase(t / 60_000);
         let mut outs: Vec<Output> = vec![];
         self.ledger.now = t;
