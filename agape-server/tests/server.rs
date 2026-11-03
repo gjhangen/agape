@@ -215,3 +215,27 @@ async fn a_fans_passport_moves_with_them_between_venues_and_a_league_deal_reache
     assert_eq!(ok, StatusCode::OK);
     s.app.shutdown();
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_finished_night_opens_the_next_and_fans_keep_their_points() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = start(dir.path()).await;
+    let ana = s.signup("ana").await;
+    assert_eq!(s.act(&ana, json!({ "do": "join", "seat": "s104" })).await["ok"], true);
+    let before = s.view(&ana, "fan", "").await.1["me"]["balance"].as_i64().unwrap();
+    assert!(before > 0, "a welcome balance");
+    let h = s.app.venue("harbor").unwrap();
+    for _ in 0..40 { h.step(1000).await; if h.over.load(std::sync::atomic::Ordering::Relaxed) { break; } }
+    assert!(h.over.load(std::sync::atomic::Ordering::Relaxed), "the night ends");
+    let first_t = h.view("agape", json!({ "lens": "ops" })).await["clock"]["t"].as_i64().unwrap_or(i64::MAX);
+    agape_server::roll_finished(&s.app).await;
+    let next = s.app.venue("harbor").unwrap();
+    assert!(!next.over.load(std::sync::atomic::Ordering::Relaxed));
+    let v = s.view(&ana, "fan", "").await.1;
+    assert!(v["clock"]["t"].as_i64().unwrap() < first_t, "a new night, from the top");
+    assert!(v["you"]["seat"].as_str().unwrap_or("").is_empty(), "pick a seat again");
+    assert_eq!(s.act(&ana, json!({ "do": "join", "seat": "s112" })).await["ok"], true);
+    let after = s.view(&ana, "fan", "").await.1["me"]["balance"].as_i64().unwrap();
+    assert_eq!(after, before, "points came home to the passport and back");
+    assert!(dir.path().join("venues").read_dir().unwrap().flatten().any(|e| e.file_name().to_string_lossy().ends_with(".night")), "the old night is kept");
+}

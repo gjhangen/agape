@@ -44,6 +44,10 @@ pub enum Cmd {
 pub struct Handle {
     pub id: String,
     pub name: String,
+    /// What this night was started from (the next night starts from the same, with a new seed).
+    pub init: Init,
+    /// Set once the night is over: the game is final and nothing is still on its way.
+    pub over: std::sync::Arc<std::sync::atomic::AtomicBool>,
     tx: mpsc::Sender<Cmd>,
     pub events: broadcast::Sender<String>,
 }
@@ -135,7 +139,8 @@ pub fn spawn(dir: &Path, init: Option<Init>, id: &str, ticks_per_sec: f64) -> Re
     let (init, mut night, mut journal) = restore(&path, init)?;
     let (tx, rx) = mpsc::channel::<Cmd>();
     let (events, _) = broadcast::channel(64);
-    let h = Handle { id: init.id.clone(), name: init.name.clone(), tx, events: events.clone() };
+    let over = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(night.done));
+    let h = Handle { id: init.id.clone(), name: init.name.clone(), init: init.clone(), over: over.clone(), tx, events: events.clone() };
     std::thread::Builder::new().name(format!("venue-{id}")).spawn(move || {
         let mut due = 0.0f64;
         let mut last = Instant::now();
@@ -158,6 +163,7 @@ pub fn spawn(dir: &Path, init: Option<Init>, id: &str, ticks_per_sec: f64) -> Re
                     for _ in 0..ticks { if night.step() { journal.pending_steps += 1; } }
                     journal.flush_steps(); journal.sync();
                     announce(&night);
+                    if night.done { over.store(true, std::sync::atomic::Ordering::Relaxed); }
                     if let Some(r) = reply { let _ = r.send(json!({ "t": night.t })); }
                 }
                 Ok(Cmd::Stop) | Err(mpsc::RecvTimeoutError::Disconnected) => { journal.flush_steps(); journal.sync(); return; }
@@ -171,6 +177,7 @@ pub fn spawn(dir: &Path, init: Option<Init>, id: &str, ticks_per_sec: f64) -> Re
                 while due >= 1.0 { due -= 1.0; if night.step() { journal.pending_steps += 1; moved = true; } }
                 if journal.pending_steps >= 6 { journal.flush_steps(); journal.sync(); }
                 if moved { announce(&night); }
+                if night.done { over.store(true, std::sync::atomic::Ordering::Relaxed); }
             }
         }
     }).map_err(|e| e.to_string())?;

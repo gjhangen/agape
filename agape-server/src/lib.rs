@@ -242,7 +242,7 @@ pub fn harbor_init(seed: u64) -> venue::Init {
         id: "harbor".into(), name: "Harbor Arena".into(),
         world: serde_json::from_str(include_str!("../../agape-kernel/templates/arena.json")).unwrap(),
         template: serde_json::from_str(include_str!("../../agape-kernel/templates/basketball.json")).unwrap(),
-        seed, fans: 3000, runners: 40, start_min: 47,
+        seed, fans: 3000, runners: 40, start_min: 38,
     }
 }
 
@@ -263,6 +263,38 @@ pub fn app(data: &std::path::Path, ticks_per_sec: f64, admin_token: Option<Strin
         venues.insert(h.id.clone(), h);
     }
     Arc::new(App { auth: Mutex::new(Auth::open(data.join("accounts.jsonl"))), venues: Mutex::new(venues), passports: tokio::sync::Mutex::new(passport::Passports::open(data.join("passports.json"))), data: data.to_path_buf(), speed: ticks_per_sec, admin_token })
+}
+
+/// A venue whose night is over opens the next one: every fan's points go home to their passport,
+/// the finished night's journal is kept under a new name, and a new night starts from the same
+/// template with a new seed. Fans pick their seat again and their points come back with them.
+pub async fn roll_finished(app: &App) {
+    let done: Vec<venue::Handle> = app.venues.lock().unwrap().values().filter(|v| v.over.load(std::sync::atomic::Ordering::Relaxed)).cloned().collect();
+    for v in done {
+        {
+            let mut ps = app.passports.lock().await;
+            let here: Vec<String> = ps.all.iter().filter(|(_, p)| p.at.as_deref() == Some(&v.id) && p.pending.is_none()).map(|(k, _)| k.clone()).collect();
+            for id in here {
+                let party = app.auth.lock().unwrap().party_of(&id).unwrap_or_default();
+                let mut p = ps.all[&id].clone();
+                p.seq += 1;
+                p.pending = Some((v.id.clone(), format!("{}-{}-out", id, p.seq), "out".into()));
+                ps.all.insert(id.clone(), p.clone()); ps.save();
+                finish_move(app, &party, &mut p).await;
+                ps.all.insert(id, p); ps.save();
+            }
+        }
+        v.stop();
+        let dir = app.data.join("venues");
+        let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
+        let _ = std::fs::rename(dir.join(format!("{}.journal", v.id)), dir.join(format!("{}.{stamp}.night", v.id)));
+        let mut init = v.init.clone();
+        init.seed += 1;
+        match venue::spawn(&dir, Some(init), &v.id, app.speed) {
+            Ok(h) => { app.venues.lock().unwrap().insert(v.id.clone(), h); println!("{}: night over, the next one is open", v.id); }
+            Err(e) => eprintln!("{}: couldn't open the next night: {e}", v.id),
+        }
+    }
 }
 
 /// Demo staff so the pilot can be tried end to end. Created once; passwords come from the environment.

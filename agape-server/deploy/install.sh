@@ -28,7 +28,12 @@ chown -R 1000:1000 "$DATA" 2>/dev/null || true
 echo "Building Agape (10-20 minutes the first time)..."
 docker build -q -f agape-server/Dockerfile -t agape . >/dev/null
 docker rm -f agape >/dev/null 2>&1 || true
-docker run -d --name agape --restart unless-stopped -p "$PORT:8080" -v "$DATA:/data" --env-file "$DATA/agape.env" agape >/dev/null
+# The pilot's clock runs at twice real time, so a night (and a delivery) fits a demo.
+SPEED=$(cat "$DATA/speed" 2>/dev/null || echo 0.2)
+docker run -d --name agape --restart unless-stopped -p "$PORT:8080" -v "$DATA:/data" --env-file "$DATA/agape.env" -e AGAPE_SPEED="$SPEED" agape >/dev/null
+# Updates itself: every 3 minutes the server checks for newer code and rebuilds when there is some.
+cp agape-server/deploy/update.sh /usr/local/bin/agape-update && chmod +x /usr/local/bin/agape-update
+echo "*/3 * * * * root /usr/local/bin/agape-update >> /var/log/agape-update.log 2>&1" > /etc/cron.d/agape-update
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then ufw allow "$PORT/tcp" >/dev/null; fi
 
 sleep 3
