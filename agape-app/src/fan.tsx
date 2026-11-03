@@ -89,9 +89,9 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
   return (
     <div className="phone">
       {space !== "live" && <button className="event-strip" onClick={() => go("live")} aria-label="Open Live">
-        <span className="es-team home"><i />{BRAND.home.abbr} <b className="num">{c.home}</b></span>
+        <span className="es-team home"><i />{BRAND.home.abbr} <b key={c.home} className="num score-bump">{c.home}</b></span>
         <span className="es-clock num">{c.label}</span>
-        <span className="es-team away"><b className="num">{c.away}</b> {BRAND.away.abbr}<i /></span>
+        <span className="es-team away"><b key={c.away} className="num score-bump">{c.away}</b> {BRAND.away.abbr}<i /></span>
       </button>}
       {lead && space !== "me" && (
         <button className="order-pill" onClick={() => go("me")}>

@@ -26,7 +26,11 @@ fi
 chown -R 1000:1000 "$DATA" 2>/dev/null || true
 
 echo "Building Agape (10-20 minutes the first time)..."
-docker build -q -f agape-server/Dockerfile -t agape . >/dev/null
+if ! DOCKER_BUILDKIT=1 docker build -q -f agape-server/Dockerfile -t agape . >/dev/null 2>/tmp/agape-build.log; then
+  # an older Docker without BuildKit: the same build without the caches
+  sed -e '/--mount=type=cache/d' -e 's/^    cd agape-server/RUN cd agape-server/' agape-server/Dockerfile > /tmp/agape.Dockerfile
+  docker build -q -f /tmp/agape.Dockerfile -t agape . >/dev/null || { tail -30 /tmp/agape-build.log; exit 1; }
+fi
 docker rm -f agape >/dev/null 2>&1 || true
 # The pilot's clock runs at twice real time, so a night (and a delivery) fits a demo.
 SPEED=$(cat "$DATA/speed" 2>/dev/null || echo 0.2)

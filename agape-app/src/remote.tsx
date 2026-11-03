@@ -82,16 +82,18 @@ const BOWLS: [string, string, string[]][] = [
   ["Upper bowl", "The whole court in view", Array.from({ length: 24 }, (_, i) => `s${201 + i}`)],
 ];
 
-function Join({ joined }: { joined: () => void }) {
+function Join({ joined, a }: { joined: () => void; a: Account }) {
+  const key = `agape.joined.${a.id}`;
+  const back = store.get(key) === "1";
   const [seat, setSeat] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
-  const go = () => { setBusy(true); const r = kernel.act({ do: "join", seat }); setBusy(false); if (r.ok) joined(); else setError(r.error); };
+  const go = () => { setBusy(true); const r = kernel.act({ do: "join", seat }); setBusy(false); if (r.ok) { store.set(key, "1"); joined(); } else setError(r.error); };
   return (
     <div className="landing join">
       <header className="l-top"><span className="l-mark">agape</span><span className="l-tag">to your seat</span></header>
-      <h1 className="l-head">Where are you sitting?</h1>
-      <p className="l-sub">Your section is where we bring things, and who you're up against in tonight's section battle.</p>
+      <h1 className="l-head">{back ? `A new night, ${a.handle}.` : "Where are you sitting?"}</h1>
+      <p className="l-sub">{back ? "Your level and points came with you. Where are you sitting tonight?" : "Your section is where we bring things, and who you're up against in tonight's section battle."}</p>
       {BOWLS.map(([name, blurb, secs]) => (
         <section key={name} className="bowl">
           <div className="block-head"><h2>{name}</h2><span className="sub">{blurb}</span></div>
@@ -114,7 +116,7 @@ function Signed({ a, signOut }: { a: Account; signOut: () => void }) {
   const lens = a.role === "fan" ? "fan" : a.role;
   const v = kernel.view(lens as any, "");
   if (v?.error || v?.ok === false) return <div className="gate"><p>{v.error}</p><button className="btn" onClick={signOut}>Sign out</button></div>;
-  if (a.role === "fan" && !(v as FanView).you?.seat) return <Join joined={refresh} />;
+  if (a.role === "fan" && !(v as FanView).you?.seat) return <Join joined={refresh} a={a} />;
   const noop = () => {};
   if (a.role === "fan") {
     const settings = (
