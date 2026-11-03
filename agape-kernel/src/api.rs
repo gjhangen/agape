@@ -90,6 +90,7 @@ pub fn act(n: &mut Night, who: &str, v: &Value) -> Value {
         Some("halt") => n.halt(&s("reason")).map(|_| String::new()),
         Some("resume") => n.resume().map(|_| String::new()),
         Some("join") => n.join_named(who, &s("seat"), &s("name"), v["welcome"].as_bool().unwrap_or(true)).map(|_| String::new()),
+        Some("attest_age") => n.attest_age(who).map(|_| String::new()),
         Some("wear") => n.wear(who, &s("team")).map(|_| String::new()),
         Some("chat") => n.chat_as(who, &s("text")).map(|_| String::new()),
         Some("cancel") => n.cancel_as(who, v["order"].as_u64().unwrap_or(u64::MAX) as usize).map(|_| String::new()),

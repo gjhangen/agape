@@ -132,3 +132,14 @@ fn fans_wear_the_home_team_until_they_choose() {
     n.wear("me", "").unwrap();
     assert_eq!(n.view_fan("me")["colors"]["wearing"], home.as_str());
 }
+
+#[test]
+fn a_fan_who_says_they_are_21_can_order_a_drink() {
+    let mut n = night();
+    n.join_named("me", "s104", "Me", false).unwrap();
+    let beer = n.world.def.things.iter().find(|t| t.constraints.iter().any(|c| matches!(c, agape_kernel::world::Constraint::MinAge(_)))).unwrap().id.clone();
+    let item = |n: &mut Night| n.view_fan("me")["items"].as_array().unwrap().iter().find(|i| i["id"] == beer.as_str()).cloned().unwrap();
+    assert_eq!(item(&mut n)["why_not"], "AgeUnverified");
+    n.attest_age("me").unwrap();
+    assert_ne!(item(&mut n)["why_not"], "AgeUnverified");
+}

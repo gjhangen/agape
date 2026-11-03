@@ -48,7 +48,8 @@ impl Night {
         let items: Vec<Value> = q.lines.iter().map(|l| json!({ "thing": l.thing, "name": self.world.thing(&l.thing).map(|t| t.name.clone()), "qty": l.qty, "price": l.unit_price })).collect();
         let stand = self.world.def.stands.iter().find(|s| s.id == q.stand).map(|s| s.name.clone());
         json!({ "id": id, "stage": stage_name(&o.c.stage), "items": items, "stand": stand, "stand_id": q.stand, "delivery": q.delivery,
-                "runner": q.runner, "eta": o.eta, "placed": o.accepted_at, "delivered": o.delivered_at, "source": o.source, "seat": o.seat,
+                "runner": q.runner, "eta": o.eta, "placed": o.accepted_at,
+                "check_id": q.lines.iter().any(|l| self.world.thing(&l.thing).map_or(false, |t| t.constraints.iter().any(|c| matches!(c, crate::world::Constraint::MinAge(_))))), "delivered": o.delivered_at, "source": o.source, "seat": o.seat,
                 "charge": b.as_ref().map(|b| b.charge), "breakdown": b.map(|b| json!({ "subtotal": b.subtotal, "discount": b.discount, "tax": b.tax, "fee": b.fee, "tip": b.tip })),
                 "late_credit": o.c.late_by.as_ref().map(|_| crate::commitment::LATE_CREDIT), "scheduled_for": o.scheduled_for,
                 "can_cancel": o.c.stage == Stage::Accepted,

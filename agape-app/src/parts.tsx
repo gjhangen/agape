@@ -60,7 +60,7 @@ export const STAGES: Record<string, { label: string; step: number; tone?: "good"
 };
 
 export const WHY_NOT: Record<string, string> = {
-  AgeUnverified: "Show ID once to unlock",
+  AgeUnverified: "21+ · tap to unlock",
   WrongLevel: "Upper level only",
   SoldOut: "Sold out",
   PlaceClosed: "Stand closed",

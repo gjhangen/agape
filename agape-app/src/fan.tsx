@@ -135,7 +135,7 @@ function tapOffer(o: Offer, { refresh, setSheet, toast }: Ctx) {
 
 function ItemRow({ it, now, onPick, showStand = true }: { it: Item; now: number; onPick: () => void; showStand?: boolean }) {
   return (
-    <button className="item-row" disabled={!it.available} onClick={onPick}>
+    <button className="item-row" disabled={!it.available && it.why_not !== "AgeUnverified"} onClick={onPick}>
       <ItemArt name={it.name} size={44} />
       <span className="grow"><b>{it.name}</b>
         <small>{it.available ? <>At your seat {venueTime(it.eta)} · {rel(it.eta, now)}{showStand ? ` · ${it.stand}` : ""}{it.left != null ? ` · ${it.left} left` : ""}</> : whyNot(it.why_not)}</small></span>
@@ -639,6 +639,18 @@ function ItemSheet({ v, refresh, setSheet, toast, id, at: preset }: Ctx & { id: 
     toast(at ? `Done. It'll be at section ${sec(v.you.seat)} around ${venueTime(at)}.` : delivery ? `On its way to section ${sec(v.you.seat)}.` : "Ordered. We'll tell you when it's on the shelf.");
     setSheet(null); refresh();
   };
+  if (item.why_not === "AgeUnverified") {
+    const yes = () => { const r = kernel.act({ do: "attest_age" }); if (!r.ok) toast(r.error); refresh(); };
+    return (
+      <SheetFrame title={item.name} onClose={() => setSheet(null)}>
+        <div className="build">
+          <div className="build-item"><ItemArt name={item.name} size={72} /><div><b className="num price-big">{money(item.price)}</b><p className="sub">{item.stand} · level {item.level}</p></div></div>
+          <div className="age-gate"><b>You need to be 21 or older for this.</b><p>Confirm it once and drinks unlock for tonight. Your runner checks your ID at your seat when the first one arrives.</p></div>
+          <button className="btn primary big wide" onClick={yes}>I'm 21 or older</button>
+        </div>
+      </SheetFrame>
+    );
+  }
   return (
     <SheetFrame title={item.name} onClose={() => setSheet(null)}>
       <div className="build">

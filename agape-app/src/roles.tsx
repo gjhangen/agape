@@ -71,7 +71,7 @@ export function RunnerLens({ r, map, pick, runners, x }: { r: RunnerView; map: M
           <span className="eyebrow">Hand off</span>
           {t.orders.filter(o => o.stage === "PickedUp").map(o => (
             <div key={o.id} className="handoff">
-              <div className="grow"><b>Section {o.seat.slice(1)}</b><small>{o.items.map(i => `${i.qty}× ${i.name}`).join(", ")}{o.breakdown?.tip ? ` · ${money(o.breakdown.tip)} tip` : ""}</small></div>
+              <div className="grow"><b>Section {o.seat.slice(1)}{(o as any).check_id && <span className="id-chip">Check ID · 21+</span>}</b><small>{o.items.map(i => `${i.qty}× ${i.name}`).join(", ")}{o.breakdown?.tip ? ` · ${money(o.breakdown.tip)} tip` : ""}</small></div>
               <button className="btn ghost sm" disabled={!o.handoff_ok_at || now < o.handoff_ok_at} title="After a few minutes at the seat"
                 onClick={() => staffAct(me, x, { do: "unreachable", order: o.id }, "Marked. You're still paid for the trip.")}>Can't find them</button>
               <button className="btn primary sm" onClick={() => staffAct(me, x, { do: "delivered", order: o.id }, "Handed over.")}>Handed over</button>

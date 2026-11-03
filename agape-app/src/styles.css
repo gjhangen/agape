@@ -874,3 +874,5 @@ button.ticket { width: 100%; text-align: left; border: 0; cursor: pointer; font:
   .landing:not(.join) .l-points { grid-column: 1; }
   .landing:not(.join) .l-form { grid-column: 2; grid-row: 3; }
 }
+.age-gate { padding: 14px; border-radius: var(--r-md); background: var(--sunk); display: grid; gap: 6px; } .age-gate p { color: var(--ink-2); font-size: 14px; }
+.id-chip { margin-left: 8px; font: 700 11px/1 var(--body); text-transform: uppercase; letter-spacing: .06em; padding: 4px 7px; border-radius: var(--r-pill); background: var(--warn-bg); color: var(--warn); vertical-align: middle; }

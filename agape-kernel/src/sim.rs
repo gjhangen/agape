@@ -472,6 +472,13 @@ impl Night {
 
     /// Post to your section's chat.
     pub fn you_chat(&mut self, text: &str) -> Result<(), String> { self.chat_as(YOU, text) }
+    /// A fan says they're 21 or older. Their runner checks ID at the seat on the first delivery that needs it.
+    pub fn attest_age(&mut self, who: &str) -> Result<(), String> {
+        let f = self.fans.iter_mut().find(|f| f.id == who).ok_or("Join first")?;
+        if f.age_verified.map_or(true, |a| a < 21) { f.age_verified = Some(21); }
+        Ok(())
+    }
+
     /// Wear a team's colors in the app (or Agape's own). Only a team playing tonight; "" goes back to the home team.
     pub fn wear(&mut self, who: &str, team: &str) -> Result<(), String> {
         if !self.fans.iter().any(|f| f.id == who) { return Err("Join first".into()); }
