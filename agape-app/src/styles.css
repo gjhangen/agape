@@ -879,3 +879,12 @@ button.ticket { width: 100%; text-align: left; border: 0; cursor: pointer; font:
 .score-bump { display: inline-block; animation: score-bump .6s ease-out; }
 @keyframes score-bump { 0% { transform: scale(1.35); color: var(--board-clock); } 100% { transform: scale(1); } }
 @media (prefers-reduced-motion: reduce) { .score-bump { animation: none; } }
+.shares { display: grid; gap: 6px; margin-top: 4px; }
+.share-row { display: grid; grid-template-columns: 1fr 90px 40px; align-items: center; gap: 8px; font-size: 13px; }
+.share-row i { height: 6px; border-radius: 3px; background: var(--accent); justify-self: start; min-width: 2px; }
+.share-row b { text-align: right; }
+.share-row.mine .grow { font-weight: 700; }
+.share-row.mine .grow::after { content: " · yours"; color: var(--muted); font-weight: 500; }
+.sheet .build > .btn.primary.big { position: sticky; bottom: 0; z-index: 2; box-shadow: 0 -14px 14px -2px var(--surface), 0 14px 0 6px var(--surface); }
+.app-shell .toasts { bottom: calc(72px + env(safe-area-inset-bottom, 0px)); }
+.mcard.sm .mc-kind { display: none; } .mcard .mc-foot { overflow-wrap: anywhere; } .mc-top { min-width: 0; } .mcard.sm .mc-title { font-size: 13px; }

@@ -26,7 +26,13 @@ pub struct Init {
     pub runners: usize,
     /// Simulated minutes to run before people arrive (the pilot's crowd is simulated).
     pub start_min: i64,
+    /// Which kernel this night was started on. A journal only replays exactly on the same one.
+    #[serde(default)]
+    pub build: String,
 }
+
+/// This server's kernel, as a hash of its sources (set when the image is built).
+pub const BUILD: &str = match option_env!("AGAPE_KERNEL_BUILD") { Some(b) => b, None => "dev" };
 
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -139,7 +145,8 @@ pub fn spawn(dir: &Path, init: Option<Init>, id: &str, ticks_per_sec: f64) -> Re
     let (init, mut night, mut journal) = restore(&path, init)?;
     let (tx, rx) = mpsc::channel::<Cmd>();
     let (events, _) = broadcast::channel(64);
-    let over = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(night.done));
+    // a night begun on a different kernel won't replay exactly: finish it now and open the next
+    let over = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(night.done || init.build != BUILD));
     let h = Handle { id: init.id.clone(), name: init.name.clone(), init: init.clone(), over: over.clone(), tx, events: events.clone() };
     std::thread::Builder::new().name(format!("venue-{id}")).spawn(move || {
         let mut due = 0.0f64;

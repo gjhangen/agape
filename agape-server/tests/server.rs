@@ -239,3 +239,18 @@ async fn a_finished_night_opens_the_next_and_fans_keep_their_points() {
     assert_eq!(after, before, "points came home to the passport and back");
     assert!(dir.path().join("venues").read_dir().unwrap().flatten().any(|e| e.file_name().to_string_lossy().ends_with(".night")), "the old night is kept");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_night_from_another_kernel_is_closed_and_the_next_opened() {
+    let dir = tempfile::tempdir().unwrap();
+    let mut init = agape_server::harbor_init(7);
+    init.build = "an older kernel".into();
+    let h = agape_server::venue::spawn(&dir.path().join("venues"), Some(init), "harbor", 0.0).unwrap();
+    assert!(h.over.load(std::sync::atomic::Ordering::Relaxed), "it won't replay exactly, so it's over");
+    h.stop();
+    let s = start(dir.path()).await;
+    agape_server::roll_finished(&s.app).await;
+    let next = s.app.venue("harbor").unwrap();
+    assert!(!next.over.load(std::sync::atomic::Ordering::Relaxed));
+    assert_eq!(next.init.build, agape_server::venue::BUILD);
+}

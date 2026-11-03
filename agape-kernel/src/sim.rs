@@ -50,9 +50,12 @@ pub fn sports_schema() -> Schema {
 
 const CHAT: &[&str] = &["LET'S GO KINGS", "defense!!", "that was a foul", "who's getting nachos?", "this section is LOUD", "Ayers is cooking tonight",
     "refs??", "need a pretzel run", "Comets can't miss right now", "best seats in the house", "one more stop", "anyone else freezing?",
-    "drinks on me next round", "WHAT A PASS", "my runner was so fast", "free throws please", "we're winning the section battle"];
-const CHAT_RUN: &[&str] = &["KINGS RUN", "here we go!!", "they can't stop us", "LOUDER"];
-const CHAT_AWAY: &[&str] = &["ugh", "wake up kings", "timeout please", "we're fine. we're fine."];
+    "drinks on me next round", "WHAT A PASS", "my runner was so fast", "free throws please", "we're winning the section battle",
+    "first game here, this place is wild", "box out!!", "Mbeki needs the ball more", "who's got the halftime pick?", "hot dog came in 4 min, unreal",
+    "upper deck making noise", "that's a travel all day", "ref you're missing a great game", "can we get a stop", "my kid caught a shirt!!",
+    "anyone collecting the cards tonight?", "Fontaine with the hustle", "sweep the boards", "love this building", "big run coming, I can feel it"];
+const CHAT_RUN: &[&str] = &["KINGS RUN", "here we go!!", "they can't stop us", "LOUDER", "WHAT A PLAY", "this building is shaking", "AYERSSSS", "get that card!!", "we're so back"];
+const CHAT_AWAY: &[&str] = &["ugh", "wake up kings", "timeout please", "we're fine. we're fine.", "defense??", "they can't keep shooting like this", "still plenty of time", "need a stop here", "come on kings"];
 
 #[derive(Clone, Debug)]
 pub struct Config {
@@ -116,6 +119,8 @@ pub(crate) struct Order {
     pub(crate) prep_s: u32, pub(crate) seat: String, pub(crate) step_free: bool,
     /// When the fan is told to expect it. Re-estimated at each stage.
     pub(crate) eta: i64,
+    /// The arrival time the fan was shown when they ordered.
+    pub(crate) quoted: i64,
     /// The latest it was promised for: 30 minutes after ordering, or the moment it was ordered for.
     pub(crate) promise: i64,
     /// Ordered ahead for this moment; held until the kitchen needs to start it.
@@ -324,6 +329,11 @@ impl Night {
 
     fn sched(&mut self, t: i64, e: Ev) { self.ev_seq += 1; self.events.push((t, self.ev_seq, e)); }
 
+    /// For each delivered order: how many seconds after its first estimate it actually arrived (negative: early).
+    pub fn eta_errors(&self) -> Vec<(i64, i64)> {
+        self.orders.iter().filter(|o| o.c.quote.delivery && o.scheduled_for.is_none()).filter_map(|o| o.delivered_at.map(|d| ((o.quoted - o.accepted_at) / 1000, (d - o.quoted) / 1000))).collect()
+    }
+
     pub fn stand_wait(&self, stand: &str) -> i64 { stand_wait(&self.stations, &self.queues, &self.orders, stand, self.t) }
 
     pub fn phase(&self) -> &'static str { phase(self.t / 60_000).0 }
@@ -338,7 +348,10 @@ impl Night {
     /// Estimate when a new order would reach `seat`: kitchen wait, its own prep, the walk, and a minute to dispatch.
     pub fn estimate(&mut self, stand: &str, prep_s: u32, seat: &str, delivery: bool) -> i64 {
         let walk = if delivery { self.costs.get(&self.world, stand, seat, false) as i64 + 60 } else { 0 };
-        self.t + (self.stand_wait(stand) + prep_s as i64 + walk) * 1000
+        // Measured over whole nights, the bare sum is late half the time: runners batch and the line
+        // grows behind you. 30% more and two minutes puts nearly 9 in 10 at the seat by the time shown.
+        let base = self.stand_wait(stand) + prep_s as i64 + walk;
+        self.t + (base * 13 / 10 + 120) * 1000
     }
 
     fn place(&mut self, held: Commitment, source: String, outs: &mut Vec<Output>) {
@@ -354,7 +367,7 @@ impl Night {
         let eta = self.estimate(&stand, prep, &fan.seat, q.delivery);
         let id = self.orders.len();
         if source != "menu" { self.report.offer_orders += 1; }
-        self.orders.push(Order { c, source, accepted_at: t, delivered_at: None, started_at: None, ready_at: None, picked_at: None, prep_s: prep, seat: fan.seat.clone(), step_free: fan.step_free, eta, promise: t + 1_800_000, scheduled_for: None, gift: None, priority: false, priority_held: false });
+        self.orders.push(Order { c, source, accepted_at: t, delivered_at: None, started_at: None, ready_at: None, picked_at: None, prep_s: prep, seat: fan.seat.clone(), step_free: fan.step_free, eta, quoted: eta, promise: t + 1_800_000, scheduled_for: None, gift: None, priority: false, priority_held: false });
         if self.orders[id].c.stage == Stage::Accepted { self.queues.entry(stand).or_default().push(id); }
         self.report.orders += 1;
         let ph = phase(t / 60_000).0;
@@ -771,12 +784,14 @@ impl Night {
         // the crowd talks, more when something happens
         if t <= self.end_min * 60_000 && ph != "postgame" {
             let last_moment = self.feed.iter().rev().find(|f| f.kind == "moment" && t - f.t < 60_000).map(|f| (f.text.clone(), f.team.clone()));
-            let n = 5 + if last_moment.is_some() { 6 } else { 0 };
+            // a few voices at a time, never the same line twice in a row of recent chat
+            let n = 1 + if last_moment.is_some() { 3 } else { 0 };
             for _ in 0..n {
-                if !self.rng.chance(0.6) { continue; }
+                if !self.rng.chance(0.45) { continue; }
                 let fan = self.fans[self.rng.below(sim_fans_n(&self.cfg) as u64) as usize].clone();
                 let pool = match &last_moment { Some((_, team)) if team == "home" => CHAT_RUN, Some((_, team)) if team == "away" => CHAT_AWAY, _ => CHAT };
                 let text = pool[self.rng.below(pool.len() as u64) as usize];
+                if self.chat.iter().rev().take(12).any(|c| c.3 == text) { continue; }
                 self.post_chat(&fan.id, &fan.seat, text);
             }
         }

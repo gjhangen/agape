@@ -205,7 +205,7 @@ async fn admin_venue(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -
     let issues = agape_kernel::setup::check(&w, &t);
     if issues.iter().any(|i| i.blocking) { return (StatusCode::BAD_REQUEST, Json(json!({ "ok": false, "error": "The template has problems to fix", "issues": issues }))).into_response(); }
     let init = venue::Init { id: id.clone(), name: b["name"].as_str().unwrap_or(&id).to_string(), world: b["world"].clone(), template: b["template"].clone(),
-        seed: b["seed"].as_u64().unwrap_or(1), fans: b["fans"].as_u64().unwrap_or(3000) as usize, runners: b["runners"].as_u64().unwrap_or(40) as usize, start_min: b["start_min"].as_i64().unwrap_or(0) };
+        seed: b["seed"].as_u64().unwrap_or(1), fans: b["fans"].as_u64().unwrap_or(3000) as usize, runners: b["runners"].as_u64().unwrap_or(40) as usize, start_min: b["start_min"].as_i64().unwrap_or(0), build: venue::BUILD.to_string() };
     match venue::spawn(&app.data.join("venues"), Some(init), &id, app.speed) {
         Ok(hd) => { app.venues.lock().unwrap().insert(id.clone(), hd); Json(json!({ "ok": true, "id": id, "issues": issues })).into_response() }
         Err(e) => err(StatusCode::INTERNAL_SERVER_ERROR, &e),
@@ -248,7 +248,7 @@ pub fn harbor_init(seed: u64) -> venue::Init {
         id: "harbor".into(), name: "Harbor Arena".into(),
         world: serde_json::from_str(include_str!("../../agape-kernel/templates/arena.json")).unwrap(),
         template: serde_json::from_str(include_str!("../../agape-kernel/templates/basketball.json")).unwrap(),
-        seed, fans: 3000, runners: 40, start_min: 38,
+        seed, fans: 3000, runners: 40, start_min: 38, build: venue::BUILD.to_string(),
     }
 }
 
@@ -296,6 +296,7 @@ pub async fn roll_finished(app: &App) {
         let _ = std::fs::rename(dir.join(format!("{}.journal", v.id)), dir.join(format!("{}.{stamp}.night", v.id)));
         let mut init = v.init.clone();
         init.seed += 1;
+        init.build = venue::BUILD.to_string();
         match venue::spawn(&dir, Some(init), &v.id, app.speed) {
             Ok(h) => { app.venues.lock().unwrap().insert(v.id.clone(), h); println!("{}: night over, the next one is open", v.id); }
             Err(e) => eprintln!("{}: couldn't open the next night: {e}", v.id),

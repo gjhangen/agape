@@ -84,6 +84,12 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
     }
     active.current = now;
   }, [v.orders.map(o => o.id).join(",")]);
+  const readyFor = useRef<Set<number>>(new Set());
+  useEffect(() => {
+    for (const o of v.orders) if (!o.delivery && o.stage === "Ready" && !readyFor.current.has(o.id)) {
+      readyFor.current.add(o.id); toast(`Your ${o.items[0]?.name?.toLowerCase() ?? "order"} is ready. Pick it up at ${o.stand}.`);
+    }
+  }, [v.orders.map(o => o.id + o.stage).join(",")]);
   const c = v.clock;
   const lead = v.orders[0];
   return (
@@ -138,7 +144,7 @@ function ItemRow({ it, now, onPick, showStand = true }: { it: Item; now: number;
     <button className="item-row" disabled={!it.available && it.why_not !== "AgeUnverified"} onClick={onPick}>
       <ItemArt name={it.name} size={44} />
       <span className="grow"><b>{it.name}</b>
-        <small>{it.available ? <>At your seat {venueTime(it.eta)} · {rel(it.eta, now)}{showStand ? ` · ${it.stand}` : ""}{it.left != null ? ` · ${it.left} left` : ""}</> : whyNot(it.why_not)}</small></span>
+        <small>{it.available ? <>At your seat {venueTime(it.eta)} · {rel(it.eta, now)}{showStand ? ` · ${it.stand}` : ""}{it.left != null ? ` · ${it.left} left` : ""}</> : <>{whyNot(it.why_not)}{showStand ? ` · ${it.stand}` : ""}</>}</small></span>
       <span className="num price-tag">{money(it.price)}</span>
     </button>
   );
@@ -193,6 +199,13 @@ function Get(ctx: Ctx) {
   const [cat, setCat] = useState("all");
   const now = v.clock.t;
   const stands = [...v.get.stands].filter(s => v.items.some(i => i.stand_id === s.id && (cat === "all" || i.category === cat))).sort((a, b) => (a.eta ?? 1e15) - (b.eta ?? 1e15));
+  const standBlock = (s: typeof stands[number]) => (
+    <section key={s.id} className="block">
+      <div className="block-head"><h2>{s.name}</h2><span className="sub">{s.eta ? `From ${venueTime(s.eta)}` : ""}{s.slow ? " · busy" : ""}</span></div>
+      {v.items.filter(i => i.stand_id === s.id && (cat === "all" || i.category === cat)).sort((a, b) => Number(b.available) - Number(a.available))
+        .map(it => <ItemRow key={it.id} it={it} now={now} showStand={false} onPick={() => setSheet({ kind: "item", item: it.id })} />)}
+    </section>
+  );
   return (
     <>
       <Welcome {...ctx} />
@@ -211,6 +224,7 @@ function Get(ctx: Ctx) {
       <div className="cats-bar"><div className="cats chips" role="group" aria-label="What you want">
         {CATS.map(([id, label]) => <button key={id} className={cat === id ? "on" : ""} onClick={() => setCat(id)}>{label}</button>)}
       </div></div>
+      {!["cards", "tickets", "around"].includes(cat) && stands.slice(0, cat === "all" ? 3 : 99).map(standBlock)}
       {(cat === "cards" || cat === "all") && v.get.market.length > 0 && (
         <section className="block">
           <div className="block-head"><h2>Cards from fans</h2><span className="sub">Pay in points · you have {v.me.balance.toLocaleString()}</span></div>
@@ -220,13 +234,7 @@ function Get(ctx: Ctx) {
       )}
       {(cat === "tickets" || cat === "all") && <Events {...ctx} />}
       {(cat === "around" || cat === "all") && <Around {...ctx} />}
-      {!["cards", "tickets", "around"].includes(cat) && stands.map(s => (
-        <section key={s.id} className="block">
-          <div className="block-head"><h2>{s.name}</h2><span className="sub">{s.eta ? `From ${venueTime(s.eta)}` : ""}{s.slow ? " · busy" : ""}</span></div>
-          {v.items.filter(i => i.stand_id === s.id && (cat === "all" || i.category === cat)).sort((a, b) => Number(b.available) - Number(a.available))
-            .map(it => <ItemRow key={it.id} it={it} now={now} showStand={false} onPick={() => setSheet({ kind: "item", item: it.id })} />)}
-        </section>
-      ))}
+      {cat === "all" && stands.slice(3).map(standBlock)}
     </>
   );
 }
@@ -349,10 +357,11 @@ function Prediction({ v, refresh, toast }: Ctx) {
           {p.options.map(o => <button key={o.id} onClick={() => pick(o.id)}>{optLabel(o.id)}</button>)}
         </div>
       ) : <b>Picks are locked. It settles when this part ends.</b>}
-      <div className="split" aria-label="How the crowd picked">
+      {p.options.length > 2 && <div className="shares">{p.options.map(o => <div key={o.id} className={"share-row" + (p.yours === o.id ? " mine" : "")}><span className="grow">{optLabel(o.id)}</span><i style={{ width: `${Math.round(o.share * 100)}%` }} /><b className="num">{Math.round(o.share * 100)}%</b></div>)}</div>}
+      {p.options.length <= 2 && <div className="split" aria-label="How the crowd picked">
         <i style={{ width: `${Math.round((p.options[0]?.share ?? 0) * 100)}%` }} />
-        {p.options.slice(0, 2).map(o => <span key={o.id}>{Math.round(o.share * 100)}% {optLabel(o.id)}</span>)}
-      </div>
+        {p.options.map(o => <span key={o.id}>{Math.round(o.share * 100)}% {optLabel(o.id)}</span>)}
+      </div>}
     </div>
   );
 }
@@ -467,18 +476,18 @@ function Me({ v, refresh, toast, open, settings }: Ctx) {
       {fresh.length > 0 && (
         <section className="block arrived">
           <h2>Just arrived</h2>
-          {fresh.map(o => <div key={o.id} className="arrived-card"><ItemArt name={o.items[0]?.name ?? ""} size={40} /><div className="grow"><b>{o.items.map(i => i.name).join(", ")}</b><small>Reached section {sec(o.seat)} at {venueTime(o.delivered!)}, {Math.max(1, Math.round((o.delivered! - o.placed) / 60_000))} min after you ordered</small></div>
+          {fresh.map(o => <div key={o.id} className="arrived-card"><ItemArt name={o.items[0]?.name ?? ""} size={40} /><div className="grow"><b>{o.items.map(i => i.name).join(", ")}</b><small>{o.delivery ? `Reached section ${sec(o.seat)} at ${venueTime(o.delivered!)}` : `Picked up at ${o.stand}, ${venueTime(o.delivered!)}`}, {Math.max(1, Math.round((o.delivered! - o.placed) / 60_000))} min after you ordered</small></div>
             <After o={o} toast={toast} refresh={refresh} /></div>)}
         </section>
       )}
       {m.orders.length > 0 && (
         <section className="block">
-          <h2>On the way</h2>
+          <h2>Your orders</h2>
           {m.orders.map(o => <CommitmentCard key={o.id} o={o} now={now} onCancel={() => { const x = kernel.act({ do: "cancel", order: o.id }); if (!x.ok) toast(x.error); refresh(); }} />)}
           {r && r.busy && (
             <div className="mini-map">
               <PlaceView m={{ ...v.map, runners: v.map.runners.filter(x => x.id === r.id) }} showRunners={false} heat={false} />
-              <p className="sub">{runnerName(r.id)} is {r.to.startsWith("s") ? `heading to section ${sec(r.to)}` : "picking up your order"}.</p>
+              <p className="sub">{runnerName(r.id)} is {r.to === v.you.seat ? "heading to you now" : r.to.startsWith("s") ? `dropping off at section ${sec(r.to)}, then you` : "picking up your order"}.</p>
             </div>
           )}
         </section>

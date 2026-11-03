@@ -66,7 +66,7 @@ function Gate({ done }: { done: (token: string, a: Account) => void }) {
       </ul>
       <form className="l-form" onSubmit={go}>
         <h2>{mode === "up" ? "Get in. It's free." : "Welcome back."}</h2>
-        <label>Pick a name<input value={handle} onChange={e => setHandle(e.target.value)} autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="what other fans see" required /></label>
+        <label>{mode === "up" ? "Pick a name" : "Your name"}<input value={handle} onChange={e => setHandle(e.target.value)} autoComplete="username" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder={mode === "up" ? "what other fans see" : ""} required /></label>
         <label>Password<input type="password" value={pw} onChange={e => setPw(e.target.value)} autoComplete={mode === "up" ? "new-password" : "current-password"} required minLength={8} placeholder="8 or more characters" /></label>
         {error && <p className="banner warn" role="alert">{error}</p>}
         <button className="btn primary big wide" disabled={busy}>{busy ? "One moment…" : mode === "up" ? "Take me to my seat" : "Sign in"}</button>
@@ -83,6 +83,7 @@ const BOWLS: [string, string, string[]][] = [
 ];
 
 function Join({ joined, a }: { joined: () => void; a: Account }) {
+  useEffect(() => { scrollTo(0, 0); }, []);
   const key = `agape.joined.${a.id}`;
   const back = store.get(key) === "1";
   const [seat, setSeat] = useState("");
@@ -112,7 +113,7 @@ function Signed({ a, signOut }: { a: Account; signOut: () => void }) {
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
   useEffect(() => { const es = server.connect(VENUE, store.get("agape.token") ?? ""); const off = server.subscribe(() => bump(n => n + 1)); return () => { off(); es.close(); }; }, []);
   const refresh = () => bump(n => n + 1);
-  const toast = (text: string) => { const id = Date.now() + Math.random(); setToasts(t => [...t, { id, text }]); setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4200); };
+  const toast = (text: string) => { const id = Date.now() + Math.random(); setToasts(t => t.some(x => x.text === text) ? t : [...t.slice(-1), { id, text }]); setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4200); };
   const lens = a.role === "fan" ? "fan" : a.role;
   const v = kernel.view(lens as any, "");
   if (v?.error || v?.ok === false) return <div className="gate"><p>{v.error}</p><button className="btn" onClick={signOut}>Sign out</button></div>;
@@ -139,7 +140,6 @@ function Signed({ a, signOut }: { a: Account; signOut: () => void }) {
       <header className="harness signed">
         <div className="harness-in">
           <span className="eyebrow">{BRAND.venue} · {a.handle}</span>
-          <LookPicker />
           <button className="btn h-btn" onClick={signOut}>Sign out</button>
         </div>
       </header>

@@ -3,6 +3,8 @@
 # The cargo caches survive between builds, so an update only recompiles what changed.
 FROM rust:1.97-slim AS build
 WORKDIR /src
+ARG AGAPE_KERNEL_BUILD=dev
+ENV AGAPE_KERNEL_BUILD=$AGAPE_KERNEL_BUILD
 COPY agape-kernel agape-kernel
 COPY agape-server agape-server
 RUN --mount=type=cache,target=/usr/local/cargo/registry \

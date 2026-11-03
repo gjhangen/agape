@@ -25,11 +25,13 @@ if [ ! -f "$DATA/agape.env" ]; then
 fi
 chown -R 1000:1000 "$DATA" 2>/dev/null || true
 
+# the kernel's fingerprint: a night started on another kernel is closed and a new one opened
+KB=$(find agape-kernel/src agape-kernel/templates -type f | sort | xargs cat | sha1sum | cut -c1-12)
 echo "Building Agape (10-20 minutes the first time)..."
-if ! DOCKER_BUILDKIT=1 docker build -q -f agape-server/Dockerfile -t agape . >/dev/null 2>/tmp/agape-build.log; then
+if ! DOCKER_BUILDKIT=1 docker build -q --build-arg AGAPE_KERNEL_BUILD=$KB -f agape-server/Dockerfile -t agape . >/dev/null 2>/tmp/agape-build.log; then
   # an older Docker without BuildKit: the same build without the caches
   sed -e '/--mount=type=cache/d' -e 's/^    cd agape-server/RUN cd agape-server/' agape-server/Dockerfile > /tmp/agape.Dockerfile
-  docker build -q -f /tmp/agape.Dockerfile -t agape . >/dev/null || { tail -30 /tmp/agape-build.log; exit 1; }
+  docker build -q --build-arg AGAPE_KERNEL_BUILD=$KB -f /tmp/agape.Dockerfile -t agape . >/dev/null || { tail -30 /tmp/agape-build.log; exit 1; }
 fi
 docker rm -f agape >/dev/null 2>&1 || true
 # The pilot's clock runs at twice real time, so a night (and a delivery) fits a demo.

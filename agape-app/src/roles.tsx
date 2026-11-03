@@ -30,7 +30,7 @@ function Shift({ on, human, as, x, who }: { on?: boolean; human?: boolean; as: s
   if (human && !on) return null; // acting as them from the simulation: no shift to start
   return on
     ? <div className="shift on"><span className="grow">On shift. {who} is yours to run.</span><button className="btn ghost sm" onClick={() => staffAct(as, x, { do: "clock_out" }, "Shift ended. The simulation covers for you.")}>End shift</button></div>
-    : <div className="shift"><span className="grow">You're off shift, so the simulation is covering {who}.</span><button className="btn primary" onClick={() => staffAct(as, x, { do: "clock_in" }, "You're on. Nothing moves until you move it.")}>Start my shift</button></div>;
+    : <div className="shift"><span className="grow">You're off shift, so the simulation is covering {who}.</span><button className="btn primary" onClick={() => staffAct(as, x, { do: "clock_in" }, "You're on. Your next trip will show up here.")}>Start my shift</button></div>;
 }
 
 export function RunnerLens({ r, map, pick, runners, x }: { r: RunnerView; map: MapView; pick: (id: string) => void; runners: string[]; x?: StaffActs }) {
