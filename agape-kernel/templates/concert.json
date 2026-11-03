@@ -1,0 +1,199 @@
+{
+ "measures": [
+  {
+   "name": "loud_reports",
+   "window_ms": 60000,
+   "terms": [
+    {
+     "of": {
+      "sig": "crowd.level",
+      "where": {
+       "db": {
+        "gte": 95
+       }
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "encore_songs",
+   "terms": [
+    {
+     "of": {
+      "sig": "song",
+      "where": {
+       "tag": {
+        "eq": "encore"
+       }
+      }
+     }
+    }
+   ]
+  }
+ ],
+ "spans": [
+  {
+   "name": "show",
+   "opens": {
+    "sig": "doors.open"
+   },
+   "closes": {
+    "sig": "house.lights"
+   }
+  },
+  {
+   "name": "set",
+   "parent": "show",
+   "repeat": true,
+   "opens": {
+    "sig": "set.start"
+   },
+   "closes": {
+    "sig": "set.end"
+   }
+  },
+  {
+   "name": "encore",
+   "parent": "show",
+   "opens": {
+    "sig": "song",
+    "where": {
+     "tag": {
+      "eq": "encore"
+     }
+    }
+   },
+   "closes": {
+    "sig": "house.lights"
+   }
+  }
+ ],
+ "rules": [
+  {
+   "name": "merch_before_headliner",
+   "when": {
+    "enter": {
+     "span": "set",
+     "n": 2
+    }
+   },
+   "then": [
+    {
+     "offer": {
+      "thing": "tour_tee",
+      "price": 4000,
+      "expires_ms": 1200000
+     }
+    }
+   ]
+  },
+  {
+   "name": "singalong",
+   "when": {
+    "match": {
+     "sig": "song",
+     "where": {
+      "tag": {
+       "eq": "hit"
+      }
+     }
+    }
+   },
+   "then": [
+    {
+     "emit": {
+      "kind": "moment",
+      "fields": {
+       "kind": "singalong",
+       "team": ""
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "water_break",
+   "per": "zone",
+   "when": {
+    "crosses": {
+     "measure": "loud_reports",
+     "above": 2
+    }
+   },
+   "then": [
+    {
+     "offer": {
+      "thing": "water",
+      "price": 500,
+      "discount": 500,
+      "payer": "sponsor_water"
+     }
+    }
+   ]
+  },
+  {
+   "name": "encore_toast",
+   "when": {
+    "enter": {
+     "span": "encore"
+    }
+   },
+   "then": [
+    {
+     "emit": {
+      "kind": "moment",
+      "fields": {
+       "kind": "encore",
+       "team": ""
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "ask_encore",
+   "when": {
+    "enter": {
+     "span": "set",
+     "n": 2
+    }
+   },
+   "then": [
+    {
+     "ask": {
+      "id": "encore",
+      "question": "Will there be an encore?",
+      "options": [
+       {
+        "id": "yes",
+        "measure": "encore_songs"
+       },
+       {
+        "id": "no"
+       }
+      ],
+      "otherwise": "no",
+      "locks_ms": 600000,
+      "points": 75
+     }
+    }
+   ]
+  },
+  {
+   "name": "settle_encore",
+   "when": {
+    "exit": {
+     "span": "show"
+    }
+   },
+   "then": [
+    {
+     "settle": {
+      "ask": "encore"
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,439 @@
+{
+ "venue": "arena",
+  "name": "Harbor Arena",
+ "levels": 2,
+ "sections_per_level": 24,
+ "ring_s": 14,
+ "stairs_s": 75,
+ "lift_s": 120,
+ "aisle_s": 30,
+ "stands": [
+  {
+   "id": "grill-104",
+   "name": "Grill 104",
+   "level": 1,
+   "ring": 3,
+   "stations": 4
+  },
+  {
+   "id": "slice-110",
+   "name": "Slice 110",
+   "level": 1,
+   "ring": 9,
+   "stations": 3
+  },
+  {
+   "id": "taproom-115",
+   "name": "Taproom 115",
+   "level": 1,
+   "ring": 14,
+   "stations": 3
+  },
+  {
+   "id": "taqueria-121",
+   "name": "Taqueria 121",
+   "level": 1,
+   "ring": 20,
+   "stations": 3
+  },
+  {
+   "id": "shop-101",
+   "name": "Team Shop 101",
+   "level": 1,
+   "ring": 0,
+   "stations": 2
+  },
+  {
+   "id": "grill-206",
+   "name": "Grill 206",
+   "level": 2,
+   "ring": 5,
+   "stations": 3
+  },
+  {
+   "id": "snack-213",
+   "name": "Snack Bar 213",
+   "level": 2,
+   "ring": 12,
+   "stations": 3
+  },
+  {
+   "id": "bar-220",
+   "name": "Upper Bar 220",
+   "level": 2,
+   "ring": 19,
+   "stations": 2
+  }
+ ],
+ "things": [
+  {
+   "id": "burger",
+   "name": "Cheeseburger",
+   "stand": "grill-104",
+   "price": 1350,
+   "prep_s": 150,
+   "category": "food"
+  },
+  {
+   "id": "tenders",
+   "name": "Chicken tenders + fries",
+   "stand": "grill-104",
+   "price": 1400,
+   "prep_s": 170,
+   "category": "food"
+  },
+  {
+   "id": "bean-burger",
+   "name": "Black bean burger",
+   "stand": "grill-104",
+   "price": 1350,
+   "prep_s": 150,
+   "category": "food"
+  },
+  {
+   "id": "combo",
+   "name": "Burger + soda combo",
+   "stand": "grill-104",
+   "price": 1800,
+   "prep_s": 160,
+   "category": "food"
+  },
+  {
+   "id": "slice",
+   "name": "Pepperoni slice",
+   "stand": "slice-110",
+   "price": 900,
+   "prep_s": 45,
+   "category": "food"
+  },
+  {
+   "id": "knots",
+   "name": "Garlic knots",
+   "stand": "slice-110",
+   "price": 700,
+   "prep_s": 40,
+   "category": "food"
+  },
+  {
+   "id": "draft",
+   "name": "Domestic draft",
+   "stand": "taproom-115",
+   "price": 1200,
+   "prep_s": 40,
+   "constraints": [
+    {
+     "min_age": 21
+    },
+    {
+     "not_during": "last_call"
+    }
+   ],
+   "category": "drink"
+  },
+  {
+   "id": "craft",
+   "name": "Craft draft",
+   "stand": "taproom-115",
+   "price": 1400,
+   "prep_s": 45,
+   "constraints": [
+    {
+     "min_age": 21
+    },
+    {
+     "not_during": "last_call"
+    }
+   ],
+   "category": "drink"
+  },
+  {
+   "id": "tacos",
+   "name": "Street tacos (3)",
+   "stand": "taqueria-121",
+   "price": 1300,
+   "prep_s": 120,
+   "category": "food"
+  },
+  {
+   "id": "nachos",
+   "name": "Nachos grande",
+   "stand": "taqueria-121",
+   "price": 1250,
+   "prep_s": 90,
+   "category": "food"
+  },
+  {
+   "id": "jersey",
+   "name": "Home jersey",
+   "stand": "shop-101",
+   "price": 12000,
+   "prep_s": 60,
+   "stock": 150,
+   "category": "merch"
+  },
+  {
+   "id": "foam_finger",
+   "name": "Foam finger",
+   "stand": "shop-101",
+   "price": 1500,
+   "prep_s": 20,
+   "stock": 400,
+   "category": "merch"
+  },
+  {
+   "id": "hotdog",
+   "name": "Hot dog",
+   "stand": "grill-206",
+   "price": 800,
+   "prep_s": 40,
+   "category": "food"
+  },
+  {
+   "id": "popcorn",
+   "name": "Popcorn bucket",
+   "stand": "snack-213",
+   "price": 900,
+   "prep_s": 20,
+   "category": "food"
+  },
+  {
+   "id": "water",
+   "name": "Bottled water",
+   "stand": "snack-213",
+   "price": 550,
+   "prep_s": 10,
+   "category": "drink"
+  },
+  {
+   "id": "upper-draft",
+   "name": "Domestic draft",
+   "stand": "bar-220",
+   "price": 1200,
+   "prep_s": 40,
+   "constraints": [
+    {
+     "min_age": 21
+    },
+    {
+     "not_during": "last_call"
+    },
+    {
+     "levels": [
+      2
+     ]
+    }
+   ],
+   "category": "drink"
+  },
+  {
+   "id": "soda",
+   "name": "Fountain soda",
+   "stand": "slice-110",
+   "price": 650,
+   "prep_s": 15,
+   "category": "drink"
+  },
+  {
+   "id": "beanie",
+   "name": "Knit beanie",
+   "stand": "shop-101",
+   "price": 2800,
+   "prep_s": 30,
+   "category": "merch",
+   "stock": 120
+  }
+ ],
+ "terms": {
+  "currency": "USD",
+  "platform_share_bps": 1500,
+  "tax_bps": 700,
+  "delivery_fee": 499,
+  "proc_bps": 290,
+  "proc_fixed": 30,
+  "runner_pay": 150,
+  "points_per_dollar": 10
+ },
+ "service": {
+  "batch_max": 4,
+  "max_eta_s": 900,
+  "handoff_s": 25
+ },
+ "around": [
+  {
+   "id": "ride-b",
+   "kind": "ride",
+   "name": "Rideshare pickup, Zone B",
+   "walk_min": 6,
+   "blurb": "Marked lane on Pier Street. Cars queue here after the final.",
+   "operator": "harborline",
+   "service": {
+    "kind": "ride"
+   }
+  },
+  {
+   "id": "lot-c",
+   "kind": "parking",
+   "name": "Lot C exit",
+   "walk_min": 9,
+   "blurb": "Exits onto Harbor Drive. Expect a line for about 20 minutes after the final.",
+   "operator": "pierpark",
+   "service": {
+    "kind": "parking",
+    "price": 2000,
+    "supply": 300
+   }
+  },
+  {
+   "id": "dock-pizza",
+   "kind": "partner",
+   "name": "Dock Street Pizza",
+   "walk_min": 4,
+   "blurb": "Wood-fired, open until 1 AM.",
+   "perk": {
+    "title": "20% off your order after the game",
+    "cost": 150,
+    "supply": 200
+   },
+   "operator": "dock-pizza"
+  },
+  {
+   "id": "copper-tap",
+   "kind": "partner",
+   "name": "The Copper Tap",
+   "walk_min": 7,
+   "blurb": "Sports bar across the plaza.",
+   "perk": {
+    "title": "First round of fries on the house",
+    "cost": 250,
+    "supply": 80
+   },
+   "operator": "copper-tap"
+  },
+  {
+   "id": "harbor-cinema",
+   "kind": "partner",
+   "name": "Harbor Cinema",
+   "walk_min": 12,
+   "blurb": "Late shows Fridays and Saturdays.",
+   "perk": {
+    "title": "Two-for-one tickets this weekend",
+    "cost": 400,
+    "supply": 50
+   },
+   "operator": "harbor-cinema"
+  }
+ ],
+ "address": "1 Pier Street, Harbor District",
+ "capacity": 18200,
+ "businesses": [
+  {
+   "id": "harborline",
+   "kind": "rideshare",
+   "name": "Harborline Rides",
+   "blurb": "Local rides across the harbor district. Drivers live within 10 miles of the arena.",
+   "hours": "24 hours"
+  },
+  {
+   "id": "pierpark",
+   "kind": "parking",
+   "name": "Pier Parking Co.",
+   "blurb": "Runs Lots A through D around Harbor Arena.",
+   "hours": "Opens 2 hours before every event"
+  },
+  {
+   "id": "dock-pizza",
+   "kind": "partner",
+   "name": "Dock Street Pizza",
+   "blurb": "Wood-fired pies from a 900-degree oven. A post-game tradition since 2009.",
+   "hours": "Until 1 AM"
+  },
+  {
+   "id": "copper-tap",
+   "kind": "partner",
+   "name": "The Copper Tap",
+   "blurb": "Sports bar across the plaza with forty screens and a long patio.",
+   "hours": "Until 2 AM"
+  },
+  {
+   "id": "harbor-cinema",
+   "kind": "partner",
+   "name": "Harbor Cinema",
+   "blurb": "Six screens and late shows on weekends.",
+   "hours": "Last show 11:40 PM"
+  }
+ ],
+ "drivers": [
+  {
+   "id": "drv-1",
+   "name": "Marisol Ortega",
+   "provider": "harborline",
+   "rating": 4.89,
+   "trips": 3438,
+   "vehicle": "Gray Toyota Camry",
+   "plate": "6HRB914"
+  },
+  {
+   "id": "drv-2",
+   "name": "Dev Patel",
+   "provider": "harborline",
+   "rating": 4.91,
+   "trips": 3846,
+   "vehicle": "White Honda Accord",
+   "plate": "9HRB129"
+  },
+  {
+   "id": "drv-3",
+   "name": "Anthony Russo",
+   "provider": "harborline",
+   "rating": 4.95,
+   "trips": 3578,
+   "vehicle": "Black Hyundai Sonata",
+   "plate": "4HRB764"
+  },
+  {
+   "id": "drv-4",
+   "name": "Keisha Morgan",
+   "provider": "harborline",
+   "rating": 4.72,
+   "trips": 1042,
+   "vehicle": "Blue Kia Niro",
+   "plate": "2HRB480"
+  },
+  {
+   "id": "drv-5",
+   "name": "Luis Ferrer",
+   "provider": "harborline",
+   "rating": 4.84,
+   "trips": 1409,
+   "vehicle": "Silver Ford Escape",
+   "plate": "7HRB656"
+  },
+  {
+   "id": "drv-6",
+   "name": "Hannah Cole",
+   "provider": "harborline",
+   "rating": 4.73,
+   "trips": 1421,
+   "vehicle": "Red Mazda CX-5",
+   "plate": "1HRB848"
+  },
+  {
+   "id": "drv-7",
+   "name": "Samuel Adeyemi",
+   "provider": "harborline",
+   "rating": 4.77,
+   "trips": 1544,
+   "vehicle": "White Tesla Model 3",
+   "plate": "3HRB988"
+  },
+  {
+   "id": "drv-8",
+   "name": "Grace Lin",
+   "provider": "harborline",
+   "rating": 4.93,
+   "trips": 1053,
+   "vehicle": "Green Subaru Outback",
+   "plate": "2HRB242"
+  }
+ ]
+}

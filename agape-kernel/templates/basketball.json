@@ -1,0 +1,406 @@
+{
+ "measures": [
+  {
+   "name": "margin",
+   "terms": [
+    {
+     "of": {
+      "sig": "score",
+      "where": {
+       "team": {
+        "eq": "home"
+       }
+      }
+     },
+     "field": "points",
+     "coef": 1
+    },
+    {
+     "of": {
+      "sig": "score",
+      "where": {
+       "team": {
+        "eq": "away"
+       }
+      }
+     },
+     "field": "points",
+     "coef": -1
+    }
+   ]
+  },
+  {
+   "name": "orders_1m",
+   "window_ms": 60000,
+   "terms": [
+    {
+     "of": {
+      "sig": "order.placed"
+     }
+    }
+   ]
+  },
+  {
+   "name": "home_points",
+   "terms": [
+    {
+     "of": {
+      "sig": "score",
+      "where": {
+       "team": {
+        "eq": "home"
+       }
+      }
+     },
+     "field": "points"
+    }
+   ]
+  },
+  {
+   "name": "away_points",
+   "terms": [
+    {
+     "of": {
+      "sig": "score",
+      "where": {
+       "team": {
+        "eq": "away"
+       }
+      }
+     },
+     "field": "points"
+    }
+   ]
+  }
+ ],
+ "spans": [
+  {
+   "name": "game",
+   "opens": {
+    "sig": "gates.open"
+   },
+   "closes": {
+    "sig": "game.final"
+   }
+  },
+  {
+   "name": "period",
+   "parent": "game",
+   "repeat": true,
+   "opens": {
+    "sig": "period.start"
+   },
+   "closes": {
+    "sig": "period.end"
+   }
+  },
+  {
+   "name": "halftime",
+   "parent": "game",
+   "opens": {
+    "sig": "span.exit",
+    "where": {
+     "span": {
+      "eq": "period"
+     },
+     "n": {
+      "eq": 2
+     }
+    }
+   },
+   "closes": {
+    "sig": "span.enter",
+    "where": {
+     "span": {
+      "eq": "period"
+     },
+     "n": {
+      "eq": 3
+     }
+    }
+   }
+  },
+  {
+   "name": "last_call",
+   "parent": "game",
+   "opens": {
+    "sig": "span.enter",
+    "where": {
+     "span": {
+      "eq": "period"
+     },
+     "n": {
+      "eq": 4
+     }
+    }
+   },
+   "closes": {
+    "sig": "game.final"
+   }
+  }
+ ],
+ "rules": [
+  {
+   "name": "run",
+   "when": {
+    "streak": {
+     "of": {
+      "sig": "score"
+     },
+     "key": "team",
+     "field": "points",
+     "gte": 8
+    }
+   },
+   "then": [
+    {
+     "emit": {
+      "kind": "moment",
+      "fields": {
+       "kind": "run",
+       "team": "$key"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "lead_change",
+   "when": {
+    "changes": {
+     "measure": "margin"
+    }
+   },
+   "then": [
+    {
+     "emit": {
+      "kind": "moment",
+      "fields": {
+       "kind": "lead_change",
+       "team": "$f.team"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "splash",
+   "when": {
+    "every": {
+     "n": 2,
+     "of": {
+      "sig": "score",
+      "where": {
+       "points": {
+        "eq": 3
+       },
+       "star": {
+        "eq": true
+       }
+      }
+     }
+    }
+   },
+   "then": [
+    {
+     "emit": {
+      "kind": "moment",
+      "fields": {
+       "kind": "splash",
+       "team": "$f.team"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "halftime_combo",
+   "when": {
+    "enter": {
+     "span": "halftime"
+    }
+   },
+   "then": [
+    {
+     "offer": {
+      "thing": "combo",
+      "price": 1800,
+      "discount": 300,
+      "payer": "sponsor_cola",
+      "expires_ms": 1200000,
+      "limits": {
+       "mode": "while_it_lasts",
+       "per_fan": 1,
+       "while": {
+        "span_open": {
+         "span": "halftime"
+        }
+       },
+       "label": "Halftime only"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "run_merch",
+   "stratum": 2,
+   "when": {
+    "match": {
+     "sig": "moment",
+     "where": {
+      "kind": {
+       "eq": "run"
+      },
+      "team": {
+       "eq": "home"
+      }
+     }
+    }
+   },
+   "unless": {
+    "not": {
+     "span_open": {
+      "span": "game"
+     }
+    }
+   },
+   "throttle_ms": 180000,
+   "then": [
+    {
+     "offer": {
+      "thing": "foam_finger",
+      "price": 1500,
+      "expires_ms": 600000
+     }
+    }
+   ]
+  },
+  {
+   "name": "surge",
+   "when": {
+    "crosses": {
+     "measure": "orders_1m",
+     "above": 20
+    }
+   },
+   "then": [
+    {
+     "emit": {
+      "kind": "ops.alert",
+      "fields": {
+       "kind": "surge"
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "last_call_notice",
+   "when": {
+    "enter": {
+     "span": "last_call"
+    }
+   },
+   "then": [
+    {
+     "emit": {
+      "kind": "moment",
+      "fields": {
+       "kind": "last_call",
+       "team": ""
+      }
+     }
+    }
+   ]
+  },
+  {
+   "name": "ask_quarter",
+   "when": {
+    "enter": {
+     "span": "period"
+    }
+   },
+   "then": [
+    {
+     "ask": {
+      "id": "quarter",
+      "question": "Who wins Q$n?",
+      "options": [
+       {
+        "id": "home",
+        "measure": "home_points"
+       },
+       {
+        "id": "away",
+        "measure": "away_points"
+       }
+      ],
+      "locks_ms": 240000,
+      "points": 50
+     }
+    }
+   ]
+  },
+  {
+   "name": "settle_quarter",
+   "when": {
+    "exit": {
+     "span": "period"
+    }
+   },
+   "then": [
+    {
+     "settle": {
+      "ask": "quarter"
+     }
+    }
+   ]
+  },
+  {
+   "name": "ask_trivia",
+   "when": {
+    "enter": {
+     "span": "halftime"
+    }
+   },
+   "then": [
+    {
+     "ask": {
+      "id": "trivia",
+      "question": "Halftime trivia: who holds the Harbor Kings' single-game scoring record?",
+      "options": [
+       {
+        "id": "Jalen Ayers"
+       },
+       {
+        "id": "Tobias Mbeki"
+       },
+       {
+        "id": "Marcus Fontaine"
+       }
+      ],
+      "otherwise": "Jalen Ayers",
+      "locks_ms": 300000,
+      "points": 25
+     }
+    }
+   ]
+  },
+  {
+   "name": "settle_trivia",
+   "when": {
+    "exit": {
+     "span": "halftime"
+    }
+   },
+   "then": [
+    {
+     "settle": {
+      "ask": "trivia"
+     }
+    }
+   ]
+  }
+ ]
+}

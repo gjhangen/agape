@@ -1,0 +1,29 @@
+[package]
+name = "agape-kernel"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+chacha20poly1305 = { version = "0.11.0", features = ["getrandom"], optional = true }
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+
+[dev-dependencies]
+rand = "0.10.3"
+
+[features]
+default = ["vault"]
+# Key custody runs on the server; devices (WASM, mobile) build without it.
+vault = ["dep:chacha20poly1305"]
+
+[lib]
+crate-type = ["rlib", "cdylib"]
+
+# Device build: cargo build --profile wasm --target wasm32-unknown-unknown --no-default-features
+[profile.wasm]
+inherits = "release"
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"

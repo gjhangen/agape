@@ -1,0 +1,615 @@
+{
+ "name": "Coastal Basketball League",
+ "season": "2026\u201327",
+ "teams": [
+  {
+   "id": "hbk",
+   "name": "Harbor Kings",
+   "short": "Kings",
+   "abbr": "HBK",
+   "color": "#B8174F",
+   "wins": 7,
+   "losses": 13,
+   "roster": [
+    {
+     "id": "hbk-1",
+     "name": "Jalen Ayers",
+     "number": 8,
+     "pos": "G",
+     "star": true,
+     "ppg": 25.9,
+     "rpg": 5.6,
+     "apg": 7.0
+    },
+    {
+     "id": "hbk-2",
+     "name": "Tobias Mbeki",
+     "number": 2,
+     "pos": "G",
+     "star": false,
+     "ppg": 12.8,
+     "rpg": 7.0,
+     "apg": 6.6
+    },
+    {
+     "id": "hbk-3",
+     "name": "Marcus Fontaine",
+     "number": 15,
+     "pos": "F",
+     "star": false,
+     "ppg": 7.3,
+     "rpg": 6.3,
+     "apg": 7.2
+    },
+    {
+     "id": "hbk-4",
+     "name": "Pierce Thorne",
+     "number": 14,
+     "pos": "F",
+     "star": false,
+     "ppg": 10.5,
+     "rpg": 9.7,
+     "apg": 5.6
+    },
+    {
+     "id": "hbk-5",
+     "name": "Caleb Holloway",
+     "number": 4,
+     "pos": "C",
+     "star": false,
+     "ppg": 5.7,
+     "rpg": 8.7,
+     "apg": 1.4
+    },
+    {
+     "id": "hbk-6",
+     "name": "Amir Abara",
+     "number": 21,
+     "pos": "G",
+     "star": false,
+     "ppg": 13.7,
+     "rpg": 2.2,
+     "apg": 4.2
+    },
+    {
+     "id": "hbk-7",
+     "name": "Theo Nakamura",
+     "number": 23,
+     "pos": "F",
+     "star": false,
+     "ppg": 13.3,
+     "rpg": 3.9,
+     "apg": 3.1
+    },
+    {
+     "id": "hbk-8",
+     "name": "Reggie Imani",
+     "number": 3,
+     "pos": "C",
+     "star": false,
+     "ppg": 4.9,
+     "rpg": 4.2,
+     "apg": 8.0
+    }
+   ]
+  },
+  {
+   "id": "msc",
+   "name": "Mesa Comets",
+   "short": "Comets",
+   "abbr": "MSC",
+   "color": "#2F6DB5",
+   "wins": 6,
+   "losses": 14,
+   "roster": [
+    {
+     "id": "msc-1",
+     "name": "Rafael Vance",
+     "number": 33,
+     "pos": "G",
+     "star": true,
+     "ppg": 21.5,
+     "rpg": 6.1,
+     "apg": 1.2
+    },
+    {
+     "id": "msc-2",
+     "name": "Grant Ortiz",
+     "number": 0,
+     "pos": "G",
+     "star": false,
+     "ppg": 8.4,
+     "rpg": 5.1,
+     "apg": 7.7
+    },
+    {
+     "id": "msc-3",
+     "name": "Isaiah Achebe",
+     "number": 14,
+     "pos": "F",
+     "star": false,
+     "ppg": 14.2,
+     "rpg": 5.8,
+     "apg": 7.9
+    },
+    {
+     "id": "msc-4",
+     "name": "Silas Tanaka",
+     "number": 24,
+     "pos": "F",
+     "star": false,
+     "ppg": 4.8,
+     "rpg": 3.6,
+     "apg": 5.7
+    },
+    {
+     "id": "msc-5",
+     "name": "Kofi Ellery",
+     "number": 23,
+     "pos": "C",
+     "star": false,
+     "ppg": 7.4,
+     "rpg": 9.7,
+     "apg": 6.3
+    },
+    {
+     "id": "msc-6",
+     "name": "Kenji Quill",
+     "number": 12,
+     "pos": "G",
+     "star": false,
+     "ppg": 6.7,
+     "rpg": 2.1,
+     "apg": 4.3
+    },
+    {
+     "id": "msc-7",
+     "name": "Ivan Price",
+     "number": 21,
+     "pos": "F",
+     "star": false,
+     "ppg": 6.1,
+     "rpg": 3.5,
+     "apg": 6.1
+    },
+    {
+     "id": "msc-8",
+     "name": "Bryce Bishop",
+     "number": 5,
+     "pos": "C",
+     "star": false,
+     "ppg": 11.1,
+     "rpg": 5.2,
+     "apg": 7.9
+    }
+   ]
+  },
+  {
+   "id": "rdg",
+   "name": "Ridgeline Wolves",
+   "short": "Wolves",
+   "abbr": "RDG",
+   "color": "#3A7D44",
+   "wins": 15,
+   "losses": 5,
+   "roster": [
+    {
+     "id": "rdg-1",
+     "name": "Andre Kowalski",
+     "number": 33,
+     "pos": "G",
+     "star": true,
+     "ppg": 20.7,
+     "rpg": 10.0,
+     "apg": 5.2
+    },
+    {
+     "id": "rdg-2",
+     "name": "Isaiah Wilder",
+     "number": 7,
+     "pos": "G",
+     "star": false,
+     "ppg": 6.3,
+     "rpg": 2.1,
+     "apg": 5.3
+    },
+    {
+     "id": "rdg-3",
+     "name": "Joel Lindqvist",
+     "number": 3,
+     "pos": "F",
+     "star": false,
+     "ppg": 4.8,
+     "rpg": 3.7,
+     "apg": 5.5
+    },
+    {
+     "id": "rdg-4",
+     "name": "Trey Osei",
+     "number": 32,
+     "pos": "F",
+     "star": false,
+     "ppg": 8.1,
+     "rpg": 5.6,
+     "apg": 7.7
+    },
+    {
+     "id": "rdg-5",
+     "name": "Quentin Okafor",
+     "number": 34,
+     "pos": "C",
+     "star": false,
+     "ppg": 5.5,
+     "rpg": 3.5,
+     "apg": 2.1
+    },
+    {
+     "id": "rdg-6",
+     "name": "Jordan Jovic",
+     "number": 8,
+     "pos": "G",
+     "star": false,
+     "ppg": 6.7,
+     "rpg": 3.3,
+     "apg": 5.4
+    },
+    {
+     "id": "rdg-7",
+     "name": "Kofi Banks",
+     "number": 14,
+     "pos": "F",
+     "star": false,
+     "ppg": 13.7,
+     "rpg": 2.6,
+     "apg": 1.3
+    },
+    {
+     "id": "rdg-8",
+     "name": "Felix Dumont",
+     "number": 1,
+     "pos": "C",
+     "star": false,
+     "ppg": 6.6,
+     "rpg": 4.1,
+     "apg": 6.8
+    }
+   ]
+  },
+  {
+   "id": "bay",
+   "name": "Bayside Tide",
+   "short": "Tide",
+   "abbr": "BAY",
+   "color": "#0E8A9A",
+   "wins": 12,
+   "losses": 8,
+   "roster": [
+    {
+     "id": "bay-1",
+     "name": "Malik Whitfield",
+     "number": 11,
+     "pos": "G",
+     "star": true,
+     "ppg": 23.2,
+     "rpg": 3.0,
+     "apg": 4.4
+    },
+    {
+     "id": "bay-2",
+     "name": "Andre Stroud",
+     "number": 24,
+     "pos": "G",
+     "star": false,
+     "ppg": 7.1,
+     "rpg": 8.0,
+     "apg": 1.5
+    },
+    {
+     "id": "bay-3",
+     "name": "Marcus Lacroix",
+     "number": 12,
+     "pos": "F",
+     "star": false,
+     "ppg": 4.5,
+     "rpg": 5.0,
+     "apg": 5.0
+    },
+    {
+     "id": "bay-4",
+     "name": "Omari Reyes",
+     "number": 10,
+     "pos": "F",
+     "star": false,
+     "ppg": 11.2,
+     "rpg": 6.7,
+     "apg": 2.0
+    },
+    {
+     "id": "bay-5",
+     "name": "Silas Rhodes",
+     "number": 0,
+     "pos": "C",
+     "star": false,
+     "ppg": 11.7,
+     "rpg": 2.2,
+     "apg": 5.5
+    },
+    {
+     "id": "bay-6",
+     "name": "Caleb Lund",
+     "number": 13,
+     "pos": "G",
+     "star": false,
+     "ppg": 12.0,
+     "rpg": 3.1,
+     "apg": 1.5
+    },
+    {
+     "id": "bay-7",
+     "name": "Hugo Mercer",
+     "number": 2,
+     "pos": "F",
+     "star": false,
+     "ppg": 8.0,
+     "rpg": 9.2,
+     "apg": 6.2
+    },
+    {
+     "id": "bay-8",
+     "name": "Felix Calloway",
+     "number": 33,
+     "pos": "C",
+     "star": false,
+     "ppg": 4.9,
+     "rpg": 9.2,
+     "apg": 7.1
+    }
+   ]
+  },
+  {
+   "id": "frt",
+   "name": "Frontier Rails",
+   "short": "Rails",
+   "abbr": "FRT",
+   "color": "#8A5A2B",
+   "wins": 15,
+   "losses": 5,
+   "roster": [
+    {
+     "id": "frt-1",
+     "name": "Jace Fairley",
+     "number": 21,
+     "pos": "G",
+     "star": true,
+     "ppg": 23.6,
+     "rpg": 7.3,
+     "apg": 3.7
+    },
+    {
+     "id": "frt-2",
+     "name": "Zion Moretti",
+     "number": 12,
+     "pos": "G",
+     "star": false,
+     "ppg": 5.3,
+     "rpg": 9.0,
+     "apg": 6.1
+    },
+    {
+     "id": "frt-3",
+     "name": "Malik Carver",
+     "number": 24,
+     "pos": "F",
+     "star": false,
+     "ppg": 11.6,
+     "rpg": 5.5,
+     "apg": 6.9
+    },
+    {
+     "id": "frt-4",
+     "name": "Kai Mendez",
+     "number": 15,
+     "pos": "F",
+     "star": false,
+     "ppg": 12.3,
+     "rpg": 4.5,
+     "apg": 1.6
+    },
+    {
+     "id": "frt-5",
+     "name": "Pierce Vasquez",
+     "number": 10,
+     "pos": "C",
+     "star": false,
+     "ppg": 14.5,
+     "rpg": 6.0,
+     "apg": 5.3
+    },
+    {
+     "id": "frt-6",
+     "name": "Noah Brooks",
+     "number": 22,
+     "pos": "G",
+     "star": false,
+     "ppg": 7.3,
+     "rpg": 6.9,
+     "apg": 4.6
+    },
+    {
+     "id": "frt-7",
+     "name": "Theo Rowe",
+     "number": 0,
+     "pos": "F",
+     "star": false,
+     "ppg": 13.8,
+     "rpg": 5.2,
+     "apg": 2.8
+    },
+    {
+     "id": "frt-8",
+     "name": "Rowan Ivers",
+     "number": 3,
+     "pos": "C",
+     "star": false,
+     "ppg": 12.8,
+     "rpg": 9.0,
+     "apg": 3.7
+    }
+   ]
+  },
+  {
+   "id": "sol",
+   "name": "Solano Suns",
+   "short": "Suns",
+   "abbr": "SOL",
+   "color": "#D88A12",
+   "wins": 12,
+   "losses": 8,
+   "roster": [
+    {
+     "id": "sol-1",
+     "name": "Isaiah Underwood",
+     "number": 2,
+     "pos": "G",
+     "star": true,
+     "ppg": 19.5,
+     "rpg": 8.6,
+     "apg": 1.8
+    },
+    {
+     "id": "sol-2",
+     "name": "Mateo Sato",
+     "number": 15,
+     "pos": "G",
+     "star": false,
+     "ppg": 14.2,
+     "rpg": 5.1,
+     "apg": 4.6
+    },
+    {
+     "id": "sol-3",
+     "name": "Emeka Delgado",
+     "number": 1,
+     "pos": "F",
+     "star": false,
+     "ppg": 11.9,
+     "rpg": 5.6,
+     "apg": 1.5
+    },
+    {
+     "id": "sol-4",
+     "name": "Marcus Pryce",
+     "number": 5,
+     "pos": "F",
+     "star": false,
+     "ppg": 13.6,
+     "rpg": 7.4,
+     "apg": 3.0
+    },
+    {
+     "id": "sol-5",
+     "name": "Felix Keane",
+     "number": 24,
+     "pos": "C",
+     "star": false,
+     "ppg": 11.1,
+     "rpg": 2.2,
+     "apg": 2.0
+    },
+    {
+     "id": "sol-6",
+     "name": "Jordan Beckett",
+     "number": 12,
+     "pos": "G",
+     "star": false,
+     "ppg": 6.6,
+     "rpg": 8.4,
+     "apg": 7.9
+    },
+    {
+     "id": "sol-7",
+     "name": "Xavier Hale",
+     "number": 4,
+     "pos": "F",
+     "star": false,
+     "ppg": 6.2,
+     "rpg": 4.0,
+     "apg": 6.0
+    },
+    {
+     "id": "sol-8",
+     "name": "Theo Novak",
+     "number": 8,
+     "pos": "C",
+     "star": false,
+     "ppg": 14.4,
+     "rpg": 6.9,
+     "apg": 6.3
+    }
+   ]
+  }
+ ],
+ "tonight": {
+  "home": "hbk",
+  "away": "msc",
+  "others": [
+   [
+    "rdg",
+    "bay"
+   ],
+   [
+    "frt",
+    "sol"
+   ]
+  ]
+ },
+ "upcoming": [
+  {
+   "id": "e2",
+   "kind": "game",
+   "home": "hbk",
+   "away": "frt",
+   "title": "Kings vs Rails",
+   "date": "Thu, Nov 5",
+   "time": "7:30 PM"
+  },
+  {
+   "id": "e3",
+   "kind": "concert",
+   "home": null,
+   "away": null,
+   "title": "Lumen \u00b7 Night Market Tour",
+   "date": "Fri, Nov 13",
+   "time": "8:00 PM"
+  },
+  {
+   "id": "e4",
+   "kind": "game",
+   "home": "hbk",
+   "away": "bay",
+   "title": "Kings vs Tide",
+   "date": "Sat, Nov 21",
+   "time": "7:00 PM"
+  }
+ ],
+ "tiers": [
+  {
+   "id": "courtside",
+   "name": "Courtside",
+   "price": 24000,
+   "stock": 24
+  },
+  {
+   "id": "lower",
+   "name": "Lower bowl",
+   "price": 6500,
+   "stock": 900
+  },
+  {
+   "id": "upper",
+   "name": "Upper bowl",
+   "price": 3500,
+   "stock": 1400
+  }
+ ]
+}

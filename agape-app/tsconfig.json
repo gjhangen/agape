@@ -1,0 +1,1 @@
+{ "compilerOptions": { "target": "es2020", "module": "esnext", "moduleResolution": "bundler", "jsx": "react", "jsxFactory": "React.createElement", "jsxFragmentFactory": "React.Fragment", "strict": true, "noEmit": true, "skipLibCheck": true, "lib": ["es2020", "dom"] }, "include": ["src"] }
