@@ -42,6 +42,14 @@ cp agape-server/deploy/update.sh /usr/local/bin/agape-update && chmod +x /usr/lo
 echo "*/3 * * * * root /usr/local/bin/agape-update >> /var/log/agape-update.log 2>&1" > /etc/cron.d/agape-update
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then ufw allow "$PORT/tcp" >/dev/null; fi
 
+# HTTPS without touching ports 80/443: if a Cloudflare tunnel token has been saved here, a small
+# connector carries https://agapetoyourseat.com to this container. The token never leaves the server.
+if [ -s "$DATA/tunnel-token" ]; then
+  docker rm -f agape-tunnel >/dev/null 2>&1 || true
+  docker run -d --name agape-tunnel --restart unless-stopped --network host cloudflare/cloudflared:2026.10.7 \
+    tunnel --no-autoupdate run --token "$(cat "$DATA/tunnel-token")" >/dev/null && echo "Secure address on: https://agapetoyourseat.com"
+fi
+
 sleep 3
 docker ps --filter name=agape --format '{{.Status}}' | grep -q Up || { docker logs --tail 30 agape; exit 1; }
 echo

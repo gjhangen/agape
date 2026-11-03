@@ -292,7 +292,7 @@ fn erasure_destroys_the_key_not_the_history() {
 
 fn quote(fan: &str, stand: &str, qty: i64, price: i64, discounts: Vec<Discount>, points: i64, tip: i64, delivery: bool) -> Quote {
     Quote { fan: fan.into(), stand: stand.into(), runner: None, lines: vec![Line { thing: "burger".into(), qty, unit_price: price }],
-            discounts, points_redeemed: points, tip, delivery }
+            discounts, points_redeemed: points, tip, delivery, fee_waived: false }
 }
 
 #[test]

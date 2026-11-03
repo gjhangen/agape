@@ -43,6 +43,9 @@ pub struct Quote {
     pub points_redeemed: i64,
     pub tip: i64,
     pub delivery: bool,
+    /// Part of a cart whose delivery fee another order in it already carries.
+    #[serde(default)]
+    pub fee_waived: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -79,7 +82,7 @@ pub fn breakdown(q: &Quote, t: &Terms) -> Result<Breakdown, OfferError> {
     if discount > subtotal { return Err(OfferError::DiscountExceedsSubtotal); }
     // Tax on the price the stand sells at; whoever funds a discount, the sale price is the subtotal.
     let tax = bps(subtotal, t.tax_bps);
-    let fee = if q.delivery { t.delivery_fee } else { 0 };
+    let fee = if q.delivery && !q.fee_waived { t.delivery_fee } else { 0 };
     let charge = subtotal - discount + tax + fee + q.tip;
     let processing = if charge > 0 { bps(charge, t.proc_bps) + t.proc_fixed } else { 0 };
     let agape_share = bps(subtotal, t.platform_share_bps);

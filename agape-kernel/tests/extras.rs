@@ -143,3 +143,25 @@ fn a_fan_who_says_they_are_21_can_order_a_drink() {
     n.attest_age("me").unwrap();
     assert_ne!(item(&mut n)["why_not"], "AgeUnverified");
 }
+
+#[test]
+fn a_cart_across_two_stands_pays_one_delivery_fee_and_splits_the_tip() {
+    let mut n = night();
+    n.join_named("me", "s104", "Me", false).unwrap();
+    n.attest_age("me").unwrap();
+    let food = n.world.def.things.iter().find(|t| t.category == "food").unwrap().clone();
+    let other = n.world.def.things.iter().find(|t| t.stand != food.stand && t.category != "merch" && t.constraints.is_empty()).unwrap().clone();
+    let lines = vec![(food.id.clone(), 2), (other.id.clone(), 1)];
+    let q = n.cart_quote("me", &lines, true, 300).unwrap();
+    let ids = n.order_cart("me", &lines, true, 300).unwrap();
+    assert_eq!(ids.len(), 2, "one order per stand");
+    let v = n.view_fan("me");
+    let orders = v["orders"].as_array().unwrap();
+    let fees: i64 = orders.iter().map(|o| o["breakdown"]["fee"].as_i64().unwrap()).sum();
+    let tips: i64 = orders.iter().map(|o| o["breakdown"]["tip"].as_i64().unwrap()).sum();
+    let charge: i64 = orders.iter().map(|o| o["charge"].as_i64().unwrap()).sum();
+    assert_eq!(fees, q["fee"].as_i64().unwrap(), "one fee for the cart");
+    assert_eq!(tips, 300);
+    assert_eq!(charge, q["charge"].as_i64().unwrap(), "the quote is what you pay");
+    assert!(n.order_cart("me", &[], true, 0).is_err());
+}

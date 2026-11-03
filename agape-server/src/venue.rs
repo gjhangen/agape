@@ -102,7 +102,7 @@ fn build(init: &Init) -> Result<Night, String> {
 
 /// Acts the journal must keep: anything that may change the world. Reads and quotes don't.
 fn changes_world(v: &Value) -> bool {
-    !matches!(v["do"].as_str(), Some("quote" | "ticket_quote" | "ride_quote" | "window"))
+    !matches!(v["do"].as_str(), Some("quote" | "ticket_quote" | "ride_quote" | "window" | "cart_quote"))
 }
 
 /// Rebuild a venue from its journal, or start one from `init` if it has none.

@@ -9,6 +9,7 @@ import { actWith, Deal, DealCard } from "./deals";
 import { Card, LevelBadge, LevelPanel, MomentCard, Page } from "./pages";
 import { kernel } from "./kernel";
 import { wearColor } from "./themes";
+import { cart, useCart } from "./cart";
 import { ItemArt } from "./Art";
 import {
   BRAND, CommitmentCard, FeedItem, LedgerLine, MapView, Offer, OfferCard, Order, PlaceView, SignalRow,
@@ -57,7 +58,7 @@ export type FanView = {
   map: MapView;
 };
 
-export type Sheet = { kind: "item"; item: string; at?: number } | { kind: "checkout"; offer: Offer; claim: string } | { kind: "ride"; zone: string } | null;
+export type Sheet = { kind: "cart" } | { kind: "item"; item: string; at?: number } | { kind: "checkout"; offer: Offer; claim: string } | { kind: "ride"; zone: string } | null;
 type Space = "get" | "live" | "me";
 type Ctx = { v: FanView; refresh: () => void; setSheet: (s: Sheet) => void; toast: (s: string) => void; go: (s: Space) => void; open: (id: string) => void; settings?: React.ReactNode };
 const sec = (s: string) => s.slice(1);
@@ -123,6 +124,8 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
       </nav>
       {pages.length > 0 && <Page key={pages.join("/")} id={pages[pages.length - 1]} depth={pages.length} close={() => setPages([])} back={() => setPages(p => p.slice(0, -1))} open={open} toast={toast} now={c.t}
         acts={{ order: item => { setPages([]); setSheet({ kind: "item", item }); }, ride: zone => { setPages([]); setSheet({ kind: "ride", zone }); }, refreshAll: refresh }} />}
+      {!sheet && pages.length === 0 && <CartBar v={v} open={() => setSheet({ kind: "cart" })} />}
+      {sheet?.kind === "cart" && <CartSheet {...ctx} />}
       {sheet?.kind === "item" && <ItemSheet {...ctx} id={sheet.item} at={sheet.at} />}
       {sheet?.kind === "ride" && <RideSheet {...ctx} zone={sheet.zone} />}
       {sheet?.kind === "checkout" && <CheckoutSheet {...ctx} offer={sheet.offer} claim={sheet.claim} />}
@@ -222,7 +225,7 @@ function Get(ctx: Ctx) {
         {v.get.fastest.map(it => <ItemRow key={it.id} it={it} now={now} onPick={() => setSheet({ kind: "item", item: it.id })} />)}
       </section>
       <div className="cats-bar"><div className="cats chips" role="group" aria-label="What you want">
-        {CATS.map(([id, label]) => <button key={id} className={cat === id ? "on" : ""} onClick={() => setCat(id)}>{label}</button>)}
+        {CATS.map(([id, label]) => <button key={id} className={cat === id ? "on" : ""} onClick={() => { setCat(id); requestAnimationFrame(() => document.querySelector(".cats-bar")?.scrollIntoView({ block: "start", behavior: "smooth" })); }}>{label}</button>)}
       </div></div>
       {!["cards", "tickets", "around"].includes(cat) && stands.slice(0, cat === "all" ? 3 : 99).map(standBlock)}
       {(cat === "cards" || cat === "all") && v.get.market.length > 0 && (
@@ -599,6 +602,64 @@ function useQuote(args: Record<string, unknown>, deps: unknown[]) {
   return q;
 }
 
+/** Everything picked so far, one tap from checkout. */
+function CartBar({ v, open }: { v: FanView; open: () => void }) {
+  const lines = useCart();
+  if (lines.length === 0) return null;
+  const n = lines.reduce((a, l) => a + l.qty, 0);
+  const total = lines.reduce((a, l) => a + l.qty * (v.items.find(i => i.id === l.thing)?.price ?? 0), 0);
+  return <button className="cart-bar" onClick={open}><span className="cart-n num">{n}</span><span className="grow">View cart</span><b className="num">{money(total)}</b></button>;
+}
+
+/** One checkout for the whole cart: one delivery fee, the tip shared by whoever carries it. */
+function CartSheet({ v, refresh, setSheet, toast }: Ctx) {
+  const lines = useCart();
+  const [delivery, setDelivery] = useState(true);
+  const [tip, setTip] = useState(300);
+  const [busy, setBusy] = useState(false);
+  const key = JSON.stringify(lines) + delivery + tip;
+  const [q, setQ] = useState<any>(null);
+  useEffect(() => { if (!lines.length) return; const r = kernel.act({ do: "cart_quote", lines, delivery, tip }); setQ(r.ok ? r.quote : null); }, [key]);
+  const items = lines.map(l => ({ ...l, it: v.items.find(i => i.id === l.thing)! })).filter(x => x.it);
+  const blocked = items.filter(x => !x.it.available);
+  const latest = items.reduce((m, x) => Math.max(m, x.it.eta), 0);
+  const place = () => {
+    setBusy(true);
+    const r = kernel.act({ do: "cart", lines, delivery, tip });
+    setBusy(false);
+    if (!r.ok) { toast(whyNot(r.error) || r.error); refresh(); return; }
+    cart.clear(); setSheet(null); refresh();
+    toast(delivery ? `On its way to section ${sec(v.you.seat)}.` : "Ordered. We'll tell you when each part is on the shelf.");
+  };
+  if (!lines.length) return <SheetFrame title="Your cart" onClose={() => setSheet(null)}><p className="empty">Your cart is empty. Tap anything on Get to add it.</p></SheetFrame>;
+  return (
+    <SheetFrame title="Your cart" onClose={() => setSheet(null)}>
+      <div className="build">
+        <div className="cart-lines">{items.map(x => (
+          <div key={x.thing} className="cart-line">
+            <ItemArt name={x.it.name} size={40} />
+            <div className="grow"><b>{x.it.name}</b><small>{x.it.stand}{!x.it.available ? ` · ${whyNot(x.it.why_not)}` : ""}</small></div>
+            <div className="qty"><button className="btn ghost sm" aria-label={`One fewer ${x.it.name}`} onClick={() => cart.set(x.thing, x.qty - 1)}>−</button><b className="num">{x.qty}</b><button className="btn ghost sm" aria-label={`One more ${x.it.name}`} onClick={() => cart.set(x.thing, x.qty + 1)}>+</button></div>
+            <span className="num price-tag">{money(x.qty * x.it.price)}</span>
+          </div>))}</div>
+        <div className="seg fill" role="group" aria-label="How you get it">
+          <button className={delivery ? "on" : ""} onClick={() => setDelivery(true)}>Bring it to my seat</button>
+          <button className={!delivery ? "on" : ""} onClick={() => setDelivery(false)}>I'll pick it up</button>
+        </div>
+        {delivery && <Tips tip={tip} setTip={setTip} />}
+        <p className="promise">{delivery ? `At section ${sec(v.you.seat)} by about ${venueTime(latest)}.${q?.stands > 1 ? ` It comes from ${q.stands} stands, so it may arrive in parts; you pay one delivery fee.` : ""}` : `Each part is ready at its stand. We'll tell you the moment it's on the shelf.`}</p>
+        {q && <div className="lines">
+          <LedgerLine label="Items" amount={q.items} /><LedgerLine label="Tax" amount={q.tax} />
+          {q.fee > 0 && <LedgerLine label="Delivery" amount={q.fee} note="once for the cart" />}{q.tip > 0 && <LedgerLine label="Tip" amount={q.tip} note="all to your runners" />}
+          <LedgerLine label="You pay" amount={q.charge} strong />
+        </div>}
+        <button className="btn ghost sm" onClick={() => { cart.clear(); setSheet(null); }}>Empty the cart</button>
+        <button className="btn primary block big" disabled={busy || !!v.halt || blocked.length > 0} onClick={place}>{v.halt ? "Service is paused" : blocked.length ? "Remove what's unavailable" : `Place order · ${money(q?.charge)}`}</button>
+      </div>
+    </SheetFrame>
+  );
+}
+
 function SheetFrame({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === "Escape" && onClose(); addEventListener("keydown", k); return () => removeEventListener("keydown", k); }, []);
   return (
@@ -695,7 +756,10 @@ function ItemSheet({ v, refresh, setSheet, toast, id, at: preset }: Ctx & { id: 
           {quote.fee > 0 && <LedgerLine label="Delivery" amount={quote.fee} />}{quote.tip > 0 && <LedgerLine label="Tip" amount={quote.tip} />}
           <LedgerLine label="You pay" amount={quote.charge} strong />
         </div>}
-        <button className="btn primary block big" disabled={!!v.halt} onClick={place}>{v.halt ? "Service is paused" : `${giftTo ? "Send it" : "Place order"} · ${money(quote?.charge)}`}</button>
+        <div className="sheet-actions">
+          {at == null && !giftTo && !first && <button className="btn big" disabled={!!v.halt} onClick={() => { cart.add(id, qty); toast(`${qty > 1 ? `${qty}× ` : ""}${item.name} is in your cart.`); setSheet(null); }}>Add to cart</button>}
+          <button className="btn primary big grow" disabled={!!v.halt} onClick={place}>{v.halt ? "Service is paused" : `${giftTo ? "Send it" : "Order now"} · ${money(quote?.charge)}`}</button>
+        </div>
       </div>
     </SheetFrame>
   );

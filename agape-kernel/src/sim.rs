@@ -415,7 +415,7 @@ impl Night {
         let th = self.world.thing(thing).ok_or("unknown item")?.clone();
         self.world.eligible(&fan, thing, &|s| self.engine.span_open(s), false).map_err(|r| format!("{r:?}"))?;
         let q = Quote { fan: who.into(), stand: th.stand.clone(), runner: None, lines: vec![Line { thing: th.id.clone(), qty, unit_price: th.price }],
-                        discounts: vec![], points_redeemed: 0, tip, delivery };
+                        discounts: vec![], points_redeemed: 0, tip, delivery, fee_waived: false };
         let c = Commitment::accept(&format!("o{}", self.orders.len()), q, &mut self.ledger).map_err(|_| "SoldOut".to_string())?;
         let mut outs = vec![];
         self.place(c, "menu".into(), &mut outs);
@@ -433,6 +433,60 @@ impl Night {
             o.eta = at; o.promise = at + 600_000; o.scheduled_for = Some(at);
         }
         Ok(format!("{id}"))
+    }
+
+    /// Order a cart: everything in it at once. Items from one stand travel as one order; the cart
+    /// pays one delivery fee however many stands it spans, and the tip is shared between its runners.
+    /// Nothing is placed unless all of it can be.
+    pub fn order_cart(&mut self, who: &str, lines: &[(String, i64)], delivery: bool, tip: i64) -> Result<Vec<usize>, String> {
+        self.halted()?;
+        if lines.is_empty() { return Err("Your cart is empty".into()); }
+        if tip < 0 { return Err("A tip can't be negative".into()); }
+        let fan = self.live_fan(who)?;
+        let mut groups: Vec<(String, Vec<Line>)> = vec![];
+        for (thing, qty) in lines {
+            if *qty <= 0 { return Err("Pick at least one".into()); }
+            let th = self.world.thing(thing).ok_or("unknown item")?.clone();
+            self.world.eligible(&fan, thing, &|s| self.engine.span_open(s), false).map_err(|r| format!("{r:?}"))?;
+            let have = self.ledger.balance(&acct(&th.stand, "inventory"), &Unit::Thing(th.id.clone()));
+            if have < *qty { return Err(format!("{} just sold out", th.name)); }
+            match groups.iter_mut().find(|g| g.0 == th.stand) {
+                Some(g) => match g.1.iter_mut().find(|l| l.thing == th.id) { Some(l) => l.qty += qty, None => g.1.push(Line { thing: th.id.clone(), qty: *qty, unit_price: th.price }) },
+                None => groups.push((th.stand.clone(), vec![Line { thing: th.id.clone(), qty: *qty, unit_price: th.price }])),
+            }
+        }
+        let n = groups.len() as i64;
+        let mut ids = vec![];
+        for (k, (stand, lines)) in groups.into_iter().enumerate() {
+            let share = if delivery { tip / n + if k == 0 { tip % n } else { 0 } } else { 0 };
+            let q = Quote { fan: who.into(), stand, runner: None, lines, discounts: vec![], points_redeemed: 0, tip: share, delivery, fee_waived: k > 0 };
+            let c = match Commitment::accept(&format!("o{}", self.orders.len()), q, &mut self.ledger) {
+                Ok(c) => c,
+                Err(_) => { for &id in &ids { let _ = self.cancel_as(who, id); } return Err("Something in your cart just sold out".into()); }
+            };
+            let mut outs = vec![];
+            self.place(c, "menu".into(), &mut outs);
+            self.absorb(outs);
+            ids.push(self.orders.len() - 1);
+        }
+        Ok(ids)
+    }
+
+    /// What a cart would cost, without placing it.
+    pub fn cart_quote(&self, who: &str, lines: &[(String, i64)], delivery: bool, tip: i64) -> Result<serde_json::Value, String> {
+        let mut groups: Vec<(String, i64)> = vec![];
+        let mut items = 0i64;
+        for (thing, qty) in lines {
+            let th = self.world.thing(thing).ok_or("unknown item")?;
+            items += qty * th.price;
+            if !groups.iter().any(|g| g.0 == th.stand) { groups.push((th.stand.clone(), 0)); }
+            groups.iter_mut().find(|g| g.0 == th.stand).unwrap().1 += qty * th.price;
+        }
+        let _ = who;
+        let tax: i64 = groups.iter().map(|g| crate::value::bps(g.1, self.terms.tax_bps)).sum();
+        let fee = if delivery && !groups.is_empty() { self.terms.delivery_fee } else { 0 };
+        let tip = if delivery { tip } else { 0 };
+        Ok(serde_json::json!({ "items": items, "tax": tax, "fee": fee, "tip": tip, "charge": items + tax + fee + tip, "stands": groups.len() }))
     }
 
     /// When the live fan can have this item: from the soonest it could reach them to when ordering closes.
@@ -453,7 +507,7 @@ impl Night {
             None => {
                 let th = self.world.thing(thing).ok_or("unknown item")?;
                 Quote { fan: who.into(), stand: th.stand.clone(), runner: None, lines: vec![Line { thing: th.id.clone(), qty, unit_price: th.price }],
-                        discounts: vec![], points_redeemed: 0, tip, delivery }
+                        discounts: vec![], points_redeemed: 0, tip, delivery, fee_waived: false }
             }
         };
         let b = breakdown(&q, &self.terms).map_err(|e| format!("{e:?}"))?;
@@ -795,6 +849,28 @@ impl Night {
                 self.post_chat(&fan.id, &fan.seat, text);
             }
         }
+        // the crowd unlocks perks around the arena with their points (more of them for a business a
+        // player has promoted tonight), and after the final walks over and uses them
+        {
+            let perks: Vec<(String, Option<String>)> = self.world.def.around.iter().filter(|a| a.perk.is_some()).map(|a| (a.id.clone(), a.operator.clone())).collect();
+            if !perks.is_empty() && self.cfg.fans > 0 {
+                if ph != "postgame" && t <= self.end_min * 60_000 {
+                    let (place, op) = perks[self.rng.below(perks.len() as u64) as usize].clone();
+                    let promoted = op.as_ref().map_or(false, |o| self.trade.of_kind(crate::exchange::Kind::Deal).any(|d| d.buyer == *o && d.stage == crate::exchange::Stage::Settled));
+                    if self.rng.chance(if promoted { 0.45 } else { 0.18 }) {
+                        let f = self.fans[self.rng.below(self.cfg.fans as u64) as usize].id.clone();
+                        let _ = self.unlock(&f, &place);
+                    }
+                } else {
+                    for (place, op) in perks {
+                        if !op.as_ref().map_or(true, |o| self.decides(o)) || !self.rng.chance(0.5) { continue; }
+                        let unit = pass_unit(&place);
+                        let holder = self.ledger.balances_iter().find(|((a, u), v)| a.purpose == "holdings" && *u == unit && **v > 0 && !self.live.contains(&a.party)).map(|((a, _), _)| a.party.clone());
+                        if let Some(f) = holder { let code = crate::dealing::pass_code(&f, &place); let _ = self.redeem(&place, &code); }
+                    }
+                }
+            }
+        }
         // the crowd collects open drops and trades cards
         if t <= self.end_min * 60_000 {
             let open: Vec<(String, i64)> = self.social.editions.values().filter(|e| e.open_until >= t).map(|e| (e.id.clone(), e.supply)).collect();
@@ -854,7 +930,7 @@ impl Night {
             let delivery = self.rng.chance(self.cfg.delivery_share);
             let tip = if delivery && self.rng.chance(0.6) { [100, 200, 300, 500][self.rng.below(4) as usize] } else { 0 };
             let q = Quote { fan: fan.id.clone(), stand: thing.stand.clone(), runner: None, lines: vec![Line { thing: thing.id.clone(), qty, unit_price: thing.price }],
-                            discounts: vec![], points_redeemed: 0, tip, delivery };
+                            discounts: vec![], points_redeemed: 0, tip, delivery, fee_waived: false };
             if breakdown(&q, &self.terms).map_or(true, |b| b.charge > fan.ceiling * 2) { continue; }
             let wait = self.stand_wait(&thing.stand);
             if wait > 1200 && self.rng.chance(((wait - 1200) as f64 / 1200.0).min(0.9)) { self.report.balked += 1; continue; }

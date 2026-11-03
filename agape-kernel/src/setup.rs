@@ -79,7 +79,7 @@ pub fn check(w: &WorldDef, tpl: &Template) -> Vec<Issue> {
     for t in &w.things {
         for delivery in [true, false] {
             let q = Quote { fan: "fan".into(), stand: t.stand.clone(), runner: if delivery { Some("runner".into()) } else { None },
-                lines: vec![Line { thing: t.id.clone(), qty: 1, unit_price: t.price }], discounts: vec![], points_redeemed: 0, tip: 0, delivery };
+                lines: vec![Line { thing: t.id.clone(), qty: 1, unit_price: t.price }], discounts: vec![], points_redeemed: 0, tip: 0, delivery, fee_waived: false };
             let Ok(b) = breakdown(&q, tm) else { continue };
             let s = settlement(&q, tm, &b);
             let agape: i64 = s.postings.iter().filter(|p| p.account.party == "agape" && p.account.purpose == "revenue").map(|p| p.amount).sum();

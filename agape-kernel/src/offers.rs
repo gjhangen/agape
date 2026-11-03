@@ -251,8 +251,7 @@ impl OfferBook {
             fan: fan.id.clone(), stand: l.stand.clone(), runner: None,
             lines: vec![crate::economy::Line { thing: l.thing.clone(), qty: 1, unit_price: l.price }],
             discounts: match (&l.payer, d.discount_now) { (Some(p), x) if x > 0 => vec![crate::economy::Discount { amount: x, payer: p.clone(), reason: l.source.clone() }], _ => vec![] },
-            points_redeemed: 0, tip: 0, delivery: true,
-        };
+            points_redeemed: 0, tip: 0, delivery: true, fee_waived: false };
         let txn = if d.guaranteed { hold_from(&quote, PROMISED, PROMISED_BUDGET) } else { hold(&quote) };
         ledger.post(txn).expect("the disclosure said it was there; the tap is atomic with it");
         l.claimed += 1;

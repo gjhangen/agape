@@ -40,7 +40,6 @@ pub extern "C" fn agape_charge(subtotal: i64, discount: i64, tip: i64, delivery:
         fan: "fan".into(), stand: "stand".into(), runner: None,
         lines: vec![economy::Line { thing: "item".into(), qty: 1, unit_price: subtotal }],
         discounts: if discount > 0 { vec![economy::Discount { amount: discount, payer: "payer".into(), reason: String::new() }] } else { vec![] },
-        points_redeemed: 0, tip, delivery: delivery != 0,
-    };
+        points_redeemed: 0, tip, delivery: delivery != 0, fee_waived: false };
     economy::breakdown(&q, &economy::Terms::default()).map(|b| b.charge).unwrap_or(-1)
 }

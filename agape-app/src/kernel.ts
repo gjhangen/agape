@@ -95,7 +95,7 @@ export const kernel = {
   act: (a: Record<string, unknown>): any => {
     if (!remote.on) return call(x!.act, a);
     const r = xhr(`/api/v/${remote.venue}/act`, a);
-    if (!["quote", "ticket_quote", "ride_quote", "window"].includes(String(a.do))) {
+    if (!["quote", "ticket_quote", "ride_quote", "window", "cart_quote"].includes(String(a.do))) {
       // the screen you acted from is current at once; everything else catches up in the background
       remote.cache.forEach((_, k) => { const [lens, ...id] = k.split(":"); if (lens !== "page") remote.cache.set(k, xhr(`/api/v/${remote.venue}/view`, { lens, id: id.join(":") })); });
       for (const k of [...remote.cache.keys()]) if (k.startsWith("page:")) remote.cache.delete(k);

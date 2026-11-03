@@ -58,7 +58,7 @@ fn view_allowed(role: Role, lens: &str) -> bool {
 /// Which actions each role may take.
 fn act_allowed(role: Role, act: &str) -> bool {
     const FAN: &[&str] = &["order", "quote", "window", "tap", "checkout", "cancel", "predict", "collect", "list", "delist", "buy", "follow", "message", "unlock",
-        "tickets", "ticket_quote", "ride", "ride_quote", "cancel_ride", "parking", "deal", "withdraw", "confirm", "chat", "join", "wear", "attest_age", "report", "rate", "reorder", "gift", "prioritize", "upgrade", "resell", "unlist_tickets", "buy_resale"];
+        "tickets", "ticket_quote", "ride", "ride_quote", "cancel_ride", "parking", "deal", "withdraw", "confirm", "chat", "join", "wear", "attest_age", "cart", "cart_quote", "report", "rate", "reorder", "gift", "prioritize", "upgrade", "resell", "unlist_tickets", "buy_resale"];
     match role {
         Role::Fan => FAN.contains(&act),
         Role::Player => matches!(act, "respond" | "deliver" | "reply" | "message" | "follow" | "claim"),

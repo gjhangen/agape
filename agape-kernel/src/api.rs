@@ -35,6 +35,11 @@ pub fn act(n: &mut Night, who: &str, v: &Value) -> Value {
         return match n.order_window_for(who, &s("thing"), v["delivery"].as_bool().unwrap_or(true)) {
             Some((a, b)) => json!({ "ok": true, "earliest": a, "closes": b }), None => json!({ "ok": false, "error": "unknown item" }) };
     }
+    if v["do"] == "cart_quote" {
+        let lines: Vec<(String, i64)> = v["lines"].as_array().map(|a| a.iter().map(|l| (l["thing"].as_str().unwrap_or("").to_string(), l["qty"].as_i64().unwrap_or(0))).collect()).unwrap_or_default();
+        return match n.cart_quote(who, &lines, v["delivery"].as_bool().unwrap_or(true), v["tip"].as_i64().unwrap_or(0)) {
+            Ok(q) => json!({ "ok": true, "quote": q }), Err(e) => json!({ "ok": false, "error": e }) };
+    }
     if v["do"] == "quote" {
         return match n.quote_for(who, &s("thing"), v["qty"].as_i64().unwrap_or(1), v["delivery"].as_bool().unwrap_or(true), v["tip"].as_i64().unwrap_or(0), v["claim"].as_str()) {
             Ok(q) => json!({ "ok": true, "quote": q }), Err(e) => json!({ "ok": false, "error": e }) };
@@ -91,6 +96,10 @@ pub fn act(n: &mut Night, who: &str, v: &Value) -> Value {
         Some("resume") => n.resume().map(|_| String::new()),
         Some("join") => n.join_named(who, &s("seat"), &s("name"), v["welcome"].as_bool().unwrap_or(true)).map(|_| String::new()),
         Some("attest_age") => n.attest_age(who).map(|_| String::new()),
+        Some("cart") => {
+            let lines: Vec<(String, i64)> = v["lines"].as_array().map(|a| a.iter().map(|l| (l["thing"].as_str().unwrap_or("").to_string(), l["qty"].as_i64().unwrap_or(0))).collect()).unwrap_or_default();
+            n.order_cart(who, &lines, v["delivery"].as_bool().unwrap_or(true), v["tip"].as_i64().unwrap_or(0)).map(|ids| ids.iter().map(|i| i.to_string()).collect::<Vec<_>>().join(","))
+        }
         Some("wear") => n.wear(who, &s("team")).map(|_| String::new()),
         Some("chat") => n.chat_as(who, &s("text")).map(|_| String::new()),
         Some("cancel") => n.cancel_as(who, v["order"].as_u64().unwrap_or(u64::MAX) as usize).map(|_| String::new()),

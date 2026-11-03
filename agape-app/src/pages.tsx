@@ -2,11 +2,12 @@
 // and level visuals. Pages stack: open a player from a feed, their team from the player, a fan
 // who holds their card from the card, and back out the way you came.
 
-import { React, useState } from "./r";
+import { React, useEffect, useState } from "./r";
 import { actWith, Deal, DealCard, Rates, Say, Thread } from "./deals";
 import { kernel } from "./kernel";
 import { countdown, money, venueTime, SignalRow, momentText, LedgerLine } from "./parts";
 import { R, SECS, wedge } from "./geo";
+import { CardArt } from "./cardart";
 
 export type Card = { id: string; mark?: string | null; kind: string; title: string; rarity: string; team: string; party: string | null; party_name: string | null; t: number; supply: number; left: number; open: boolean; open_until: number; yours: number; collected: boolean; floor: number | null; holders: number; color: string | null };
 export type OpenPage = (id: string) => void;
@@ -20,9 +21,10 @@ export function MomentCard({ c, size = "md", onClick }: { c: Card; size?: "sm" |
   const Tag = onClick ? "button" : "div";
   return (
     <Tag className={`mcard ${size} r-${c.rarity.toLowerCase()}`} onClick={onClick} style={{ ["--team" as any]: c.color ?? "var(--accent)" }}>
+      <CardArt id={c.id} kind={c.kind} rarity={c.rarity} mark={c.mark ?? c.title.slice(0, 1)} />
       <span className="mc-shine" aria-hidden="true" />
       <span className="mc-top"><span className="mc-rarity">{c.rarity}</span><span className="mc-kind">{KIND_WORD[c.kind] ?? c.kind}</span></span>
-      <span className="mc-mark" aria-hidden="true">{c.mark ?? c.title.slice(0, 1)}</span>
+      <span className="mc-mark" aria-hidden="true" />
       <span className="mc-title">{c.title}</span>
       <span className="mc-foot num">{c.kind === "season" ? "Last season" : venueTime(c.t)} · edition of {c.supply}</span>
     </Tag>
@@ -236,12 +238,15 @@ function SeatMapView({ sections, pick, picked }: { sections: { id: string; price
 function EventPage({ p, open, toast, refresh }: { p: any; open: OpenPage; toast: (s: string) => void; refresh: () => void }) {
   const [sec, setSec] = useState<string | null>(null);
   const [qty, setQty] = useState(2);
+  const [sure, setSure] = useState(false);
+  const [resale, setResale] = useState<string | null>(null);
+  useEffect(() => setSure(false), [sec, qty]);
   const s = p.sections.find((x: any) => x.id === sec);
   const q = sec ? kernel.act({ do: "ticket_quote", event: p.id, section: sec, qty }) : null;
   const buy = () => {
     const r = kernel.act({ do: "tickets", event: p.id, section: sec, qty });
     if (!r.ok) { toast(r.error === "SoldOut" ? "Those seats just went. Pick again." : r.error); refresh(); return; }
-    toast(`You're going. Seats ${r.id} in ${sec === "sFL" ? "courtside" : "section " + sec!.slice(1)}.`); setSec(null); refresh();
+    toast(`You're going. Seats ${r.id} in ${sec === "sFL" ? "courtside" : "section " + sec!.slice(1)}. They're in Me.`); setSec(null); setSure(false); refresh();
   };
   const left = p.sections.reduce((n: number, x: any) => n + x.left, 0);
   return (
@@ -258,7 +263,9 @@ function EventPage({ p, open, toast, refresh }: { p: any; open: OpenPage; toast:
       {p.yours.length > 0 && <div className="ticket"><div className="grow"><b>You're going</b><small>{p.yours.map((y: any) => `${y.section === "sFL" ? "Courtside" : "Sec " + y.section.slice(1)} · ${y.seats.join(", ")}`).join(" · ")}</small></div></div>}
       {p.resale?.filter((l: any) => !l.mine).length > 0 && <section className="pg-sec"><h3 className="eyebrow">From other fans</h3>
         {p.resale.filter((l: any) => !l.mine).map((l: any) => <div key={l.id} className="upgrade-row"><div className="grow"><b>{l.section === "sFL" ? "Courtside" : `Section ${l.section.slice(1)}`}, seats {l.seats.split(",").join(", ")}</b><small>from {l.seller} · at most 120% of face value</small></div>
-          <button className="btn primary sm" onClick={() => { const r = kernel.act({ do: "buy_resale", listing: l.id }); toast(r.ok ? "They're yours." : r.error === "CantAfford" ? "Not enough to cover them." : r.error); refresh(); }}>Buy · {money(l.price)}</button></div>)}
+          {resale === l.id
+            ? <span className="confirm-inline"><button className="btn ghost sm" onClick={() => setResale(null)}>Cancel</button><button className="btn primary sm" onClick={() => { const r = kernel.act({ do: "buy_resale", listing: l.id }); toast(r.ok ? "They're yours. They're in Me." : r.error === "CantAfford" ? "Not enough to cover them." : r.error); setResale(null); refresh(); }}>Confirm · {money(l.price)}</button></span>
+            : <button className="btn primary sm" onClick={() => setResale(l.id)}>Buy · {money(l.price)}</button>}</div>)}
       </section>}
       <section className="pg-sec"><h3 className="eyebrow">Choose where to sit</h3>
         <SeatMapView sections={p.sections} pick={setSec} picked={sec} />
@@ -273,7 +280,14 @@ function EventPage({ p, open, toast, refresh }: { p: any; open: OpenPage; toast:
             : <p className="note">Not {qty} seats together here. Try fewer or another section.</p>}
           <div className="lines"><LedgerLine label={`${qty} × ${money(s.price)}`} amount={q.quote.subtotal} /><LedgerLine label="Service fee" amount={q.quote.fee} /><LedgerLine label="Tax" amount={q.quote.tax} /><LedgerLine label="You pay" amount={q.quote.charge} strong /></div>
           <small>You earn {q.quote.points.toLocaleString()} points toward your level.</small>
-          <button className="btn primary block big" disabled={!q.seats.length} onClick={buy}>Buy these seats · {money(q.quote.charge)}</button>
+          {!sure ? <button className="btn primary block big" disabled={!q.seats.length} onClick={() => setSure(true)}>Review · {money(q.quote.charge)}</button> : (
+            <div className="confirm-box" role="group" aria-label="Confirm your tickets">
+              <b>{p.title} · {p.date} · {p.time}</b>
+              <span>{sec === "sFL" ? "Courtside" : `Section ${sec!.slice(1)}`}, row {q.seats[0]?.[0]}, seats {q.seats.map((x: string) => x.slice(1)).join(", ")}</span>
+              <small>{money(q.quote.charge)} to your card. Can't go after all? Resell them to other fans in Me, at up to 120% of face value. (Pilot: nothing is actually charged.)</small>
+              <div className="row gap"><button className="btn" onClick={() => setSure(false)}>Change</button><button className="btn primary big grow" onClick={buy}>Buy · {money(q.quote.charge)}</button></div>
+            </div>
+          )}
         </section>
       )}
     </>

@@ -557,7 +557,7 @@ impl Night {
     /// Act for this party from now on: the simulation stops answering for them.
     pub fn drive(&mut self, party: &str) { self.driven.insert(party.into()); }
 
-    fn decides(&self, party: &str) -> bool {
+    pub(crate) fn decides(&self, party: &str) -> bool {
         !self.live.contains(party) && !self.driven.contains(party) && (self.league.member(party).map_or(true, |_| self.claimed.contains(party)))
     }
 
