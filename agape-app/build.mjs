@@ -35,7 +35,7 @@ const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta n
 <meta name="description" content="The game, and everything around it, from your seat. Order to your seat, play along live, and keep points that travel with you.">
 <meta property="og:title" content="Agape · to your seat">
 <meta property="og:description" content="The game, and everything around it, from your seat.">
-<meta property="og:image" content="http://agapetoyourseat.com:8080/og.png">
+<meta property="og:image" content="https://agapetoyourseat.com/og.png">
 <meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#B8174F">
@@ -67,7 +67,7 @@ mkdirSync("dist/server/demo", { recursive: true });
 writeFileSync("dist/server/demo/index.html", `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="description" content="A whole arena night on Agape, simulated in your browser. See every seat, speed up time, and put your own team on it.">
 <meta property="og:title" content="Agape Simulator"><meta property="og:description" content="A whole arena night on Agape, simulated in your browser.">
-<meta property="og:image" content="http://agapetoyourseat.com:8080/og.png"><meta name="twitter:card" content="summary_large_image">
+<meta property="og:image" content="https://agapetoyourseat.com/og.png"><meta name="twitter:card" content="summary_large_image">
 <meta name="theme-color" content="#B8174F"><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 </head><body>${html.replace("<title>Agape Simulator</title>", "<title>Agape Simulator</title>")}</body></html>`);
 console.log("dist/server/demo/index.html");
