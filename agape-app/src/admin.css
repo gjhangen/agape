@@ -231,3 +231,15 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
 .ox-meta { color: var(--muted); font-size: 13px; }
 @media (max-width: 900px) { .ox-invite { grid-template-columns: 1fr 1fr; } }
 @media (max-width: 640px) { .ox-msg { grid-template-columns: 1fr auto; } .ox-subj { grid-column: 1 / -1; } .ox-invite { grid-template-columns: 1fr; } .ox-node { min-width: 0; } }
+
+.ox-node.group { border-left-color: #6D4BD8; background: color-mix(in srgb, #6D4BD8 8%, var(--card)); }
+.ox-subform { border: 1px solid var(--line); border-radius: 12px; padding: 16px; margin: 6px 0 16px; background: var(--bg); }
+.ox-subform h3 { margin-top: 0; }
+.ox-checks { border: 0; padding: 0; margin: 0 0 12px; display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 16px; }
+.ox-checks.perms { grid-template-columns: 1fr; }
+.ox-checks legend { font-weight: 600; font-size: 13.5px; margin-bottom: 6px; }
+.ox-checks label { display: flex; gap: 8px; align-items: flex-start; font-size: 14px; }
+.ox-checks input { accent-color: var(--brand); margin-top: 3px; }
+.ox-row select { min-height: 34px; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; background: var(--card); }
+.ox-row.between { flex-wrap: wrap; gap: 10px; }
+.ox-node.host { border-left-color: var(--brand); }

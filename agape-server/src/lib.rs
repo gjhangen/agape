@@ -215,7 +215,7 @@ async fn lead(State(app): State<S>, Json(b): Json<Value>) -> Response {
     match std::fs::OpenOptions::new().create(true).append(true).open(app.data.join("leads.jsonl")).and_then(|mut f| f.write_all(line.as_bytes())) {
         Ok(_) => {
             let who = [rec["role"].as_str().unwrap_or(""), rec["org"].as_str().unwrap_or("")].iter().filter(|x| !x.is_empty()).cloned().collect::<Vec<_>>().join(", ");
-            app.office.lock().unwrap().notify_level(admin::Level::Admin, "lead", &format!("New lead: {}", rec["name"].as_str().unwrap_or("")), &format!("{}{} asked to talk. Reach them at {}.{}", rec["name"].as_str().unwrap_or(""), if who.is_empty() { String::new() } else { format!(" ({who})") }, rec["contact"].as_str().unwrap_or(""), rec["note"].as_str().filter(|n| !n.is_empty()).map(|n| format!("\n\n“{n}”")).unwrap_or_default()));
+            app.office.lock().unwrap().notify_perm("leads", "lead", &format!("New lead: {}", rec["name"].as_str().unwrap_or("")), &format!("{}{} asked to talk. Reach them at {}.{}", rec["name"].as_str().unwrap_or(""), if who.is_empty() { String::new() } else { format!(" ({who})") }, rec["contact"].as_str().unwrap_or(""), rec["note"].as_str().filter(|n| !n.is_empty()).map(|n| format!("\n\n“{n}”")).unwrap_or_default()));
             Json(json!({ "ok": true })).into_response()
         }
         Err(_) => err(StatusCode::INTERNAL_SERVER_ERROR, "Couldn't save that; please try again"),
@@ -322,6 +322,12 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/leads", get(office_leads))
         .route("/api/office/activity", get(office_activity))
         .route("/api/office/inbox", get(office_inbox))
+        .route("/api/office/role", post(office_role))
+        .route("/api/office/role/delete", post(office_role_delete))
+        .route("/api/office/template", post(office_template))
+        .route("/api/office/template/delete", post(office_template_delete))
+        .route("/api/office/group", post(office_group))
+        .route("/api/office/group/delete", post(office_group_delete))
         .route("/api/office/send", post(office_send))
         .route("/api/office/read", post(office_read))
         .layer(axum::extract::DefaultBodyLimit::max(3_500_000))
@@ -418,39 +424,38 @@ pub fn demo_accounts(app: &App, password: &str) {
 
 fn bearer(h: &HeaderMap) -> String { h.get("authorization").and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ")).unwrap_or("").to_string() }
 fn staffer(app: &App, h: &HeaderMap) -> Result<admin::User, Response> { app.office.lock().unwrap().who(&bearer(h)).ok_or_else(|| err(StatusCode::UNAUTHORIZED, "Sign in to Agape Admin")) }
-fn person(u: &admin::User) -> Value { json!({ "id": u.id, "email": u.email, "name": u.name, "level": u.level, "title": u.title, "boss": u.boss }) }
+fn person_in(o: &admin::Admin, u: &admin::User) -> Value { json!({ "id": u.id, "email": u.email, "name": u.name, "role": u.role, "role_name": o.role_name(&u.role), "title": u.title, "boss": u.boss, "perms": o.perms_of(u), "oversees": o.oversees_anyone(u) }) }
 fn done(r: Result<(), String>) -> Response { match r { Ok(()) => Json(json!({ "ok": true })).into_response(), Err(e) => err(StatusCode::BAD_REQUEST, &e) } }
-fn signed(r: Result<(String, admin::User), String>, code: StatusCode) -> Response {
-    match r { Ok((t, u)) => Json(json!({ "ok": true, "token": t, "me": person(&u) })).into_response(), Err(e) => err(code, &e) }
+fn signed(app: &App, r: Result<(String, admin::User), String>, code: StatusCode) -> Response {
+    match r { Ok((t, u)) => { let me = person_in(&app.office.lock().unwrap(), &u); Json(json!({ "ok": true, "token": t, "me": me })).into_response() } Err(e) => err(code, &e) }
 }
 fn s(b: &Value, k: &str) -> String { b[k].as_str().unwrap_or("").to_string() }
-fn level(b: &Value) -> Option<admin::Level> { serde_json::from_value(b["level"].clone()).ok() }
+fn strs(b: &Value, k: &str) -> Vec<String> { b[k].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default() }
 
 async fn office_state(State(app): State<S>) -> Response { Json(json!({ "ok": true, "setup": app.office.lock().unwrap().setup_needed() })).into_response() }
 async fn office_setup(State(app): State<S>, Json(b): Json<Value>) -> Response {
     let r = app.office.lock().unwrap().setup(&s(&b, "code"), &s(&b, "email"), &s(&b, "name"), &s(&b, "password"));
-    signed(r, StatusCode::BAD_REQUEST)
+    signed(&app, r, StatusCode::BAD_REQUEST)
 }
 async fn office_signin(State(app): State<S>, Json(b): Json<Value>) -> Response {
     let r = app.office.lock().unwrap().sign_in(&s(&b, "email"), &s(&b, "password"));
-    signed(r, StatusCode::UNAUTHORIZED)
+    signed(&app, r, StatusCode::UNAUTHORIZED)
 }
 async fn office_signout(State(app): State<S>, h: HeaderMap) -> Response { app.office.lock().unwrap().sign_out(&bearer(&h)); Json(json!({ "ok": true })).into_response() }
-async fn office_me(State(app): State<S>, h: HeaderMap) -> Response { match staffer(&app, &h) { Ok(u) => { let n = app.office.lock().unwrap().unread(&u); Json(json!({ "ok": true, "me": person(&u), "unread": n })).into_response() } Err(r) => r } }
+async fn office_me(State(app): State<S>, h: HeaderMap) -> Response { match staffer(&app, &h) { Ok(u) => { let o = app.office.lock().unwrap(); Json(json!({ "ok": true, "me": person_in(&o, &u), "unread": o.unread(&u) })).into_response() } Err(r) => r } }
 async fn office_password(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
     let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
     done(app.office.lock().unwrap().change_password(&u, &s(&b, "old"), &s(&b, "new")))
 }
 async fn office_team(State(app): State<S>, h: HeaderMap) -> Response {
     let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
-    let mut v = app.office.lock().unwrap().users(&u);
+    let mut v = app.office.lock().unwrap().team(&u);
     v["ok"] = json!(true);
     Json(v).into_response()
 }
 async fn office_invite(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
     let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
-    let Some(l) = level(&b) else { return err(StatusCode::BAD_REQUEST, "Choose what they can do") };
-    match app.office.lock().unwrap().invite(&u, &s(&b, "email"), &s(&b, "name"), l, &s(&b, "boss"), &s(&b, "title")) { Ok(code) => Json(json!({ "ok": true, "code": code })).into_response(), Err(e) => err(StatusCode::BAD_REQUEST, &e) }
+    match app.office.lock().unwrap().invite(&u, &s(&b, "email"), &s(&b, "name"), &s(&b, "role"), &s(&b, "boss"), &s(&b, "title")) { Ok(code) => Json(json!({ "ok": true, "code": code })).into_response(), Err(e) => err(StatusCode::BAD_REQUEST, &e) }
 }
 async fn office_invite_cancel(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
     let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
@@ -461,14 +466,15 @@ async fn office_invitation(State(app): State<S>, Path(code): Path<String>) -> Re
 }
 async fn office_accept(State(app): State<S>, Json(b): Json<Value>) -> Response {
     let r = app.office.lock().unwrap().accept(&s(&b, "code"), &s(&b, "name"), &s(&b, "password"));
-    signed(r, StatusCode::BAD_REQUEST)
+    signed(&app, r, StatusCode::BAD_REQUEST)
 }
 async fn office_user(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
     let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
-    done(app.office.lock().unwrap().set_user(&u, &s(&b, "id"), level(&b), b["off"].as_bool(), b["boss"].as_str(), b["title"].as_str()))
+    done(app.office.lock().unwrap().set_user(&u, &s(&b, "id"), b["role"].as_str(), b["off"].as_bool(), b["boss"].as_str(), b["title"].as_str()))
 }
 async fn office_merchants(State(app): State<S>, h: HeaderMap) -> Response {
-    if let Err(r) = staffer(&app, &h) { return r; }
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    if !app.office.lock().unwrap().can(&u, "merchants_view") { return err(StatusCode::FORBIDDEN, "Your role doesn't include merchants"); }
     let venues: Vec<Value> = app.venues.lock().unwrap().values().map(|v| json!({ "id": v.id, "name": v.name })).collect();
     Json(json!({ "ok": true, "merchants": app.office.lock().unwrap().merchants(), "venues": venues })).into_response()
 }
@@ -487,7 +493,8 @@ async fn office_printed(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>
     Json(json!({ "ok": true })).into_response()
 }
 async fn office_leads(State(app): State<S>, h: HeaderMap) -> Response {
-    if let Err(r) = staffer(&app, &h) { return r; }
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    if !app.office.lock().unwrap().can(&u, "leads") { return err(StatusCode::FORBIDDEN, "Your role doesn't include leads"); }
     let mut all: Vec<Value> = std::fs::read_to_string(app.data.join("leads.jsonl")).unwrap_or_default().lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
     all.reverse();
     Json(json!({ "ok": true, "leads": all })).into_response()
@@ -504,7 +511,7 @@ async fn office_inbox(State(app): State<S>, h: HeaderMap) -> Response {
 }
 async fn office_send(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
     let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
-    let to: Vec<String> = b["to"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
+    let to = strs(&b, "to");
     done(app.office.lock().unwrap().send(&u, &to, &s(&b, "subject"), &s(&b, "body")))
 }
 async fn office_read(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
@@ -512,4 +519,29 @@ async fn office_read(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -
     let ids: Vec<String> = b["ids"].as_array().map(|a| a.iter().filter_map(|x| x.as_str().map(String::from)).collect()).unwrap_or_default();
     app.office.lock().unwrap().mark_read(&u, &ids);
     Json(json!({ "ok": true })).into_response()
+}
+
+async fn office_role(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    match app.office.lock().unwrap().save_role(&u, b["id"].as_str(), &s(&b, "name"), &s(&b, "about"), &strs(&b, "perms"), &s(&b, "template")) { Ok(r) => Json(json!({ "ok": true, "role": r })).into_response(), Err(e) => err(StatusCode::BAD_REQUEST, &e) }
+}
+async fn office_role_delete(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    done(app.office.lock().unwrap().delete_role(&u, &s(&b, "id")))
+}
+async fn office_template(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    done(app.office.lock().unwrap().save_template(&u, b["id"].as_str(), &s(&b, "name"), &s(&b, "about"), &strs(&b, "perms")))
+}
+async fn office_template_delete(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    done(app.office.lock().unwrap().delete_template(&u, &s(&b, "id")))
+}
+async fn office_group(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    done(app.office.lock().unwrap().save_group(&u, b["id"].as_str(), &s(&b, "name"), &s(&b, "about"), &strs(&b, "members"), b["boss"].as_str()))
+}
+async fn office_group_delete(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    done(app.office.lock().unwrap().delete_group(&u, &s(&b, "id")))
 }

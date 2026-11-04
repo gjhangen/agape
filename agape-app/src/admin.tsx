@@ -3,8 +3,7 @@
 // Everything here comes from the server and needs an Agape Admin account; nothing is simulated.
 import { React, ReactDOM, useEffect, useMemo, useState } from "./r";
 
-type Level = "host" | "admin" | "manager" | "member";
-type Me = { id: string; email: string; name: string; level: Level; title?: string; boss?: string | null };
+type Me = { id: string; email: string; name: string; role: string; role_name: string; perms: string[]; oversees: boolean; title?: string; boss?: string | null };
 type Merchant = { id: string; fields: Record<string, string>; status: Status; at: number; by: string };
 type Status = "draft" | "requested" | "issued" | "live";
 type Field = { k: string; l: string; hint?: string; ph?: string; opts?: string[]; wide?: boolean; long?: boolean; num?: boolean; secret?: boolean };
@@ -89,14 +88,6 @@ const STATUS: [Status, string, string][] = [
   ["draft", "Draft", "Still filling it in"], ["requested", "Requested", "Sent to the processor, waiting for numbers"],
   ["issued", "Issued", "The processor issued the numbers"], ["live", "Live", "Taking cards"],
 ];
-const LEVELS: [Level, string, string][] = [
-  ["host", "Host", "Sees everything that happens, everywhere"],
-  ["admin", "Admin", "Runs merchants and VAR sheets; sees everything from the people below them"],
-  ["manager", "Manager", "Runs a team; sees everything from their team"],
-  ["member", "Team member", "Sees their own messages and what's sent to them"],
-];
-const RANK: Record<Level, number> = { member: 0, manager: 1, admin: 2, host: 3 };
-const levelName = (l: Level) => LEVELS.find(x => x[0] === l)?.[1] ?? l;
 
 // ---------------- talking to the server ----------------
 
@@ -193,12 +184,12 @@ function Setup({ enter }: { enter: (t: string, m: Me) => void }) {
 }
 
 function Accept({ code, enter, toSignin }: { code: string; enter: (t: string, m: Me) => void; toSignin: () => void }) {
-  const [inv, setInv] = useState<{ email: string; name: string; level: Level } | null | "gone">(null);
+  const [inv, setInv] = useState<{ email: string; name: string; role_name: string; boss_name: string } | null | "gone">(null);
   const f = useForm({ name: "", password: "", again: "" });
   useEffect(() => { api("invitation/" + encodeURIComponent(code)).then(r => { if (r.ok) { setInv(r.invite); f.bind("name").onChange({ target: { value: r.invite.name } }); } else setInv("gone"); }); }, []);
   if (inv === null) return <div className="ox-gate"><Mark /></div>;
   if (inv === "gone") return <Gate title="This invitation can't be used" sub="It has expired or was already used. Ask the person who invited you for a new one." foot={<button className="ox-link" onClick={toSignin}>Sign in instead</button>}><></></Gate>;
-  return <Gate title="Join Agape Admin" sub={<>You've been invited as {levelName(inv.level).toLowerCase()} with <b>{inv.email}</b>. Choose a password to finish.</>}>
+  return <Gate title="Join Agape Admin" sub={<>You've been invited as {inv.role_name}, reporting to {inv.boss_name}, with <b>{inv.email}</b>. Choose a password to finish.</>}>
     <form onSubmit={e => f.run(e, async () => {
       if (f.v.password !== f.v.again) return "The two passwords don't match";
       const r = await api("accept", { code, name: f.v.name, password: f.v.password }); if (r.ok) enter(r.token, r.me); else return r.error;
@@ -223,12 +214,12 @@ function Shell({ me, out }: { me: Me; out: () => void }) {
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 3200); return () => clearTimeout(t); }, [toast]);
   const [unread, setUnread] = useState(0);
   useEffect(() => { const f = () => api("me").then(r => { if (r.ok) setUnread(r.unread ?? 0); }); f(); const t = setInterval(f, 30000); return () => clearInterval(t); }, [tab]);
-  const tabs: [Tab, string][] = [["inbox", "Messages"], ["merchants", "Merchants"], ["team", "Team"], ...(RANK[me.level] >= RANK.admin ? [["leads", "Leads"]] as [Tab, string][] : []), ["activity", "Activity"], ["account", "Your account"]];
+  const tabs: [Tab, string][] = [["inbox", "Messages"], ...(me.perms.includes("merchants_view") ? [["merchants", "Merchants"]] as [Tab, string][] : []), ["team", "Team"], ...(me.perms.includes("leads") ? [["leads", "Leads"]] as [Tab, string][] : []), ["activity", "Activity"], ["account", "Your account"]];
   return <div className="ox-app">
     <header className="ox-top">
       <Mark />
       <nav className="ox-nav" aria-label="Sections">{tabs.map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => setTab(k)}>{l}{k === "inbox" && unread > 0 && <i className="ox-badge" aria-label={`${unread} unread`}>{unread}</i>}</button>)}</nav>
-      <div className="ox-who"><span>{me.name}<small>{levelName(me.level)}</small></span><button className="ox-btn ghost sm" onClick={out}>Sign out</button></div>
+      <div className="ox-who"><span>{me.name}<small>{me.role_name}</small></span><button className="ox-btn ghost sm" onClick={out}>Sign out</button></div>
     </header>
     <main className="ox-main">
       {tab === "inbox" && <Inbox me={me} toast={setToast} seen={() => setUnread(0)} />}
@@ -255,9 +246,9 @@ function Merchants({ me, toast }: { me: Me; toast: (s: string) => void }) {
   const [error, setError] = useState("");
   const load = async () => { const r = await api("merchants"); if (r.ok) { setList(r.merchants); setVenues(r.venues); } else setError(r.error); };
   useEffect(() => { load(); }, []);
-  const can = RANK[me.level] >= RANK.admin;
+  const can = me.perms.includes("merchants_edit");
   if (open?.sheet && open.m) return <Sheet m={open.m} back={() => setOpen({ m: open.m, sheet: false })} close={() => setOpen(null)} />;
-  if (open) return <Editor m={open.m} can={can} owner={me.level === "host"} venues={venues} toast={toast}
+  if (open) return <Editor m={open.m} can={can} owner={me.perms.includes("merchants_delete")} venues={venues} toast={toast}
     saved={m => { load(); setOpen({ m, sheet: false }); }} sheet={m => setOpen({ m, sheet: true })} close={() => { setOpen(null); load(); }} />;
   return <>
     <Head title="Merchants" sub="Each business Agape takes payments for: its processor, the numbers the processor issued, and the VAR sheet to send.">
@@ -404,71 +395,201 @@ function Sheet({ m, back, close }: { m: Merchant; back: () => void; close: () =>
 
 // ---------------- team, leads, activity, account ----------------
 
-type Person = Me & { at: number; off: boolean; boss?: string | null; title?: string };
-type TeamView = { users: Person[]; chain: { id: string; name: string; level: Level; title?: string }[]; invites: { email: string; name: string; level: Level; until: number; boss: string }[]; contacts: { id: string; name: string; title?: string }[] };
+type Person = { id: string; email: string; name: string; role: string; role_name: string; at: number; off: boolean; boss?: string | null; title?: string; mine: boolean };
+type GroupV = { id: string; name: string; about: string; members: string[]; member_names: string[]; boss?: string | null; mine: boolean };
+type RoleV = { id: string; name: string; about: string; perms: string[]; template: string; holders: number; grantable: boolean; editable: boolean };
+type TemplateV = { id: string; name: string; about: string; perms: string[]; editable: boolean };
+type TeamView = { users: Person[]; groups: GroupV[]; chain: { id: string; name: string; group: boolean }[]; invites: { email: string; name: string; role: string; role_name: string; until: number; boss: string }[];
+  contacts: { id: string; name: string; title?: string }[]; roles: RoleV[]; templates: TemplateV[]; perms: { id: string; about: string; mine: boolean }[] };
 
-function Team({ me, toast }: { me: Me; toast: (s: string) => void }) {
+function useTeam() {
   const [t, setT] = useState<TeamView | null>(null);
-  const [link, setLink] = useState("");
-  const below = LEVELS.filter(([k]) => RANK[k] < RANK[me.level]);
-  const f = useForm({ email: "", name: "", title: "", level: below[0]?.[0] ?? "member", boss: me.id });
   const load = async () => { const r = await api("team"); if (r.ok) setT(r); };
   useEffect(() => { load(); }, []);
-  const lead = RANK[me.level] >= RANK.manager;
-  const set = async (id: string, b: Record<string, unknown>, ok: string) => { const r = await api("user", { id, ...b }); toast(r.ok ? ok : r.error); load(); };
-  const byId = (id?: string | null) => t?.users.find(u => u.id === id);
-  // whoever can be someone's boss: you, or anyone on your team at a higher level than the role
-  const bosses = (level: Level, not?: string) => (t?.users ?? []).filter(u => !u.off && RANK[u.level] > RANK[level] && u.id !== not && (u.id === me.id || u.boss != null));
-  const kids = (id: string) => (t?.users ?? []).filter(u => u.boss === id);
-  const Node = ({ u, depth }: { u: Person; depth: number }): any => <li>
-    <div className={"ox-node " + u.level + (u.off ? " off" : "") + (u.id === me.id ? " you" : "")}>
-      <b>{u.name}{u.id === me.id && <small> (you)</small>}</b><span>{[u.title, levelName(u.level)].filter(Boolean).join(" · ")}</span>
-    </div>
-    {kids(u.id).length > 0 && <ul>{kids(u.id).map(k => <Node key={k.id} u={k} depth={depth + 1} />)}</ul>}
-  </li>;
-  const root = t?.users.find(u => u.id === me.id);
+  return { t, load };
+}
+
+type Sub = "chart" | "people" | "groups" | "roles";
+function Team({ me, toast }: { me: Me; toast: (s: string) => void }) {
+  const { t, load } = useTeam();
+  const [sub, setSub] = useState<Sub>("chart");
+  const has = (p: string) => me.perms.includes(p);
+  const subs: [Sub, string][] = [["chart", "Chart"], ["people", "People"], ["groups", "Groups"], ...(has("structure") ? [["roles", "Roles and templates"]] as [Sub, string][] : [])];
   return <>
-    <Head title="Team" sub="Who reports to whom. You see everything from the people below you and nothing from the people above you." />
-    {t && root && <section className="ox-card">
-      <h2>Your part of Agape</h2>
-      {t.chain.length > 0 && <p className="ox-sub">You report to {t.chain.map(c => `${c.name} (${levelName(c.level)})`).join(", who reports to ")}. They can see your messages and activity; you can't see theirs.</p>}
-      <ul className="ox-tree"><Node u={root} depth={0} /></ul>
-      {me.level === "host" && t.users.filter(u => u.id !== me.id && !u.boss).length > 0 && <p className="ox-note">Not placed yet: {t.users.filter(u => u.id !== me.id && !u.boss).map(u => u.name).join(", ")}. Choose who they report to below.</p>}
-    </section>}
-    {lead && <section className="ox-card">
+    <Head title="Team" sub="Who reports to whom. You see everything from the people and groups below you, and nothing from anyone above or beside you." />
+    <div className="ox-seg" role="tablist">{subs.map(([k, l]) => <button key={k} role="tab" aria-selected={sub === k} className={sub === k ? "on" : ""} onClick={() => setSub(k)}>{l}</button>)}</div>
+    {!t ? <p className="ox-empty">Loading…</p> : <>
+      {sub === "chart" && <Chart me={me} t={t} />}
+      {sub === "people" && <People me={me} t={t} load={load} toast={toast} />}
+      {sub === "groups" && <Groups me={me} t={t} load={load} toast={toast} />}
+      {sub === "roles" && <Roles t={t} load={load} toast={toast} />}
+    </>}
+  </>;
+}
+
+const nodeName = (t: TeamView, id?: string | null) => !id ? "" : t.users.find(u => u.id === id)?.name ?? t.groups.find(g => g.id === id)?.name ?? t.chain.find(c => c.id === id)?.name ?? "someone above you";
+/** Where someone can report: you, and every person and group below you. */
+const targets = (me: Me, t: TeamView, not?: string) => [
+  { id: me.id, label: `You (${me.name})` },
+  ...t.users.filter(u => u.mine && !u.off && u.id !== me.id && u.id !== not).map(u => ({ id: u.id, label: u.name + (u.title ? ` · ${u.title}` : "") })),
+  ...t.groups.filter(g => g.mine && g.id !== not).map(g => ({ id: g.id, label: `${g.name} (group)` })),
+];
+
+function Chart({ me, t }: { me: Me; t: TeamView }) {
+  const kids = (id: string) => [...t.groups.filter(g => g.boss === id).map(g => ({ g })), ...t.users.filter(u => u.boss === id).map(u => ({ u }))] as { g?: GroupV; u?: Person }[];
+  const seen = new Set<string>();
+  const Node = ({ n }: { n: { g?: GroupV; u?: Person } }): any => {
+    const id = n.g?.id ?? n.u!.id;
+    if (seen.has(id)) return null; seen.add(id);
+    const below = kids(id);
+    return <li>
+      {n.g ? <div className="ox-node group"><b>{n.g.name}</b><span>Group · {n.g.member_names.length ? n.g.member_names.join(", ") : "no members yet"}</span></div>
+        : <div className={"ox-node" + (n.u!.off ? " off" : "") + (n.u!.id === me.id ? " you" : "") + (n.u!.role === "host" ? " host" : "")}>
+            <b>{n.u!.name}{n.u!.id === me.id && <small> (you)</small>}</b><span>{[n.u!.title, n.u!.role_name].filter(Boolean).join(" · ")}</span></div>}
+      {below.length > 0 && <ul>{below.map(k => <Node key={k.g?.id ?? k.u!.id} n={k} />)}</ul>}
+    </li>;
+  };
+  const host = me.role === "host";
+  const roots: { g?: GroupV; u?: Person }[] = host
+    ? [...t.users.filter(u => u.role === "host").map(u => ({ u })), ...t.groups.filter(g => !g.boss).map(g => ({ g })), ...t.users.filter(u => u.role !== "host" && !u.boss).map(u => ({ u }))]
+    : [{ u: t.users.find(u => u.id === me.id)! }, ...t.groups.filter(g => g.members.includes(me.id)).map(g => ({ g }))];
+  const loose = host ? t.users.filter(u => u.role !== "host" && !u.boss) : [];
+  return <section className="ox-card">
+    {t.chain.length > 0 && <p className="ox-sub">You report to {t.chain.map(c => c.name + (c.group ? " (group)" : "")).join(", which reports to ")}. They can see your messages and activity; you can't see theirs.</p>}
+    {host && <p className="ox-sub">You're the host: everything at Agape is below you.</p>}
+    <ul className="ox-tree">{roots.filter(r => r.u || r.g).map(r => <Node key={r.g?.id ?? r.u!.id} n={r} />)}</ul>
+    {loose.length > 0 && <p className="ox-note">Not placed yet: {loose.map(u => u.name).join(", ")}. Choose who they report to under People.</p>}
+  </section>;
+}
+
+function People({ me, t, load, toast }: { me: Me; t: TeamView; load: () => void; toast: (s: string) => void }) {
+  const [link, setLink] = useState("");
+  const grantable = t.roles.filter(r => r.grantable);
+  const f = useForm({ email: "", name: "", title: "", role: grantable.find(r => r.id === "r-member")?.id ?? grantable[0]?.id ?? "", boss: me.id });
+  const canInvite = me.perms.includes("invite"), canPeople = me.perms.includes("people");
+  const set = async (id: string, b: Record<string, unknown>, ok: string) => { const r = await api("user", { id, ...b }); toast(r.ok ? ok : r.error); load(); };
+  const role = t.roles.find(r => r.id === f.v.role);
+  return <>
+    {canInvite && <section className="ox-card">
       <h2>Invite someone</h2>
       <p className="ox-sub">They get a link to choose their own password. It works once, for 7 days. Send it to them yourself, by email or text.</p>
-      <form className="ox-invite" onSubmit={e => f.run(e, async () => {
-        const r = await api("invite", f.v);
-        if (!r.ok) return r.error;
-        setLink(`${location.origin}/admin/?invite=${r.code}`); f.reset({ email: "", name: "", title: "" }); load();
-      })}>
+      <form className="ox-invite" onSubmit={e => f.run(e, async () => { const r = await api("invite", f.v); if (!r.ok) return r.error; setLink(`${location.origin}/admin/?invite=${r.code}`); f.reset({ email: "", name: "", title: "" }); load(); })}>
         <label className="ox-f"><span>Name</span><input required {...f.bind("name")} /></label>
         <label className="ox-f"><span>Email</span><input type="email" required {...f.bind("email")} /></label>
         <label className="ox-f"><span>Title</span><input placeholder="e.g. Head of payments" {...f.bind("title")} /></label>
-        <label className="ox-f"><span>Level</span><select {...f.bind("level")}>{below.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
-        <label className="ox-f"><span>Reports to</span><select {...f.bind("boss")}>{bosses(f.v.level as Level).map(u => <option key={u.id} value={u.id}>{u.id === me.id ? `You (${u.name})` : u.name}</option>)}</select></label>
+        <label className="ox-f"><span>Role</span><select required {...f.bind("role")}>{grantable.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select></label>
+        <label className="ox-f"><span>Reports to</span><select {...f.bind("boss")}>{targets(me, t).map(x => <option key={x.id} value={x.id}>{x.label}</option>)}</select></label>
         <button className="ox-btn primary" disabled={f.busy}>Create invitation</button>
       </form>
-      <p className="ox-fine">{LEVELS.find(l => l[0] === f.v.level)?.[2]}.</p>
+      {role && <p className="ox-fine">{role.name} can: {role.perms.length ? role.perms.map(p => t.perms.find(x => x.id === p)?.about.toLowerCase()).join("; ") : "see their own messages, and what's below them"}.</p>}
       {f.error && <p className="ox-err">{f.error}</p>}
       {link && <div className="ox-linkbox"><span>Send them this link. It won't be shown again.</span><code>{link}</code><button className="ox-btn sm" onClick={() => navigator.clipboard?.writeText(link).then(() => toast("Link copied."))}>Copy link</button></div>}
     </section>}
     <section className="ox-card">
       <h2>People</h2>
-      {!t ? <p className="ox-empty">Loading…</p> : <div className="ox-table-wrap"><table className="ox-table">
-        <thead><tr><th>Name</th><th>Email</th><th>Level</th><th>Reports to</th>{lead && <th></th>}</tr></thead>
-        <tbody>{t.users.map(u => { const mine = u.id !== me.id && lead && !u.off; return <tr key={u.id} className={u.off ? "off" : ""}>
+      <div className="ox-table-wrap"><table className="ox-table">
+        <thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Reports to</th>{canPeople && <th></th>}</tr></thead>
+        <tbody>{t.users.map(u => { const edit = canPeople && u.mine && u.id !== me.id && u.role !== "host" && !u.off; return <tr key={u.id} className={u.off ? "off" : ""}>
           <td>{u.name}{u.id === me.id ? <small>You</small> : u.title && <small>{u.title}</small>}</td><td>{u.email}</td>
-          <td>{mine ? <select aria-label={`Level for ${u.name}`} value={u.level} onChange={e => set(u.id, { level: e.target.value }, "Level changed.")}>{below.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select> : u.off ? "Turned off" : levelName(u.level)}</td>
-          <td>{mine ? <select aria-label={`Who ${u.name} reports to`} value={u.boss ?? ""} onChange={e => set(u.id, { boss: e.target.value }, "Reporting line changed.")}>{!u.boss && <option value="">Choose…</option>}{bosses(u.level, u.id).map(b => <option key={b.id} value={b.id}>{b.id === me.id ? "You" : b.name}</option>)}</select> : byId(u.boss)?.name ?? (u.id === me.id && t.chain[0] ? t.chain[0].name : "—")}</td>
-          {lead && <td>{u.id !== me.id && <button className="ox-btn ghost sm" onClick={() => set(u.id, { off: !u.off }, u.off ? "Access turned back on." : "Access turned off. They're signed out everywhere.")}>{u.off ? "Turn access on" : "Turn access off"}</button>}</td>}
+          <td>{edit && t.roles.find(r => r.id === u.role)?.grantable !== false ? <select aria-label={`Role for ${u.name}`} value={u.role} onChange={e => set(u.id, { role: e.target.value }, "Role changed.")}>{grantable.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select> : u.off ? "Turned off" : u.role_name}</td>
+          <td>{edit ? <select aria-label={`Who ${u.name} reports to`} value={u.boss ?? ""} onChange={e => set(u.id, { boss: e.target.value }, "Reporting line changed.")}>{!u.boss && <option value="">Choose…</option>}{targets(me, t, u.id).map(x => <option key={x.id} value={x.id}>{x.label}</option>)}</select> : nodeName(t, u.boss) || "—"}</td>
+          {canPeople && <td>{u.mine && u.id !== me.id && u.role !== "host" && <button className="ox-btn ghost sm" onClick={() => set(u.id, { off: !u.off }, u.off ? "Access turned back on." : "Access turned off. They're signed out everywhere.")}>{u.off ? "Turn access on" : "Turn access off"}</button>}</td>}
         </tr>; })}
         {t.invites.map(i => <tr key={i.email} className="pending">
-          <td>{i.name || "—"}<small>Invited</small></td><td>{i.email}</td><td>{levelName(i.level)}</td><td><small>{byId(i.boss)?.name ?? ""} · link works until {when(i.until)}</small></td>
-          {lead && <td><button className="ox-btn ghost sm" onClick={async () => { const r = await api("invite/cancel", { email: i.email }); toast(r.ok ? "Invitation cancelled." : r.error); load(); }}>Cancel</button></td>}
+          <td>{i.name || "—"}<small>Invited</small></td><td>{i.email}</td><td>{i.role_name}</td><td><small>{nodeName(t, i.boss)} · link works until {when(i.until)}</small></td>
+          {canPeople && <td><button className="ox-btn ghost sm" onClick={async () => { const r = await api("invite/cancel", { email: i.email }); toast(r.ok ? "Invitation cancelled." : r.error); load(); }}>Cancel</button></td>}
+        </tr>)}</tbody>
+      </table></div>
+    </section>
+  </>;
+}
+
+function Groups({ me, t, load, toast }: { me: Me; t: TeamView; load: () => void; toast: (s: string) => void }) {
+  const [edit, setEdit] = useState<GroupV | "new" | null>(null);
+  const can = me.perms.includes("structure");
+  return <>
+    <section className="ox-card">
+      <div className="ox-row between"><h2>Groups</h2>{can && !edit && <button className="ox-btn primary sm" onClick={() => setEdit("new")}>New group</button>}</div>
+      <p className="ox-sub">A group is a body people or other groups can report to, like a board of directors or the principal shareholders. Everyone in a group sees everything below it.</p>
+      {edit && <GroupForm me={me} t={t} g={edit === "new" ? null : edit} done={(m) => { if (m) toast(m); setEdit(null); load(); }} />}
+      {!t.groups.length ? <p className="ox-empty">No groups yet.</p> : <div className="ox-table-wrap"><table className="ox-table">
+        <thead><tr><th>Group</th><th>Members</th><th>Reports to</th><th></th></tr></thead>
+        <tbody>{t.groups.map(g => <tr key={g.id}>
+          <td><b>{g.name}</b>{g.about && <small>{g.about}</small>}</td><td>{g.member_names.join(", ") || <span className="ox-muted">Nobody yet</span>}</td>
+          <td>{g.boss ? nodeName(t, g.boss) : "Nobody: the top"}</td>
+          <td>{can && g.mine && <button className="ox-btn ghost sm" onClick={() => setEdit(g)}>Edit</button>}</td>
         </tr>)}</tbody>
       </table></div>}
+    </section>
+  </>;
+}
+
+function GroupForm({ me, t, g, done }: { me: Me; t: TeamView; g: GroupV | null; done: (m?: string) => void }) {
+  const host = me.role === "host";
+  const f = useForm({ name: g?.name ?? "", about: g?.about ?? "", boss: g?.boss ?? (host ? "" : me.id) });
+  const [members, setMembers] = useState<string[]>(g?.members ?? []);
+  const pickable = t.users.filter(u => !u.off && (host || u.mine || members.includes(u.id)) && u.role !== "host" || (host && u.role === "host"));
+  return <form className="ox-subform" onSubmit={e => f.run(e, async () => { const r = await api("group", { id: g?.id, ...f.v, members }); if (!r.ok) return r.error; done(g ? "Group saved." : "Group created."); })}>
+    <div className="ox-grid">
+      <label className="ox-f"><span>Name</span><input required placeholder="e.g. Board of Directors" {...f.bind("name")} /></label>
+      <label className="ox-f"><span>Reports to</span><select {...f.bind("boss")}>{host && <option value="">Nobody: it's at the top</option>}{targets(me, t, g?.id).map(x => <option key={x.id} value={x.id}>{x.label}</option>)}</select></label>
+      <label className="ox-f wide"><span>What it's for</span><input {...f.bind("about")} /></label>
+    </div>
+    <fieldset className="ox-checks"><legend>Members</legend>{pickable.map(u => <label key={u.id}><input type="checkbox" checked={members.includes(u.id)} onChange={e => setMembers(m => e.target.checked ? [...m, u.id] : m.filter(x => x !== u.id))} /> {u.name}{u.id === me.id ? " (you)" : ""}</label>)}
+      {!pickable.length && <p className="ox-muted">Nobody below you yet.</p>}</fieldset>
+    <p className="ox-fine">Members see everything below this group. You can only add people who are below you.</p>
+    {f.error && <p className="ox-err">{f.error}</p>}
+    <div className="ox-row"><button className="ox-btn ghost" type="button" onClick={() => done()}>Cancel</button><button className="ox-btn primary" disabled={f.busy}>{g ? "Save group" : "Create group"}</button>
+      {g && <button className="ox-link danger" type="button" onClick={async () => { const r = await api("group/delete", { id: g.id }); if (r.ok) done("Group removed."); else f.setError(r.error); }}>Remove group</button>}</div>
+  </form>;
+}
+
+function PermBoxes({ t, value, set }: { t: TeamView; value: string[]; set: (v: string[]) => void }) {
+  return <fieldset className="ox-checks perms"><legend>What it can do</legend>{t.perms.map(p => <label key={p.id} className={p.mine ? "" : "ox-muted"} title={p.mine ? undefined : "Your own role can't do this, so you can't give it"}>
+    <input type="checkbox" disabled={!p.mine} checked={value.includes(p.id)} onChange={e => set(e.target.checked ? [...value, p.id] : value.filter(x => x !== p.id))} /> {p.about}</label>)}
+    <small>Everyone sees their own messages, and everything from the people and groups below them, whatever their role.</small></fieldset>;
+}
+
+function Roles({ t, load, toast }: { t: TeamView; load: () => void; toast: (s: string) => void }) {
+  const [edit, setEdit] = useState<{ kind: "role" | "template"; id?: string; name: string; about: string; perms: string[]; template?: string } | null>(null);
+  const [from, setFrom] = useState(t.templates[0]?.id ?? "");
+  const [error, setError] = useState("");
+  const save = async () => {
+    if (!edit) return;
+    const r = await api(edit.kind, { id: edit.id, name: edit.name, about: edit.about, perms: edit.perms, template: edit.template ?? "" });
+    if (!r.ok) { setError(r.error); return; }
+    toast(edit.kind === "role" ? "Role saved." : "Template saved."); setEdit(null); setError(""); load();
+  };
+  const remove = async () => { if (!edit?.id) return; const r = await api(edit.kind + "/delete", { id: edit.id }); if (!r.ok) { setError(r.error); return; } toast("Removed."); setEdit(null); load(); };
+  const perm = (id: string) => t.perms.find(p => p.id === id)?.about ?? id;
+  const editor = edit && <div className="ox-subform">
+    <h3>{edit.id ? `Edit ${edit.kind}` : `New ${edit.kind}`}</h3>
+    <div className="ox-grid"><label className="ox-f"><span>Name</span><input value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })} /></label>
+      <label className="ox-f wide"><span>What it's for</span><input value={edit.about} onChange={e => setEdit({ ...edit, about: e.target.value })} /></label></div>
+    <PermBoxes t={t} value={edit.perms} set={p => setEdit({ ...edit, perms: p })} />
+    {edit.kind === "template" && edit.id && <p className="ox-fine">Changing a template doesn't change roles already made from it.</p>}
+    {error && <p className="ox-err">{error}</p>}
+    <div className="ox-row"><button className="ox-btn ghost" onClick={() => { setEdit(null); setError(""); }}>Cancel</button><button className="ox-btn primary" onClick={save}>Save</button>{edit.id && <button className="ox-link danger" onClick={remove}>Remove</button>}</div>
+  </div>;
+  return <>
+    <section className="ox-card">
+      <div className="ox-row between"><h2>Roles</h2>
+        <div className="ox-row"><select aria-label="Template" value={from} onChange={e => setFrom(e.target.value)}>{t.templates.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}</select>
+          <button className="ox-btn primary sm" onClick={() => { const x = t.templates.find(y => y.id === from); if (x) setEdit({ kind: "role", name: x.name, about: x.about, perms: x.perms.filter(p => t.perms.find(q => q.id === p)?.mine), template: x.id }); }}>New role from template</button></div></div>
+      <p className="ox-sub">What someone can do. Each role starts from a template and is then its own.</p>
+      {edit?.kind === "role" && editor}
+      <div className="ox-table-wrap"><table className="ox-table"><thead><tr><th>Role</th><th>Can</th><th>Held by</th><th></th></tr></thead>
+        <tbody><tr><td><b>Host</b><small>Fixed</small></td><td><small>Everything</small></td><td>1</td><td></td></tr>
+        {t.roles.map(r => <tr key={r.id}><td><b>{r.name}</b>{r.about && <small>{r.about}</small>}</td><td><small>{r.perms.length ? r.perms.map(perm).join("; ") : "Their own messages, and what's below them"}</small></td><td>{r.holders}</td>
+          <td>{r.editable && <button className="ox-btn ghost sm" onClick={() => setEdit({ kind: "role", id: r.id, name: r.name, about: r.about, perms: r.perms, template: r.template })}>Edit</button>}</td></tr>)}</tbody></table></div>
+    </section>
+    <section className="ox-card">
+      <div className="ox-row between"><h2>Templates</h2><button className="ox-btn sm" onClick={() => setEdit({ kind: "template", name: "", about: "", perms: [] })}>New template</button></div>
+      <p className="ox-sub">Blueprints for roles, like Manager or Team member. Edit them freely; roles made from them keep their own settings.</p>
+      {edit?.kind === "template" && editor}
+      <div className="ox-table-wrap"><table className="ox-table"><thead><tr><th>Template</th><th>Can</th><th></th></tr></thead>
+        <tbody>{t.templates.map(x => <tr key={x.id}><td><b>{x.name}</b>{x.about && <small>{x.about}</small>}</td><td><small>{x.perms.length ? x.perms.map(perm).join("; ") : "Their own messages, and what's below them"}</small></td>
+          <td>{x.editable && <button className="ox-btn ghost sm" onClick={() => setEdit({ kind: "template", id: x.id, name: x.name, about: x.about, perms: x.perms })}>Edit</button>}</td></tr>)}</tbody></table></div>
     </section>
   </>;
 }
@@ -484,15 +605,15 @@ function Inbox({ me, toast, seen }: { me: Me; toast: (s: string) => void; seen: 
   const [contacts, setContacts] = useState<{ id: string; name: string; title?: string }[]>([]);
   const f = useForm({ to: "", subject: "", body: "" });
   const load = async () => { const r = await api("inbox"); if (r.ok) setNotes(r.notes); };
-  useEffect(() => { load(); api("team").then(r => r.ok && setContacts(r.contacts)); }, []);
+  useEffect(() => { load(); api("team").then(r => r.ok && setContacts([...r.contacts, ...r.groups.map((g: any) => ({ id: g.id, name: g.name, title: "everyone in the group" }))])); }, []);
   useEffect(() => {
     const ids = (notes ?? []).filter(n => n.unread).map(n => n.id);
     if (ids.length) api("read", { ids }).then(seen); else seen();
   }, [notes]);
-  const oversee = me.level !== "member";
+  const oversee = me.oversees;
   const shown = (notes ?? []).filter(n => view === "mine" ? n.mine : !n.mine);
   return <>
-    <Head title="Messages" sub={me.level === "host" ? "Every message and notice anyone at Agape has sent or received." : oversee ? "Yours, and everything sent or received by the people who report up to you. People above you see yours." : "Messages and notices for you. The people you report to can see them too."}>
+    <Head title="Messages" sub={me.role === "host" ? "Every message and notice anyone at Agape has sent or received." : oversee ? "Yours, and everything sent or received by the people who report up to you. People above you see yours." : "Messages and notices for you. The people you report to can see them too."}>
       <button className="ox-btn primary" onClick={() => setWriting(w => !w)}>{writing ? "Close" : "New message"}</button>
     </Head>
     {writing && <section className="ox-card narrow">
@@ -505,7 +626,7 @@ function Inbox({ me, toast, seen }: { me: Me; toast: (s: string) => void; seen: 
         <p className="ox-fine">Kept for good. Visible to the people in it and to everyone they report up to. Never put card or bank numbers in a message.</p>
       </form>
     </section>}
-    {oversee && <div className="ox-seg" role="group" aria-label="Whose messages"><button className={view === "mine" ? "on" : ""} aria-pressed={view === "mine"} onClick={() => setView("mine")}>Yours</button><button className={view === "team" ? "on" : ""} aria-pressed={view === "team"} onClick={() => setView("team")}>{me.level === "host" ? "Everyone else's" : "Your team's"}</button></div>}
+    {oversee && <div className="ox-seg" role="group" aria-label="Whose messages"><button className={view === "mine" ? "on" : ""} aria-pressed={view === "mine"} onClick={() => setView("mine")}>Yours</button><button className={view === "team" ? "on" : ""} aria-pressed={view === "team"} onClick={() => setView("team")}>{me.role === "host" ? "Everyone else's" : "Your team's"}</button></div>}
     {notes === null ? <p className="ox-empty">Loading…</p> : !shown.length ? <p className="ox-empty">{view === "mine" ? "Nothing yet. Notices from Agape, like new leads and people joining, land here too." : "Nothing from your team yet."}</p>
       : <ul className="ox-inbox">{shown.map(n => <li key={n.id} className={(n.unread ? "unread " : "") + (open === n.id ? "open" : "")}>
         <button className="ox-msg" onClick={() => setOpen(open === n.id ? null : n.id)} aria-expanded={open === n.id}>
@@ -540,7 +661,7 @@ function Activity({ me }: { me: Me }) {
   const [log, setLog] = useState<{ at: number; who: string; what: string }[] | null>(null);
   useEffect(() => { api("activity").then(r => setLog(r.ok ? r.log : [])); }, []);
   return <>
-    <Head title="Activity" sub={me.level === "host" ? "Every change anyone has made, and every printed VAR sheet, newest first. It can't be edited." : "Every change made by you and by everyone who reports up to you, newest first. It can't be edited."} />
+    <Head title="Activity" sub={me.role === "host" ? "Every change anyone has made, and every printed VAR sheet, newest first. It can't be edited." : "Every change made by you and by everyone who reports up to you, newest first. It can't be edited."} />
     {log === null ? <p className="ox-empty">Loading…</p> : <ol className="ox-log">{log.map((e, i) => <li key={i}><time>{when(e.at)}</time><b>{e.who}</b><span>{e.what}</span></li>)}</ol>}
   </>;
 }
@@ -548,7 +669,7 @@ function Activity({ me }: { me: Me }) {
 function Account({ me, toast, out }: { me: Me; toast: (s: string) => void; out: () => void }) {
   const f = useForm({ old: "", new: "", again: "" });
   return <>
-    <Head title="Your account" sub={<>{me.name} · {me.email} · {levelName(me.level)}</>} />
+    <Head title="Your account" sub={<>{me.name} · {me.email} · {me.role_name}</>} />
     <section className="ox-card narrow">
       <h2>Change your password</h2>
       <p className="ox-sub">You'll be signed out everywhere, including here.</p>
