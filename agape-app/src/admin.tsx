@@ -3,8 +3,8 @@
 // Everything here comes from the server and needs an Agape Admin account; nothing is simulated.
 import { React, ReactDOM, useEffect, useMemo, useState } from "./r";
 
-type Level = "owner" | "editor" | "viewer";
-type Me = { id: string; email: string; name: string; level: Level };
+type Level = "host" | "admin" | "manager" | "member";
+type Me = { id: string; email: string; name: string; level: Level; title?: string; boss?: string | null };
 type Merchant = { id: string; fields: Record<string, string>; status: Status; at: number; by: string };
 type Status = "draft" | "requested" | "issued" | "live";
 type Field = { k: string; l: string; hint?: string; ph?: string; opts?: string[]; wide?: boolean; long?: boolean; num?: boolean; secret?: boolean };
@@ -90,10 +90,13 @@ const STATUS: [Status, string, string][] = [
   ["issued", "Issued", "The processor issued the numbers"], ["live", "Live", "Taking cards"],
 ];
 const LEVELS: [Level, string, string][] = [
-  ["owner", "Owner", "Everything, including who has access"],
-  ["editor", "Editor", "Add and change merchants, print VAR sheets"],
-  ["viewer", "Viewer", "See merchants and print VAR sheets"],
+  ["host", "Host", "Sees everything that happens, everywhere"],
+  ["admin", "Admin", "Runs merchants and VAR sheets; sees everything from the people below them"],
+  ["manager", "Manager", "Runs a team; sees everything from their team"],
+  ["member", "Team member", "Sees their own messages and what's sent to them"],
 ];
+const RANK: Record<Level, number> = { member: 0, manager: 1, admin: 2, host: 3 };
+const levelName = (l: Level) => LEVELS.find(x => x[0] === l)?.[1] ?? l;
 
 // ---------------- talking to the server ----------------
 
@@ -154,7 +157,8 @@ function useForm<T extends Record<string, string>>(init: T) {
   const [busy, setBusy] = useState(false);
   const bind = (k: keyof T) => ({ value: v[k], onChange: (e: any) => { setV({ ...v, [k]: e.target.value }); setError(""); } });
   const run = async (e: React.FormEvent, f: () => Promise<string | void>) => { e.preventDefault(); setBusy(true); const x = await f(); setBusy(false); if (x) setError(x); };
-  return { v, bind, error, setError, busy, run };
+  const reset = (p: Partial<T>) => setV(x => ({ ...x, ...p }));
+  return { v, bind, error, setError, busy, run, reset };
 }
 
 function SignIn({ enter }: { enter: (t: string, m: Me) => void }) {
@@ -194,7 +198,7 @@ function Accept({ code, enter, toSignin }: { code: string; enter: (t: string, m:
   useEffect(() => { api("invitation/" + encodeURIComponent(code)).then(r => { if (r.ok) { setInv(r.invite); f.bind("name").onChange({ target: { value: r.invite.name } }); } else setInv("gone"); }); }, []);
   if (inv === null) return <div className="ox-gate"><Mark /></div>;
   if (inv === "gone") return <Gate title="This invitation can't be used" sub="It has expired or was already used. Ask the person who invited you for a new one." foot={<button className="ox-link" onClick={toSignin}>Sign in instead</button>}><></></Gate>;
-  return <Gate title="Join Agape Admin" sub={<>You've been invited as {LEVELS.find(l => l[0] === inv.level)?.[1].toLowerCase()} with <b>{inv.email}</b>. Choose a password to finish.</>}>
+  return <Gate title="Join Agape Admin" sub={<>You've been invited as {levelName(inv.level).toLowerCase()} with <b>{inv.email}</b>. Choose a password to finish.</>}>
     <form onSubmit={e => f.run(e, async () => {
       if (f.v.password !== f.v.again) return "The two passwords don't match";
       const r = await api("accept", { code, name: f.v.name, password: f.v.password }); if (r.ok) enter(r.token, r.me); else return r.error;
@@ -210,25 +214,28 @@ function Accept({ code, enter, toSignin }: { code: string; enter: (t: string, m:
 
 // ---------------- signed in ----------------
 
-type Tab = "merchants" | "team" | "leads" | "activity" | "account";
+type Tab = "inbox" | "merchants" | "team" | "leads" | "activity" | "account";
 
 function Shell({ me, out }: { me: Me; out: () => void }) {
   const [tab, setTab] = useState<Tab>(() => (location.hash.slice(1) as Tab) || "merchants");
   const [toast, setToast] = useState("");
   useEffect(() => { history.replaceState(null, "", "#" + tab); }, [tab]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 3200); return () => clearTimeout(t); }, [toast]);
-  const tabs: [Tab, string][] = [["merchants", "Merchants"], ["team", "Team"], ["leads", "Leads"], ["activity", "Activity"], ["account", "Your account"]];
+  const [unread, setUnread] = useState(0);
+  useEffect(() => { const f = () => api("me").then(r => { if (r.ok) setUnread(r.unread ?? 0); }); f(); const t = setInterval(f, 30000); return () => clearInterval(t); }, [tab]);
+  const tabs: [Tab, string][] = [["inbox", "Messages"], ["merchants", "Merchants"], ["team", "Team"], ...(RANK[me.level] >= RANK.admin ? [["leads", "Leads"]] as [Tab, string][] : []), ["activity", "Activity"], ["account", "Your account"]];
   return <div className="ox-app">
     <header className="ox-top">
       <Mark />
-      <nav className="ox-nav" aria-label="Sections">{tabs.map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => setTab(k)}>{l}</button>)}</nav>
-      <div className="ox-who"><span>{me.name}<small>{LEVELS.find(l => l[0] === me.level)?.[1]}</small></span><button className="ox-btn ghost sm" onClick={out}>Sign out</button></div>
+      <nav className="ox-nav" aria-label="Sections">{tabs.map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => setTab(k)}>{l}{k === "inbox" && unread > 0 && <i className="ox-badge" aria-label={`${unread} unread`}>{unread}</i>}</button>)}</nav>
+      <div className="ox-who"><span>{me.name}<small>{levelName(me.level)}</small></span><button className="ox-btn ghost sm" onClick={out}>Sign out</button></div>
     </header>
     <main className="ox-main">
+      {tab === "inbox" && <Inbox me={me} toast={setToast} seen={() => setUnread(0)} />}
       {tab === "merchants" && <Merchants me={me} toast={setToast} />}
       {tab === "team" && <Team me={me} toast={setToast} />}
       {tab === "leads" && <Leads />}
-      {tab === "activity" && <Activity />}
+      {tab === "activity" && <Activity me={me} />}
       {tab === "account" && <Account me={me} toast={setToast} out={out} />}
     </main>
     {toast && <div className="ox-toast" role="status">{toast}</div>}
@@ -248,9 +255,9 @@ function Merchants({ me, toast }: { me: Me; toast: (s: string) => void }) {
   const [error, setError] = useState("");
   const load = async () => { const r = await api("merchants"); if (r.ok) { setList(r.merchants); setVenues(r.venues); } else setError(r.error); };
   useEffect(() => { load(); }, []);
-  const can = me.level !== "viewer";
+  const can = RANK[me.level] >= RANK.admin;
   if (open?.sheet && open.m) return <Sheet m={open.m} back={() => setOpen({ m: open.m, sheet: false })} close={() => setOpen(null)} />;
-  if (open) return <Editor m={open.m} can={can} owner={me.level === "owner"} venues={venues} toast={toast}
+  if (open) return <Editor m={open.m} can={can} owner={me.level === "host"} venues={venues} toast={toast}
     saved={m => { load(); setOpen({ m, sheet: false }); }} sheet={m => setOpen({ m, sheet: true })} close={() => { setOpen(null); load(); }} />;
   return <>
     <Head title="Merchants" sub="Each business Agape takes payments for: its processor, the numbers the processor issued, and the VAR sheet to send.">
@@ -397,48 +404,117 @@ function Sheet({ m, back, close }: { m: Merchant; back: () => void; close: () =>
 
 // ---------------- team, leads, activity, account ----------------
 
+type Person = Me & { at: number; off: boolean; boss?: string | null; title?: string };
+type TeamView = { users: Person[]; chain: { id: string; name: string; level: Level; title?: string }[]; invites: { email: string; name: string; level: Level; until: number; boss: string }[]; contacts: { id: string; name: string; title?: string }[] };
+
 function Team({ me, toast }: { me: Me; toast: (s: string) => void }) {
-  const [t, setT] = useState<{ users: (Me & { at: number; off: boolean })[]; invites: { email: string; name: string; level: Level; until: number }[] } | null>(null);
+  const [t, setT] = useState<TeamView | null>(null);
   const [link, setLink] = useState("");
-  const f = useForm({ email: "", name: "", level: "editor" });
+  const below = LEVELS.filter(([k]) => RANK[k] < RANK[me.level]);
+  const f = useForm({ email: "", name: "", title: "", level: below[0]?.[0] ?? "member", boss: me.id });
   const load = async () => { const r = await api("team"); if (r.ok) setT(r); };
   useEffect(() => { load(); }, []);
-  const owner = me.level === "owner";
+  const lead = RANK[me.level] >= RANK.manager;
   const set = async (id: string, b: Record<string, unknown>, ok: string) => { const r = await api("user", { id, ...b }); toast(r.ok ? ok : r.error); load(); };
+  const byId = (id?: string | null) => t?.users.find(u => u.id === id);
+  // whoever can be someone's boss: you, or anyone on your team at a higher level than the role
+  const bosses = (level: Level, not?: string) => (t?.users ?? []).filter(u => !u.off && RANK[u.level] > RANK[level] && u.id !== not && (u.id === me.id || u.boss != null));
+  const kids = (id: string) => (t?.users ?? []).filter(u => u.boss === id);
+  const Node = ({ u, depth }: { u: Person; depth: number }): any => <li>
+    <div className={"ox-node " + u.level + (u.off ? " off" : "") + (u.id === me.id ? " you" : "")}>
+      <b>{u.name}{u.id === me.id && <small> (you)</small>}</b><span>{[u.title, levelName(u.level)].filter(Boolean).join(" · ")}</span>
+    </div>
+    {kids(u.id).length > 0 && <ul>{kids(u.id).map(k => <Node key={k.id} u={k} depth={depth + 1} />)}</ul>}
+  </li>;
+  const root = t?.users.find(u => u.id === me.id);
   return <>
-    <Head title="Team" sub="Everyone with an Agape Admin account. Owners invite people and decide what they can do." />
-    {owner && <section className="ox-card">
+    <Head title="Team" sub="Who reports to whom. You see everything from the people below you and nothing from the people above you." />
+    {t && root && <section className="ox-card">
+      <h2>Your part of Agape</h2>
+      {t.chain.length > 0 && <p className="ox-sub">You report to {t.chain.map(c => `${c.name} (${levelName(c.level)})`).join(", who reports to ")}. They can see your messages and activity; you can't see theirs.</p>}
+      <ul className="ox-tree"><Node u={root} depth={0} /></ul>
+      {me.level === "host" && t.users.filter(u => u.id !== me.id && !u.boss).length > 0 && <p className="ox-note">Not placed yet: {t.users.filter(u => u.id !== me.id && !u.boss).map(u => u.name).join(", ")}. Choose who they report to below.</p>}
+    </section>}
+    {lead && <section className="ox-card">
       <h2>Invite someone</h2>
       <p className="ox-sub">They get a link to choose their own password. It works once, for 7 days. Send it to them yourself, by email or text.</p>
       <form className="ox-invite" onSubmit={e => f.run(e, async () => {
         const r = await api("invite", f.v);
         if (!r.ok) return r.error;
-        setLink(`${location.origin}/admin/?invite=${r.code}`); f.bind("email").onChange({ target: { value: "" } }); load();
+        setLink(`${location.origin}/admin/?invite=${r.code}`); f.reset({ email: "", name: "", title: "" }); load();
       })}>
         <label className="ox-f"><span>Name</span><input required {...f.bind("name")} /></label>
         <label className="ox-f"><span>Email</span><input type="email" required {...f.bind("email")} /></label>
-        <label className="ox-f"><span>They can</span><select {...f.bind("level")}>{LEVELS.map(([k, l, d]) => <option key={k} value={k}>{l}: {d}</option>)}</select></label>
+        <label className="ox-f"><span>Title</span><input placeholder="e.g. Head of payments" {...f.bind("title")} /></label>
+        <label className="ox-f"><span>Level</span><select {...f.bind("level")}>{below.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select></label>
+        <label className="ox-f"><span>Reports to</span><select {...f.bind("boss")}>{bosses(f.v.level as Level).map(u => <option key={u.id} value={u.id}>{u.id === me.id ? `You (${u.name})` : u.name}</option>)}</select></label>
         <button className="ox-btn primary" disabled={f.busy}>Create invitation</button>
       </form>
+      <p className="ox-fine">{LEVELS.find(l => l[0] === f.v.level)?.[2]}.</p>
       {f.error && <p className="ox-err">{f.error}</p>}
       {link && <div className="ox-linkbox"><span>Send them this link. It won't be shown again.</span><code>{link}</code><button className="ox-btn sm" onClick={() => navigator.clipboard?.writeText(link).then(() => toast("Link copied."))}>Copy link</button></div>}
     </section>}
     <section className="ox-card">
       <h2>People</h2>
       {!t ? <p className="ox-empty">Loading…</p> : <div className="ox-table-wrap"><table className="ox-table">
-        <thead><tr><th>Name</th><th>Email</th><th>Access</th><th>Joined</th>{owner && <th></th>}</tr></thead>
-        <tbody>{t.users.map(u => <tr key={u.id} className={u.off ? "off" : ""}>
-          <td>{u.name}{u.id === me.id && <small>You</small>}</td><td>{u.email}</td>
-          <td>{owner && u.id !== me.id && !u.off ? <select aria-label={`Access for ${u.name}`} value={u.level} onChange={e => set(u.id, { level: e.target.value }, "Access changed.")}>{LEVELS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select> : u.off ? "Turned off" : LEVELS.find(l => l[0] === u.level)?.[1]}</td>
-          <td><small>{when(u.at)}</small></td>
-          {owner && <td>{u.id !== me.id && <button className="ox-btn ghost sm" onClick={() => set(u.id, { off: !u.off }, u.off ? "Access turned back on." : "Access turned off. They're signed out everywhere.")}>{u.off ? "Turn access on" : "Turn access off"}</button>}</td>}
-        </tr>)}
+        <thead><tr><th>Name</th><th>Email</th><th>Level</th><th>Reports to</th>{lead && <th></th>}</tr></thead>
+        <tbody>{t.users.map(u => { const mine = u.id !== me.id && lead && !u.off; return <tr key={u.id} className={u.off ? "off" : ""}>
+          <td>{u.name}{u.id === me.id ? <small>You</small> : u.title && <small>{u.title}</small>}</td><td>{u.email}</td>
+          <td>{mine ? <select aria-label={`Level for ${u.name}`} value={u.level} onChange={e => set(u.id, { level: e.target.value }, "Level changed.")}>{below.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select> : u.off ? "Turned off" : levelName(u.level)}</td>
+          <td>{mine ? <select aria-label={`Who ${u.name} reports to`} value={u.boss ?? ""} onChange={e => set(u.id, { boss: e.target.value }, "Reporting line changed.")}>{!u.boss && <option value="">Choose…</option>}{bosses(u.level, u.id).map(b => <option key={b.id} value={b.id}>{b.id === me.id ? "You" : b.name}</option>)}</select> : byId(u.boss)?.name ?? (u.id === me.id && t.chain[0] ? t.chain[0].name : "—")}</td>
+          {lead && <td>{u.id !== me.id && <button className="ox-btn ghost sm" onClick={() => set(u.id, { off: !u.off }, u.off ? "Access turned back on." : "Access turned off. They're signed out everywhere.")}>{u.off ? "Turn access on" : "Turn access off"}</button>}</td>}
+        </tr>; })}
         {t.invites.map(i => <tr key={i.email} className="pending">
-          <td>{i.name || "—"}<small>Invited</small></td><td>{i.email}</td><td>{LEVELS.find(l => l[0] === i.level)?.[1]}</td><td><small>Link works until {when(i.until)}</small></td>
-          {owner && <td><button className="ox-btn ghost sm" onClick={async () => { const r = await api("invite/cancel", { email: i.email }); toast(r.ok ? "Invitation cancelled." : r.error); load(); }}>Cancel</button></td>}
+          <td>{i.name || "—"}<small>Invited</small></td><td>{i.email}</td><td>{levelName(i.level)}</td><td><small>{byId(i.boss)?.name ?? ""} · link works until {when(i.until)}</small></td>
+          {lead && <td><button className="ox-btn ghost sm" onClick={async () => { const r = await api("invite/cancel", { email: i.email }); toast(r.ok ? "Invitation cancelled." : r.error); load(); }}>Cancel</button></td>}
         </tr>)}</tbody>
       </table></div>}
     </section>
+  </>;
+}
+
+type Msg = { id: string; at: number; from: string; from_name: string; to: string[]; to_names: string[]; subject: string; body: string; kind: string; mine: boolean; sent: boolean; unread: boolean };
+
+/** Every message and notice: yours, and, below you, everything your people sent and received. */
+function Inbox({ me, toast, seen }: { me: Me; toast: (s: string) => void; seen: () => void }) {
+  const [notes, setNotes] = useState<Msg[] | null>(null);
+  const [view, setView] = useState<"mine" | "team">("mine");
+  const [open, setOpen] = useState<string | null>(null);
+  const [writing, setWriting] = useState(false);
+  const [contacts, setContacts] = useState<{ id: string; name: string; title?: string }[]>([]);
+  const f = useForm({ to: "", subject: "", body: "" });
+  const load = async () => { const r = await api("inbox"); if (r.ok) setNotes(r.notes); };
+  useEffect(() => { load(); api("team").then(r => r.ok && setContacts(r.contacts)); }, []);
+  useEffect(() => {
+    const ids = (notes ?? []).filter(n => n.unread).map(n => n.id);
+    if (ids.length) api("read", { ids }).then(seen); else seen();
+  }, [notes]);
+  const oversee = me.level !== "member";
+  const shown = (notes ?? []).filter(n => view === "mine" ? n.mine : !n.mine);
+  return <>
+    <Head title="Messages" sub={me.level === "host" ? "Every message and notice anyone at Agape has sent or received." : oversee ? "Yours, and everything sent or received by the people who report up to you. People above you see yours." : "Messages and notices for you. The people you report to can see them too."}>
+      <button className="ox-btn primary" onClick={() => setWriting(w => !w)}>{writing ? "Close" : "New message"}</button>
+    </Head>
+    {writing && <section className="ox-card narrow">
+      <form onSubmit={e => f.run(e, async () => { const r = await api("send", { to: [f.v.to], subject: f.v.subject, body: f.v.body }); if (!r.ok) return r.error; toast("Sent."); setWriting(false); f.reset({ to: "", subject: "", body: "" }); load(); })}>
+        <label className="ox-f"><span>To</span><select required {...f.bind("to")}><option value="">Choose someone…</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.title ? ` · ${c.title}` : ""}</option>)}</select></label>
+        <label className="ox-f"><span>Subject</span><input {...f.bind("subject")} /></label>
+        <label className="ox-f"><span>Message</span><textarea rows={6} required {...f.bind("body")} /></label>
+        {f.error && <p className="ox-err">{f.error}</p>}
+        <button className="ox-btn primary" disabled={f.busy}>Send</button>
+        <p className="ox-fine">Kept for good. Visible to the people in it and to everyone they report up to. Never put card or bank numbers in a message.</p>
+      </form>
+    </section>}
+    {oversee && <div className="ox-seg" role="group" aria-label="Whose messages"><button className={view === "mine" ? "on" : ""} aria-pressed={view === "mine"} onClick={() => setView("mine")}>Yours</button><button className={view === "team" ? "on" : ""} aria-pressed={view === "team"} onClick={() => setView("team")}>{me.level === "host" ? "Everyone else's" : "Your team's"}</button></div>}
+    {notes === null ? <p className="ox-empty">Loading…</p> : !shown.length ? <p className="ox-empty">{view === "mine" ? "Nothing yet. Notices from Agape, like new leads and people joining, land here too." : "Nothing from your team yet."}</p>
+      : <ul className="ox-inbox">{shown.map(n => <li key={n.id} className={(n.unread ? "unread " : "") + (open === n.id ? "open" : "")}>
+        <button className="ox-msg" onClick={() => setOpen(open === n.id ? null : n.id)} aria-expanded={open === n.id}>
+          <span className="ox-from">{n.kind === "message" ? (n.sent ? `To ${n.to_names.join(", ")}` : n.from_name) : "Agape"}{!n.mine && n.kind === "message" && <small>{n.from_name} → {n.to_names.join(", ")}</small>}{!n.mine && n.kind !== "message" && <small>to {n.to_names.join(", ")}</small>}</span>
+          <span className="ox-subj"><b>{n.subject}</b> <span className="ox-muted">{n.body.slice(0, 120)}</span></span>
+          <time>{when(n.at)}</time>
+        </button>
+        {open === n.id && <div className="ox-body"><p className="ox-meta">From {n.from_name} to {n.to_names.join(", ")} · {when(n.at)}</p><p>{n.body}</p></div>}
+      </li>)}</ul>}
   </>;
 }
 
@@ -460,11 +536,11 @@ function Leads() {
   </>;
 }
 
-function Activity() {
+function Activity({ me }: { me: Me }) {
   const [log, setLog] = useState<{ at: number; who: string; what: string }[] | null>(null);
   useEffect(() => { api("activity").then(r => setLog(r.ok ? r.log : [])); }, []);
   return <>
-    <Head title="Activity" sub="Every change and every printed VAR sheet, newest first. It can't be edited." />
+    <Head title="Activity" sub={me.level === "host" ? "Every change anyone has made, and every printed VAR sheet, newest first. It can't be edited." : "Every change made by you and by everyone who reports up to you, newest first. It can't be edited."} />
     {log === null ? <p className="ox-empty">Loading…</p> : <ol className="ox-log">{log.map((e, i) => <li key={i}><time>{when(e.at)}</time><b>{e.who}</b><span>{e.what}</span></li>)}</ol>}
   </>;
 }
@@ -472,7 +548,7 @@ function Activity() {
 function Account({ me, toast, out }: { me: Me; toast: (s: string) => void; out: () => void }) {
   const f = useForm({ old: "", new: "", again: "" });
   return <>
-    <Head title="Your account" sub={<>{me.name} · {me.email} · {LEVELS.find(l => l[0] === me.level)?.[1]}</>} />
+    <Head title="Your account" sub={<>{me.name} · {me.email} · {levelName(me.level)}</>} />
     <section className="ox-card narrow">
       <h2>Change your password</h2>
       <p className="ox-sub">You'll be signed out everywhere, including here.</p>

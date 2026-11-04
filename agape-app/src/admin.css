@@ -202,3 +202,32 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
   .ox-table.merch td[data-l]::before { content: attr(data-l); display: block; font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); font-weight: 700; }
   .ox-table.merch td:last-child .ox-btn { width: 100%; margin-top: 4px; }
 }
+
+.ox-badge { display: inline-block; min-width: 18px; padding: 0 5px; margin-left: 6px; border-radius: 99px; background: var(--brand); color: var(--brand-ink); font-size: 11px; font-style: normal; line-height: 18px; text-align: center; }
+.ox-tree, .ox-tree ul { list-style: none; margin: 0; padding: 0; }
+.ox-tree ul { margin-left: 22px; padding-left: 18px; border-left: 2px solid var(--line); }
+.ox-tree li { padding-top: 8px; }
+.ox-node { display: inline-flex; flex-direction: column; border: 1px solid var(--line); border-left: 4px solid var(--muted); border-radius: 10px; padding: 8px 14px; background: var(--card); min-width: 220px; }
+.ox-node span { color: var(--muted); font-size: 13px; }
+.ox-node.host { border-left-color: var(--brand); } .ox-node.admin { border-left-color: #6D4BD8; } .ox-node.manager { border-left-color: #1F7FC4; } .ox-node.member { border-left-color: var(--good); }
+.ox-node.you { background: var(--brand-soft); } .ox-node.off { opacity: .5; }
+.ox-node small { display: inline; }
+.ox-invite { grid-template-columns: 1fr 1.2fr 1fr .9fr 1fr auto; }
+.ox-seg { display: inline-flex; background: var(--sunk); border-radius: 10px; padding: 3px; margin-bottom: 12px; }
+.ox-seg button { border: 0; background: none; padding: 7px 14px; border-radius: 8px; font-weight: 600; color: var(--muted); cursor: pointer; }
+.ox-seg button.on { background: var(--card); color: var(--ink); box-shadow: 0 1px 3px rgba(0,0,0,.08); }
+.ox-inbox { list-style: none; margin: 0; padding: 0; background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+.ox-inbox li { border-bottom: 1px solid var(--line); }
+.ox-inbox li:last-child { border-bottom: 0; }
+.ox-msg { display: grid; grid-template-columns: 220px 1fr auto; gap: 14px; align-items: baseline; width: 100%; text-align: left; background: none; border: 0; padding: 12px 16px; cursor: pointer; }
+.ox-msg:hover { background: var(--sunk); }
+.ox-inbox li.unread .ox-from, .ox-inbox li.unread .ox-subj b { font-weight: 800; }
+.ox-inbox li.unread .ox-msg { box-shadow: inset 3px 0 0 var(--brand); }
+.ox-from { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ox-subj { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ox-msg time { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.ox-body { padding: 0 16px 16px; }
+.ox-body p { white-space: pre-wrap; margin: 0 0 8px; }
+.ox-meta { color: var(--muted); font-size: 13px; }
+@media (max-width: 900px) { .ox-invite { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 640px) { .ox-msg { grid-template-columns: 1fr auto; } .ox-subj { grid-column: 1 / -1; } .ox-invite { grid-template-columns: 1fr; } .ox-node { min-width: 0; } }
