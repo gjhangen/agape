@@ -5,6 +5,7 @@
 pub mod auth;
 pub mod venue;
 pub mod passport;
+pub mod admin;
 
 use auth::{Account, Auth, Role};
 use axum::extract::{Path, State};
@@ -27,6 +28,7 @@ pub struct App {
     data: std::path::PathBuf,
     speed: f64,
     admin_token: Option<String>,
+    office: Mutex<admin::Admin>,
 }
 pub type S = Arc<App>;
 
@@ -297,6 +299,24 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/admin/accounts", post(admin_account))
         .route("/api/admin/venues", post(admin_venue))
         .route("/api/admin/league-deal", post(admin_league_deal))
+        .route("/api/office/state", get(office_state))
+        .route("/api/office/setup", post(office_setup))
+        .route("/api/office/signin", post(office_signin))
+        .route("/api/office/signout", post(office_signout))
+        .route("/api/office/me", get(office_me))
+        .route("/api/office/password", post(office_password))
+        .route("/api/office/team", get(office_team))
+        .route("/api/office/invite", post(office_invite))
+        .route("/api/office/invite/cancel", post(office_invite_cancel))
+        .route("/api/office/invitation/{code}", get(office_invitation))
+        .route("/api/office/accept", post(office_accept))
+        .route("/api/office/user", post(office_user))
+        .route("/api/office/merchants", get(office_merchants))
+        .route("/api/office/merchant", post(office_merchant))
+        .route("/api/office/merchant/delete", post(office_merchant_delete))
+        .route("/api/office/printed", post(office_printed))
+        .route("/api/office/leads", get(office_leads))
+        .route("/api/office/activity", get(office_activity))
         .layer(axum::extract::DefaultBodyLimit::max(3_500_000))
         .with_state(app);
     match static_dir { Some(d) => api.fallback_service(tower_http::services::ServeDir::new(d)), None => api }
@@ -328,7 +348,7 @@ pub fn app(data: &std::path::Path, ticks_per_sec: f64, admin_token: Option<Strin
         let h = venue::spawn(&dir, Some(harbor_init(7)), "harbor", ticks_per_sec).expect("venue starts");
         venues.insert(h.id.clone(), h);
     }
-    Arc::new(App { auth: Mutex::new(Auth::open(data.join("accounts.jsonl"))), venues: Mutex::new(venues), passports: tokio::sync::Mutex::new(passport::Passports::open(data.join("passports.json"))), data: data.to_path_buf(), speed: ticks_per_sec, admin_token })
+    Arc::new(App { auth: Mutex::new(Auth::open(data.join("accounts.jsonl"))), venues: Mutex::new(venues), passports: tokio::sync::Mutex::new(passport::Passports::open(data.join("passports.json"))), data: data.to_path_buf(), speed: ticks_per_sec, admin_token, office: Mutex::new(admin::Admin::open(data.to_path_buf())) })
 }
 
 /// A venue whose night is over opens the next one: every fan's points go home to their passport,
@@ -386,3 +406,86 @@ pub fn demo_accounts(app: &App, password: &str) {
     }
 }
 
+
+// ---------------- Agape Admin (the company's own accounts, merchants and VAR sheets) ----------------
+
+fn bearer(h: &HeaderMap) -> String { h.get("authorization").and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ")).unwrap_or("").to_string() }
+fn staffer(app: &App, h: &HeaderMap) -> Result<admin::User, Response> { app.office.lock().unwrap().who(&bearer(h)).ok_or_else(|| err(StatusCode::UNAUTHORIZED, "Sign in to Agape Admin")) }
+fn person(u: &admin::User) -> Value { json!({ "id": u.id, "email": u.email, "name": u.name, "level": u.level }) }
+fn done(r: Result<(), String>) -> Response { match r { Ok(()) => Json(json!({ "ok": true })).into_response(), Err(e) => err(StatusCode::BAD_REQUEST, &e) } }
+fn signed(r: Result<(String, admin::User), String>, code: StatusCode) -> Response {
+    match r { Ok((t, u)) => Json(json!({ "ok": true, "token": t, "me": person(&u) })).into_response(), Err(e) => err(code, &e) }
+}
+fn s(b: &Value, k: &str) -> String { b[k].as_str().unwrap_or("").to_string() }
+fn level(b: &Value) -> Option<admin::Level> { serde_json::from_value(b["level"].clone()).ok() }
+
+async fn office_state(State(app): State<S>) -> Response { Json(json!({ "ok": true, "setup": app.office.lock().unwrap().setup_needed() })).into_response() }
+async fn office_setup(State(app): State<S>, Json(b): Json<Value>) -> Response {
+    let r = app.office.lock().unwrap().setup(&s(&b, "code"), &s(&b, "email"), &s(&b, "name"), &s(&b, "password"));
+    signed(r, StatusCode::BAD_REQUEST)
+}
+async fn office_signin(State(app): State<S>, Json(b): Json<Value>) -> Response {
+    let r = app.office.lock().unwrap().sign_in(&s(&b, "email"), &s(&b, "password"));
+    signed(r, StatusCode::UNAUTHORIZED)
+}
+async fn office_signout(State(app): State<S>, h: HeaderMap) -> Response { app.office.lock().unwrap().sign_out(&bearer(&h)); Json(json!({ "ok": true })).into_response() }
+async fn office_me(State(app): State<S>, h: HeaderMap) -> Response { match staffer(&app, &h) { Ok(u) => Json(json!({ "ok": true, "me": person(&u) })).into_response(), Err(r) => r } }
+async fn office_password(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    done(app.office.lock().unwrap().change_password(&u, &s(&b, "old"), &s(&b, "new")))
+}
+async fn office_team(State(app): State<S>, h: HeaderMap) -> Response {
+    if let Err(r) = staffer(&app, &h) { return r; }
+    let mut v = app.office.lock().unwrap().users();
+    v["ok"] = json!(true);
+    Json(v).into_response()
+}
+async fn office_invite(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    let Some(l) = level(&b) else { return err(StatusCode::BAD_REQUEST, "Choose what they can do") };
+    match app.office.lock().unwrap().invite(&u, &s(&b, "email"), &s(&b, "name"), l) { Ok(code) => Json(json!({ "ok": true, "code": code })).into_response(), Err(e) => err(StatusCode::BAD_REQUEST, &e) }
+}
+async fn office_invite_cancel(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    done(app.office.lock().unwrap().cancel_invite(&u, &s(&b, "email")))
+}
+async fn office_invitation(State(app): State<S>, Path(code): Path<String>) -> Response {
+    match app.office.lock().unwrap().invite_info(&code) { Some(i) => Json(json!({ "ok": true, "invite": i })).into_response(), None => err(StatusCode::NOT_FOUND, "This invitation has expired or was already used. Ask for a new one.") }
+}
+async fn office_accept(State(app): State<S>, Json(b): Json<Value>) -> Response {
+    let r = app.office.lock().unwrap().accept(&s(&b, "code"), &s(&b, "name"), &s(&b, "password"));
+    signed(r, StatusCode::BAD_REQUEST)
+}
+async fn office_user(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    done(app.office.lock().unwrap().set_user(&u, &s(&b, "id"), level(&b), b["off"].as_bool()))
+}
+async fn office_merchants(State(app): State<S>, h: HeaderMap) -> Response {
+    if let Err(r) = staffer(&app, &h) { return r; }
+    let venues: Vec<Value> = app.venues.lock().unwrap().values().map(|v| json!({ "id": v.id, "name": v.name })).collect();
+    Json(json!({ "ok": true, "merchants": app.office.lock().unwrap().merchants(), "venues": venues })).into_response()
+}
+async fn office_merchant(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    let Some(f) = b["fields"].as_object() else { return err(StatusCode::BAD_REQUEST, "Nothing to save") };
+    match app.office.lock().unwrap().save_merchant(&u, b["id"].as_str(), f, &s(&b, "status")) { Ok(m) => Json(json!({ "ok": true, "merchant": m })).into_response(), Err(e) => err(StatusCode::BAD_REQUEST, &e) }
+}
+async fn office_merchant_delete(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    done(app.office.lock().unwrap().delete_merchant(&u, &s(&b, "id")))
+}
+async fn office_printed(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    app.office.lock().unwrap().printed(&u, &s(&b, "id"));
+    Json(json!({ "ok": true })).into_response()
+}
+async fn office_leads(State(app): State<S>, h: HeaderMap) -> Response {
+    if let Err(r) = staffer(&app, &h) { return r; }
+    let mut all: Vec<Value> = std::fs::read_to_string(app.data.join("leads.jsonl")).unwrap_or_default().lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
+    all.reverse();
+    Json(json!({ "ok": true, "leads": all })).into_response()
+}
+async fn office_activity(State(app): State<S>, h: HeaderMap) -> Response {
+    if let Err(r) = staffer(&app, &h) { return r; }
+    Json(json!({ "ok": true, "log": app.office.lock().unwrap().log() })).into_response()
+}

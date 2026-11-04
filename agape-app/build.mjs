@@ -141,3 +141,14 @@ async function load(){const r=await fetch('/api/admin/leads',{headers:{'x-admin-
 const {leads}=await r.json();out.innerHTML=leads.length?leads.reverse().map(l=>'<div class="l"><b>'+esc(l.name)+'</b> · '+esc(l.role)+(l.org?' · '+esc(l.org):'')+'<div class="m">'+esc(l.contact)+' · '+new Date(l.at*1000).toLocaleString()+(l.version?' · from shared version '+esc(l.version):'')+'</div>'+(l.note?'<p class="n">'+esc(l.note)+'</p>':'')+'</div>').join(''):'<p>Nobody yet.</p>'}
 document.getElementById('f').onsubmit=e=>{e.preventDefault();load()};if(k.value)load();
 </script></body></html>`);
+
+// Agape Admin: the company's own accounts, merchants' processing details and VAR sheets.
+// Everything on it comes from the server and needs an Agape Admin account.
+const adminJs = await bundle("src/admin.tsx");
+const adminCss = readFileSync("src/admin.css", "utf8");
+mkdirSync("dist/server/admin", { recursive: true });
+writeFileSync("dist/server/admin/index.html", `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer"><title>Agape Admin</title>
+<meta name="theme-color" content="#B8174F"><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
+${FONTS}<style>${adminCss}</style></head><body><div id="root"></div>${REACT}<script>${adminJs}</script></body></html>`);
+console.log("dist/server/admin/index.html");
