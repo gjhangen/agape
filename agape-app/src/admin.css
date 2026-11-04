@@ -244,3 +244,24 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
 .ox-row.between { flex-wrap: wrap; gap: 10px; }
 .ox-node.host { border-left-color: var(--brand); }
 .ox-table td > b + small { display: block; }
+
+.ox-flag { font-style: normal; font-size: 11px; font-weight: 700; color: var(--bad); background: var(--bad-soft); border-radius: 6px; padding: 1px 6px; margin-right: 6px; }
+.ox-status { list-style: none; padding: 0; margin: 8px 0; font-size: 13px; }
+.ox-status li { padding: 4px 8px; border-radius: 6px; margin-bottom: 4px; overflow-wrap: anywhere; }
+.ox-status li.good { background: var(--good-soft); } .ox-status li.bad { background: var(--bad-soft); }
+.ox-chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 6px 8px; background: var(--card); min-height: 42px; }
+.ox-chips input { border: 0 !important; min-height: 28px !important; padding: 2px 4px !important; flex: 1; min-width: 160px; outline: none; background: transparent; }
+.ox-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--brand-soft); border-radius: 99px; padding: 2px 4px 2px 10px; font-size: 13.5px; font-weight: 600; }
+.ox-chip button { border: 0; background: none; cursor: pointer; font-size: 16px; line-height: 1; padding: 0 4px; color: var(--muted); }
+.ox-f > select { margin-top: 6px; }
+.ox-checklist { list-style: none; margin: 0; padding: 0; }
+.ox-checklist li { display: grid; grid-template-columns: minmax(200px, 340px) 1fr; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--line); font-size: 14px; }
+.ox-checklist li:last-child { border-bottom: 0; }
+.ox-checklist li.good b { color: var(--good); } .ox-checklist li.bad b { color: var(--bad); }
+.ox-checklist span { overflow-wrap: anywhere; }
+.ox-wrap { display: block; overflow-wrap: anywhere; word-break: break-all; font-size: 12px; max-width: 560px; }
+.ox-steps { padding-left: 20px; margin: 0 0 14px; } .ox-steps li { margin-bottom: 8px; }
+.ox-code { position: relative; background: var(--sunk); border-radius: 10px; padding: 14px; overflow-x: auto; }
+.ox-code pre { margin: 0; font-family: var(--mono); font-size: 12.5px; white-space: pre; }
+.ox-code .ox-btn { position: absolute; right: 10px; top: 10px; }
+@media (max-width: 640px) { .ox-checklist li { grid-template-columns: 1fr; gap: 2px; } }

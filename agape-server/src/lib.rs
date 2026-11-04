@@ -6,6 +6,7 @@ pub mod auth;
 pub mod venue;
 pub mod passport;
 pub mod admin;
+pub mod mail;
 
 use auth::{Account, Auth, Role};
 use axum::extract::{Path, State};
@@ -29,6 +30,7 @@ pub struct App {
     speed: f64,
     admin_token: Option<String>,
     office: Mutex<admin::Admin>,
+    pub mail: mail::Mail,
 }
 pub type S = Arc<App>;
 
@@ -323,6 +325,12 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/activity", get(office_activity))
         .route("/api/office/inbox", get(office_inbox))
         .route("/api/office/accounts", get(office_accounts))
+        .route("/api/office/email", post(office_email))
+        .route("/api/office/mailbox", post(office_mailbox))
+        .route("/api/office/mail/setup", get(office_mail_setup))
+        .route("/api/office/mail/test", post(office_mail_test))
+        .route("/api/mail/health", get(mail_health))
+        .route("/api/mail/inbound", post(mail_inbound).layer(axum::extract::DefaultBodyLimit::max(30_000_000)))
         .route("/api/office/role", post(office_role))
         .route("/api/office/role/delete", post(office_role_delete))
         .route("/api/office/template", post(office_template))
@@ -362,7 +370,7 @@ pub fn app(data: &std::path::Path, ticks_per_sec: f64, admin_token: Option<Strin
         let h = venue::spawn(&dir, Some(harbor_init(7)), "harbor", ticks_per_sec).expect("venue starts");
         venues.insert(h.id.clone(), h);
     }
-    Arc::new(App { auth: Mutex::new(Auth::open(data.join("accounts.jsonl"))), venues: Mutex::new(venues), passports: tokio::sync::Mutex::new(passport::Passports::open(data.join("passports.json"))), data: data.to_path_buf(), speed: ticks_per_sec, admin_token, office: Mutex::new(admin::Admin::open(data.to_path_buf())) })
+    Arc::new(App { auth: Mutex::new(Auth::open(data.join("accounts.jsonl"))), venues: Mutex::new(venues), passports: tokio::sync::Mutex::new(passport::Passports::open(data.join("passports.json"))), data: data.to_path_buf(), speed: ticks_per_sec, admin_token, office: Mutex::new(admin::Admin::open(data.to_path_buf())), mail: mail::Mail::open(data, &std::env::var("AGAPE_MAIL_DOMAIN").ok().filter(|d| !d.is_empty()).unwrap_or_else(|| "agapetoyourseat.com".into())) })
 }
 
 /// A venue whose night is over opens the next one: every fan's points go home to their passport,
@@ -425,7 +433,7 @@ pub fn demo_accounts(app: &App, password: &str) {
 
 fn bearer(h: &HeaderMap) -> String { h.get("authorization").and_then(|v| v.to_str().ok()).and_then(|v| v.strip_prefix("Bearer ")).unwrap_or("").to_string() }
 fn staffer(app: &App, h: &HeaderMap) -> Result<admin::User, Response> { app.office.lock().unwrap().who(&bearer(h)).ok_or_else(|| err(StatusCode::UNAUTHORIZED, "Sign in to Agape Admin")) }
-fn person_in(o: &admin::Admin, u: &admin::User) -> Value { json!({ "id": u.id, "email": u.email, "name": u.name, "role": u.role, "role_name": o.role_name(&u.role), "title": u.title, "boss": u.boss, "perms": o.perms_of(u), "oversees": o.oversees_anyone(u) }) }
+fn person_in(o: &admin::Admin, u: &admin::User) -> Value { json!({ "mailbox": u.mailbox, "id": u.id, "email": u.email, "name": u.name, "role": u.role, "role_name": o.role_name(&u.role), "title": u.title, "boss": u.boss, "perms": o.perms_of(u), "oversees": o.oversees_anyone(u) }) }
 fn done(r: Result<(), String>) -> Response { match r { Ok(()) => Json(json!({ "ok": true })).into_response(), Err(e) => err(StatusCode::BAD_REQUEST, &e) } }
 fn signed(app: &App, r: Result<(String, admin::User), String>, code: StatusCode) -> Response {
     match r { Ok((t, u)) => { let me = person_in(&app.office.lock().unwrap(), &u); Json(json!({ "ok": true, "token": t, "me": me })).into_response() } Err(e) => err(code, &e) }
@@ -443,7 +451,7 @@ async fn office_signin(State(app): State<S>, Json(b): Json<Value>) -> Response {
     signed(&app, r, StatusCode::UNAUTHORIZED)
 }
 async fn office_signout(State(app): State<S>, h: HeaderMap) -> Response { app.office.lock().unwrap().sign_out(&bearer(&h)); Json(json!({ "ok": true })).into_response() }
-async fn office_me(State(app): State<S>, h: HeaderMap) -> Response { match staffer(&app, &h) { Ok(u) => { let o = app.office.lock().unwrap(); Json(json!({ "ok": true, "me": person_in(&o, &u), "unread": o.unread(&u) })).into_response() } Err(r) => r } }
+async fn office_me(State(app): State<S>, h: HeaderMap) -> Response { match staffer(&app, &h) { Ok(u) => { let o = app.office.lock().unwrap(); Json(json!({ "ok": true, "me": person_in(&o, &u), "unread": o.unread(&u), "domain": app.mail.domain })).into_response() } Err(r) => r } }
 async fn office_password(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
     let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
     done(app.office.lock().unwrap().change_password(&u, &s(&b, "old"), &s(&b, "new")))
@@ -562,3 +570,77 @@ async fn office_accounts(State(app): State<S>, h: HeaderMap) -> Response {
     }).collect();
     Json(json!({ "ok": true, "accounts": list })).into_response()
 }
+
+// ---------------- email ----------------
+
+/// Send an email from someone's own address. People at Agape get it right away; everyone else gets
+/// it straight from Agape's server. Either way it's kept, under the same see-down rule.
+async fn office_email(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    let (subject, body) = (s(&b, "subject").trim().chars().take(200).collect::<String>(), s(&b, "body").trim().chars().take(50_000).collect::<String>());
+    if body.is_empty() { return err(StatusCode::BAD_REQUEST, "Write something first"); }
+    let subject = if subject.is_empty() { "(no subject)".to_string() } else { subject };
+    let (inside, outside, mailbox) = {
+        let o = app.office.lock().unwrap();
+        match o.recipients(&strs(&b, "to"), &app.mail.domain) { Ok((i, x)) => (i, x, u.mailbox.clone()), Err(e) => return err(StatusCode::BAD_REQUEST, &e) }
+    };
+    if mailbox.is_empty() { return err(StatusCode::BAD_REQUEST, "You don't have an address yet. Choose one under Your account."); }
+    let mut status = vec![];
+    let mut failed = 0;
+    if !outside.is_empty() {
+        for (to, r) in app.mail.send(&u.name, &mailbox, &outside, &subject, &body, None).await {
+            match r { Ok(m) => status.push(format!("{to}: delivered ({m})")), Err(e) => { failed += 1; status.push(format!("{to}: not delivered. {e}")) } }
+        }
+    }
+    app.office.lock().unwrap().record_sent(&u, inside, outside, &subject, &body, status.clone());
+    Json(json!({ "ok": true, "failed": failed, "status": status })).into_response()
+}
+
+async fn office_mailbox(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    let id = { let i = s(&b, "id"); if i.is_empty() { u.id.clone() } else { i } };
+    done(app.office.lock().unwrap().set_mailbox(&u, &id, &s(&b, "mailbox")))
+}
+
+/// For the host: the DNS records to add, the Worker to paste into Cloudflare, and a live check.
+async fn office_mail_setup(State(app): State<S>, h: HeaderMap) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    if u.role != admin::HOST { return err(StatusCode::FORBIDDEN, "Only the host sets up email"); }
+    let m = &app.mail;
+    let check = m.diagnose().await;
+    let ip = check["mail_host"]["ips"][0].as_str().unwrap_or("").to_string();
+    Json(json!({ "ok": true, "domain": m.domain, "host": m.host, "check": check,
+        "records": [
+            { "type": "A", "name": "mail", "value": if ip.is_empty() { "207.231.111.60".to_string() } else { ip.clone() }, "note": "Proxy status: DNS only (grey cloud). This is the name Agape's server uses when it sends." },
+            { "type": "TXT", "name": "@", "value": format!("v=spf1 a:{} include:_spf.mx.cloudflare.net ~all", m.host), "note": "Replaces the SPF record that's there now. Says Agape's server may send for the domain." },
+            { "type": "TXT", "name": format!("{}._domainkey", mail::SELECTOR), "value": m.dkim_record(), "note": "Agape's public signing key. Receivers check every message against it." },
+            { "type": "TXT", "name": "_dmarc", "value": "v=DMARC1; p=none".to_string(), "note": "Tells receivers what to do with mail that fails the checks. Start with p=none." },
+        ],
+        "worker": mail::worker_code(&m.secret, &format!("https://{}/api/mail/inbound", m.domain)),
+    })).into_response()
+}
+
+async fn office_mail_test(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    if u.role != admin::HOST { return err(StatusCode::FORBIDDEN, "Only the host sets up email"); }
+    let to = s(&b, "to");
+    let r = app.mail.send("Agape", if u.mailbox.is_empty() { "team" } else { &u.mailbox }, &[to.clone()], "Agape mail test", "This is a test from Agape's own mail server.\n\nIf it landed in your inbox (not spam), sending works without a mail provider.", None).await;
+    let (ok, detail) = match &r[0].1 { Ok(m) => (true, m.clone()), Err(e) => (false, e.clone()) };
+    Json(json!({ "ok": true, "delivered": ok, "detail": detail })).into_response()
+}
+
+/// Cloudflare's Worker hands each incoming message here.
+async fn mail_inbound(State(app): State<S>, h: HeaderMap, body: axum::body::Bytes) -> Response {
+    let given = h.get("x-agape-mail-secret").and_then(|v| v.to_str().ok()).unwrap_or("");
+    // compare in constant time so the secret can't be guessed a character at a time
+    let ok = given.len() == app.mail.secret.len() && given.bytes().zip(app.mail.secret.bytes()).fold(0u8, |a, (x, y)| a | (x ^ y)) == 0;
+    if !ok { return err(StatusCode::FORBIDDEN, "Not from Agape's mail worker"); }
+    let hv = |k: &str| h.get(k).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
+    let m = mail::parse(&body, &hv("x-envelope-to"), &hv("x-envelope-from"));
+    let n = app.office.lock().unwrap().receive(&m.from, &m.from_name, &m.to, &m.subject, &m.body, m.attachments, &app.mail.domain);
+    Json(json!({ "ok": true, "kept_for": n })).into_response()
+}
+
+/// Whether the server can send mail, and which public DNS records are in place. Nothing private:
+/// all of it can be read from public DNS by anyone.
+async fn mail_health(State(app): State<S>) -> Response { Json(app.mail.diagnose().await).into_response() }

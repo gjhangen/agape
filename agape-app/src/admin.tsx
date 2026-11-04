@@ -3,7 +3,7 @@
 // Everything here comes from the server and needs an Agape Admin account; nothing is simulated.
 import { React, ReactDOM, useEffect, useMemo, useState } from "./r";
 
-type Me = { id: string; email: string; name: string; role: string; role_name: string; perms: string[]; oversees: boolean; title?: string; boss?: string | null };
+type Me = { mailbox: string; domain: string; id: string; email: string; name: string; role: string; role_name: string; perms: string[]; oversees: boolean; title?: string; boss?: string | null };
 type Merchant = { id: string; fields: Record<string, string>; status: Status; at: number; by: string };
 type Status = "draft" | "requested" | "issued" | "live";
 type Field = { k: string; l: string; hint?: string; ph?: string; opts?: string[]; wide?: boolean; long?: boolean; num?: boolean; secret?: boolean };
@@ -117,12 +117,12 @@ function App() {
   useEffect(() => {
     (async () => {
       if (invite) { setBoot("invite"); return; }
-      if (token) { const r = await api("me"); if (r.ok) { setMe(r.me); setBoot("in"); return; } }
+      if (token) { const r = await api("me"); if (r.ok) { setMe({ ...r.me, domain: r.domain }); setBoot("in"); return; } }
       const s = await api("state");
       setBoot(s.setup ? "setup" : "signin");
     })();
   }, []);
-  const enter = (t: string, m: Me) => { keep(t); setMe(m); setBoot("in"); history.replaceState(null, "", "/admin/"); };
+  const enter = (t: string, m: Me) => { keep(t); setMe({ ...m, domain: m.domain || "agapetoyourseat.com" }); setBoot("in"); history.replaceState(null, "", "/admin/"); };
   if (boot === "loading") return <div className="ox-gate"><Mark /></div>;
   if (boot === "setup") return <Setup enter={enter} />;
   if (boot === "invite") return <Accept code={invite!} enter={enter} toSignin={() => { history.replaceState(null, "", "/admin/"); setBoot("signin"); }} />;
@@ -205,7 +205,7 @@ function Accept({ code, enter, toSignin }: { code: string; enter: (t: string, m:
 
 // ---------------- signed in ----------------
 
-type Tab = "inbox" | "merchants" | "team" | "leads" | "accounts" | "activity" | "account";
+type Tab = "mail" | "inbox" | "merchants" | "team" | "leads" | "accounts" | "activity" | "account";
 
 function Shell({ me, out }: { me: Me; out: () => void }) {
   const [tab, setTab] = useState<Tab>(() => (location.hash.slice(1) as Tab) || "merchants");
@@ -214,7 +214,7 @@ function Shell({ me, out }: { me: Me; out: () => void }) {
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 3200); return () => clearTimeout(t); }, [toast]);
   const [unread, setUnread] = useState(0);
   useEffect(() => { const f = () => api("me").then(r => { if (r.ok) setUnread(r.unread ?? 0); }); f(); const t = setInterval(f, 30000); return () => clearInterval(t); }, [tab]);
-  const tabs: [Tab, string][] = [["inbox", "Messages"], ...(me.perms.includes("merchants_view") ? [["merchants", "Merchants"]] as [Tab, string][] : []), ["team", "Team"], ...(me.perms.includes("leads") ? [["leads", "Leads"]] as [Tab, string][] : []), ...(me.perms.includes("accounts") ? [["accounts", "App accounts"]] as [Tab, string][] : []), ["activity", "Activity"], ["account", "Your account"]];
+  const tabs: [Tab, string][] = [["inbox", "Messages"], ...(me.perms.includes("merchants_view") ? [["merchants", "Merchants"]] as [Tab, string][] : []), ["team", "Team"], ...(me.perms.includes("leads") ? [["leads", "Leads"]] as [Tab, string][] : []), ...(me.perms.includes("accounts") ? [["accounts", "App accounts"]] as [Tab, string][] : []), ["activity", "Activity"], ...(me.role === "host" ? [["mail", "Email setup"]] as [Tab, string][] : []), ["account", "Your account"]];
   return <div className="ox-app">
     <header className="ox-top">
       <Mark />
@@ -228,6 +228,7 @@ function Shell({ me, out }: { me: Me; out: () => void }) {
       {tab === "leads" && <Leads />}
       {tab === "activity" && <Activity me={me} />}
       {tab === "accounts" && <Accounts />}
+      {tab === "mail" && <MailSetup toast={setToast} />}
       {tab === "account" && <Account me={me} toast={setToast} out={out} />}
     </main>
     {toast && <div className="ox-toast" role="status">{toast}</div>}
@@ -595,16 +596,17 @@ function Roles({ t, load, toast }: { t: TeamView; load: () => void; toast: (s: s
   </>;
 }
 
-type Msg = { id: string; at: number; from: string; from_name: string; to: string[]; to_names: string[]; subject: string; body: string; kind: string; mine: boolean; sent: boolean; unread: boolean };
+type Msg = { id: string; at: number; from: string; from_name: string; to: string[]; to_names: string[]; subject: string; body: string; kind: string; mine: boolean; sent: boolean; unread: boolean;
+  ext_from: string; ext_to: string[]; status: string[]; attachments: string[] };
+type Draft = { to: string[]; subject: string; body: string };
 
-/** Every message and notice: yours, and, below you, everything your people sent and received. */
+/** Every message, email and notice: yours, and, below you, everything your people sent and received. */
 function Inbox({ me, toast, seen }: { me: Me; toast: (s: string) => void; seen: () => void }) {
   const [notes, setNotes] = useState<Msg[] | null>(null);
   const [view, setView] = useState<"mine" | "team">("mine");
   const [open, setOpen] = useState<string | null>(null);
-  const [writing, setWriting] = useState(false);
+  const [draft, setDraft] = useState<Draft | null>(null);
   const [contacts, setContacts] = useState<{ id: string; name: string; title?: string }[]>([]);
-  const f = useForm({ to: "", subject: "", body: "" });
   const load = async () => { const r = await api("inbox"); if (r.ok) setNotes(r.notes); };
   useEffect(() => { load(); api("team").then(r => r.ok && setContacts([...r.contacts, ...r.groups.map((g: any) => ({ id: g.id, name: g.name, title: "everyone in the group" }))])); }, []);
   useEffect(() => {
@@ -613,30 +615,114 @@ function Inbox({ me, toast, seen }: { me: Me; toast: (s: string) => void; seen: 
   }, [notes]);
   const oversee = me.oversees;
   const shown = (notes ?? []).filter(n => view === "mine" ? n.mine : !n.mine);
+  const reply = (n: Msg) => setDraft({ to: [n.ext_from ? n.ext_from.replace(/.*</, "").replace(/>.*/, "") : n.from].filter(Boolean), subject: /^re:/i.test(n.subject) ? n.subject : "Re: " + n.subject, body: `\n\nOn ${when(n.at)}, ${n.from_name} wrote:\n` + n.body.trimEnd().split("\n").map(l => "> " + l).join("\n") });
+  const who = (n: Msg) => n.kind === "lead" || n.kind === "joined" ? "Agape" : n.sent ? `To ${n.to_names.join(", ")}` : n.from_name;
   return <>
-    <Head title="Messages" sub={me.role === "host" ? "Every message and notice anyone at Agape has sent or received." : oversee ? "Yours, and everything sent or received by the people who report up to you. People above you see yours." : "Messages and notices for you. The people you report to can see them too."}>
-      <button className="ox-btn primary" onClick={() => setWriting(w => !w)}>{writing ? "Close" : "New message"}</button>
+    <Head title="Messages" sub={<>{me.mailbox && <>Your address is <b>{me.mailbox}@{me.domain}</b>. </>}{me.role === "host" ? "You see every email, message and notice at Agape." : oversee ? "Yours, and everything sent or received by the people below you. People above you see yours." : "Yours. The people you report to can see them too."}</>}>
+      <button className="ox-btn primary" onClick={() => setDraft(d => d ? null : { to: [], subject: "", body: "" })}>{draft ? "Close" : "New email"}</button>
     </Head>
-    {writing && <section className="ox-card narrow">
-      <form onSubmit={e => f.run(e, async () => { const r = await api("send", { to: [f.v.to], subject: f.v.subject, body: f.v.body }); if (!r.ok) return r.error; toast("Sent."); setWriting(false); f.reset({ to: "", subject: "", body: "" }); load(); })}>
-        <label className="ox-f"><span>To</span><select required {...f.bind("to")}><option value="">Choose someone…</option>{contacts.map(c => <option key={c.id} value={c.id}>{c.name}{c.title ? ` · ${c.title}` : ""}</option>)}</select></label>
-        <label className="ox-f"><span>Subject</span><input {...f.bind("subject")} /></label>
-        <label className="ox-f"><span>Message</span><textarea rows={6} required {...f.bind("body")} /></label>
-        {f.error && <p className="ox-err">{f.error}</p>}
-        <button className="ox-btn primary" disabled={f.busy}>Send</button>
-        <p className="ox-fine">Kept for good. Visible to the people in it and to everyone they report up to. Never put card or bank numbers in a message.</p>
-      </form>
-    </section>}
+    {draft && <Compose me={me} d={draft} contacts={contacts} done={(m) => { if (m) toast(m); setDraft(null); load(); }} />}
     {oversee && <div className="ox-seg" role="group" aria-label="Whose messages"><button className={view === "mine" ? "on" : ""} aria-pressed={view === "mine"} onClick={() => setView("mine")}>Yours</button><button className={view === "team" ? "on" : ""} aria-pressed={view === "team"} onClick={() => setView("team")}>{me.role === "host" ? "Everyone else's" : "Your team's"}</button></div>}
-    {notes === null ? <p className="ox-empty">Loading…</p> : !shown.length ? <p className="ox-empty">{view === "mine" ? "Nothing yet. Notices from Agape, like new leads and people joining, land here too." : "Nothing from your team yet."}</p>
+    {notes === null ? <p className="ox-empty">Loading…</p> : !shown.length ? <p className="ox-empty">{view === "mine" ? "Nothing yet. Email to your address, messages from your team, and notices like new leads all land here." : "Nothing from your team yet."}</p>
       : <ul className="ox-inbox">{shown.map(n => <li key={n.id} className={(n.unread ? "unread " : "") + (open === n.id ? "open" : "")}>
         <button className="ox-msg" onClick={() => setOpen(open === n.id ? null : n.id)} aria-expanded={open === n.id}>
-          <span className="ox-from">{n.kind === "message" ? (n.sent ? `To ${n.to_names.join(", ")}` : n.from_name) : "Agape"}{!n.mine && n.kind === "message" && <small>{n.from_name} → {n.to_names.join(", ")}</small>}{!n.mine && n.kind !== "message" && <small>to {n.to_names.join(", ")}</small>}</span>
-          <span className="ox-subj"><b>{n.subject}</b> <span className="ox-muted">{n.body.slice(0, 120)}</span></span>
+          <span className="ox-from">{who(n)}{!n.mine && <small>{n.from_name} → {n.to_names.join(", ")}</small>}</span>
+          <span className="ox-subj">{n.status.some(x => x.includes("not delivered")) && <i className="ox-flag">Not delivered</i>}<b>{n.subject}</b> <span className="ox-muted">{n.body.slice(0, 120)}</span></span>
           <time>{when(n.at)}</time>
         </button>
-        {open === n.id && <div className="ox-body"><p className="ox-meta">From {n.from_name} to {n.to_names.join(", ")} · {when(n.at)}</p><p>{n.body}</p></div>}
+        {open === n.id && <div className="ox-body">
+          <p className="ox-meta">From {n.from_name} to {n.to_names.join(", ") || "—"} · {when(n.at)}</p>
+          <p>{n.body}</p>
+          {n.attachments.length > 0 && <p className="ox-note">Attachments (names only; Agape doesn't keep the files yet): {n.attachments.join(", ")}</p>}
+          {n.status.length > 0 && <ul className="ox-status">{n.status.map((x, i) => <li key={i} className={x.includes("not delivered") ? "bad" : "good"}>{x}</li>)}</ul>}
+          {n.mine && n.kind !== "lead" && n.kind !== "joined" && !n.sent && <button className="ox-btn sm" onClick={() => reply(n)}>Reply</button>}
+        </div>}
       </li>)}</ul>}
+  </>;
+}
+
+function Compose({ me, d, contacts, done }: { me: Me; d: Draft; contacts: { id: string; name: string; title?: string }[]; done: (m?: string) => void }) {
+  const [to, setTo] = useState<string[]>(d.to);
+  const [typed, setTyped] = useState("");
+  const f = useForm({ subject: d.subject, body: d.body });
+  const label = (x: string) => contacts.find(c => c.id === x)?.name ?? x;
+  const add = (x: string) => { const v = x.trim().replace(/[,;]$/, ""); if (v && !to.includes(v)) setTo([...to, v]); setTyped(""); };
+  return <section className="ox-card narrow">
+    <form onSubmit={e => f.run(e, async () => {
+      const all = typed.trim() ? [...to, typed.trim()] : to;
+      if (!all.length) return "Add who it's for";
+      const r = await api("email", { to: all, subject: f.v.subject, body: f.v.body });
+      if (!r.ok) return r.error;
+      done(r.failed ? `Sent, but ${r.failed} address${r.failed > 1 ? "es" : ""} couldn't be reached. Open it to see why.` : "Sent.");
+    })}>
+      <p className="ox-meta">From {me.name} &lt;{me.mailbox}@{me.domain}&gt;</p>
+      <div className="ox-f"><span>To</span>
+        <div className="ox-chips">{to.map(x => <span key={x} className="ox-chip">{label(x)}<button type="button" aria-label={`Remove ${label(x)}`} onClick={() => setTo(to.filter(y => y !== x))}>×</button></span>)}
+          <input value={typed} placeholder={to.length ? "Add another" : "Email address, or pick someone below"} onChange={e => { const v = e.target.value; if (/[,;\s]$/.test(v) && v.includes("@")) add(v); else setTyped(v); }} onKeyDown={e => { if (e.key === "Enter" && typed.includes("@")) { e.preventDefault(); add(typed); } }} />
+        </div>
+        <select aria-label="Add someone at Agape" value="" onChange={e => e.target.value && add(e.target.value)}><option value="">Add someone at Agape…</option>{contacts.filter(c => !to.includes(c.id)).map(c => <option key={c.id} value={c.id}>{c.name}{c.title ? ` · ${c.title}` : ""}</option>)}</select>
+      </div>
+      <label className="ox-f"><span>Subject</span><input {...f.bind("subject")} /></label>
+      <label className="ox-f"><span>Message</span><textarea rows={8} required {...f.bind("body")} /></label>
+      {f.error && <p className="ox-err">{f.error}</p>}
+      <div className="ox-row"><button className="ox-btn ghost" type="button" onClick={() => done()}>Discard</button><button className="ox-btn primary" disabled={f.busy}>{f.busy ? "Sending…" : "Send"}</button></div>
+      <p className="ox-fine">Kept for good, and visible to the people in it and everyone above them. Never put card or bank numbers in an email.</p>
+    </form>
+  </section>;
+}
+
+/** For the host: what has to be true for Agape's own email to work, checked live, with the exact records to add. */
+function MailSetup({ toast }: { toast: (s: string) => void }) {
+  const [d, setD] = useState<any>(null);
+  const [testTo, setTestTo] = useState("");
+  const [test, setTest] = useState<{ delivered: boolean; detail: string } | null>(null);
+  const [busy, setBusy] = useState(false);
+  const load = async () => { setD(null); const r = await api("mail/setup"); setD(r.ok ? r : { error: r.error }); };
+  useEffect(() => { load(); }, []);
+  const copy = (t: string) => navigator.clipboard?.writeText(t).then(() => toast("Copied."));
+  if (!d) return <><Head title="Email setup" /><p className="ox-empty">Checking everything live…</p></>;
+  if (d.error) return <><Head title="Email setup" /><p className="ox-err">{d.error}</p></>;
+  const c = d.check;
+  const row = (ok: boolean, title: string, detail: React.ReactNode) => <li className={ok ? "good" : "bad"}><b>{ok ? "✓" : "✗"} {title}</b><span>{detail}</span></li>;
+  return <>
+    <Head title="Email setup" sub={`Email for @${d.domain}, run by Agape's own server: no mail provider. Receiving is free through Cloudflare. Sending goes straight from Agape's server.`}><button className="ox-btn" onClick={load}>Check again</button></Head>
+    <section className="ox-card">
+      <h2>Live check</h2>
+      <ul className="ox-checklist">
+        {row(c.port25.ok, "Agape's server can reach other mail servers", c.port25.ok ? "Port 25 is open." : <>{c.port25.detail}. Ask HostRush to allow outgoing mail (port 25) for 207.231.111.60.</>)}
+        {row(c.mail_host.ok, `${d.host} points at the server`, c.mail_host.ok ? c.mail_host.ips.join(", ") : "Add the A record below.")}
+        {row(c.reverse_dns.ok, "Reverse DNS names the server", c.reverse_dns.ok ? c.reverse_dns.names.join(", ") : <>Gmail and Outlook refuse mail from servers without this. Ask HostRush (the server's host) to set the reverse DNS (PTR) for 207.231.111.60 to <b>{d.host}</b>. Only they can.{c.reverse_dns.names.length ? ` It's now ${c.reverse_dns.names.join(", ")}.` : ""}</>)}
+        {row(c.spf.ok, "SPF lets the server send for the domain", c.spf.value || "Not set.")}
+        {row(c.dkim.ok, "DKIM key published", c.dkim.ok ? "Matches the server's key." : "Add the DKIM record below.")}
+        {row(c.dmarc.ok, "DMARC policy published", c.dmarc.value || "Not set.")}
+        {row(c.mx.ok, "Incoming mail goes through Cloudflare", c.mx.value.length ? c.mx.value.join(", ") : "No MX records.")}
+      </ul>
+    </section>
+    <section className="ox-card">
+      <h2>1 · DNS records in Cloudflare</h2>
+      <p className="ox-sub">Cloudflare → agapetoyourseat.com → DNS → Records. Add each one exactly.</p>
+      <div className="ox-table-wrap"><table className="ox-table"><thead><tr><th>Type</th><th>Name</th><th>Value</th><th></th></tr></thead>
+        <tbody>{d.records.map((r: any) => <tr key={r.name + r.type}><td className="mono">{r.type}</td><td className="mono">{r.name}</td><td><code className="ox-wrap">{r.value}</code><small>{r.note}</small></td><td><button className="ox-btn sm" onClick={() => copy(r.value)}>Copy</button></td></tr>)}</tbody></table></div>
+    </section>
+    <section className="ox-card">
+      <h2>2 · Receiving: Cloudflare Email Routing</h2>
+      <ol className="ox-steps">
+        <li>Mail for the domain goes to Namecheap's forwarding today. If anything is forwarded there (for example to a personal Gmail), write it down first; each person can then have their own address here.</li>
+        <li>Cloudflare → Workers & Pages → Create → Worker. Name it <b>agape-mail</b>, replace its code with the code below, and Deploy.</li>
+        <li>Cloudflare → agapetoyourseat.com → Email → Email Routing → Get started. Let it replace the old MX records.</li>
+        <li>Email Routing → Routing rules → Catch-all address → Action: <b>Send to a Worker</b> → agape-mail → Save, and turn it on.</li>
+      </ol>
+      <div className="ox-code"><button className="ox-btn sm" onClick={() => copy(d.worker)}>Copy code</button><pre>{d.worker}</pre></div>
+      <p className="ox-fine">The code holds a secret only this server knows, so nobody else can drop mail into Agape. Don't share it.</p>
+    </section>
+    <section className="ox-card">
+      <h2>3 · Test sending</h2>
+      <p className="ox-sub">Send a test to a Gmail or Outlook address you can check. If it arrives in the inbox, no provider is needed. If it goes to spam or never arrives, Agape adds a sending service.</p>
+      <form className="ox-row" onSubmit={async e => { e.preventDefault(); setBusy(true); const r = await api("mail/test", { to: testTo }); setBusy(false); setTest(r.ok ? r : { delivered: false, detail: r.error }); }}>
+        <input className="ox-search" type="email" required placeholder="you@gmail.com" value={testTo} onChange={e => setTestTo(e.target.value)} /><button className="ox-btn primary" disabled={busy}>{busy ? "Sending…" : "Send a test"}</button>
+      </form>
+      {test && <p className={test.delivered ? "ox-ok" : "ox-err"}>{test.delivered ? "Accepted. Now check whether it's in the inbox or in spam. " : "Not delivered. "}{test.detail}</p>}
+    </section>
   </>;
 }
 
@@ -689,10 +775,23 @@ function Activity({ me }: { me: Me }) {
   </>;
 }
 
+function MailboxForm({ me, toast }: { me: Me; toast: (s: string) => void }) {
+  const f = useForm({ mailbox: me.mailbox });
+  return <form className="ox-row" onSubmit={e => f.run(e, async () => { const r = await api("mailbox", { mailbox: f.v.mailbox }); if (!r.ok) return r.error; toast("Address changed. Mail to the old one now goes to the host."); })}>
+    <input className="ox-search mono" aria-label="Address" {...f.bind("mailbox")} /><span className="ox-muted">@{me.domain}</span><button className="ox-btn" disabled={f.busy || f.v.mailbox === me.mailbox}>Change</button>
+    {f.error && <p className="ox-err">{f.error}</p>}
+  </form>;
+}
+
 function Account({ me, toast, out }: { me: Me; toast: (s: string) => void; out: () => void }) {
   const f = useForm({ old: "", new: "", again: "" });
   return <>
     <Head title="Your account" sub={<>{me.name} · {me.email} · {me.role_name}</>} />
+    <section className="ox-card narrow">
+      <h2>Your email address</h2>
+      <p className="ox-sub">Mail to it lands in Messages. People above you can read it, as with everything here.</p>
+      <MailboxForm me={me} toast={toast} />
+    </section>
     <section className="ox-card narrow">
       <h2>Change your password</h2>
       <p className="ox-sub">You'll be signed out everywhere, including here.</p>

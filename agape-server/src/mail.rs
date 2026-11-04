@@ -1,0 +1,169 @@
+//! Email for @agapetoyourseat.com, run by Agape itself: no mail provider.
+//!
+//! Receiving: Cloudflare Email Routing hands each message to a tiny Cloudflare Worker, which posts
+//! the raw message here with a shared secret. Sending: Agape talks SMTP straight to the recipient's
+//! mail server (found through its MX record), signed with Agape's own DKIM key so the receiver can
+//! tell it really came from agapetoyourseat.com. Every message is kept in Agape Admin under the same
+//! rule as everything else there: the people in it see it, and so does everyone above them.
+
+use hickory_resolver::TokioResolver;
+use mail_parser::MimeHeaders;
+use lettre::message::dkim::{DkimConfig, DkimSigningAlgorithm, DkimSigningKey};
+use lettre::message::{header::ContentType, Mailbox, Message};
+use lettre::transport::smtp::client::{Tls, TlsParameters};
+use lettre::transport::smtp::extension::ClientId;
+use lettre::{AsyncSmtpTransport, AsyncTransport, Tokio1Executor};
+use serde_json::{json, Value};
+use std::path::{Path, PathBuf};
+use std::time::Duration;
+
+pub const SELECTOR: &str = "agape1";
+
+pub struct Mail { pub domain: String, pub host: String, key_pem: String, pub public_b64: String, pub secret: String }
+
+fn private_file(path: &Path, contents: &str) {
+    let _ = std::fs::write(path, contents);
+    #[cfg(unix)] { use std::os::unix::fs::PermissionsExt; let _ = std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600)); }
+}
+
+impl Mail {
+    /// The signing key and the Worker's secret are made once, on the server, and never leave it
+    /// (only the public half of the key is published, in DNS).
+    pub fn open(dir: &Path, domain: &str) -> Mail {
+        use rsa::pkcs1::{DecodeRsaPrivateKey, EncodeRsaPrivateKey};
+        use rsa::pkcs8::EncodePublicKey;
+        let kp: PathBuf = dir.join("mail-dkim.pem");
+        let key = match std::fs::read_to_string(&kp).ok().and_then(|p| rsa::RsaPrivateKey::from_pkcs1_pem(&p).ok()) {
+            Some(k) => k,
+            None => {
+                let k = rsa::RsaPrivateKey::new(&mut rsa::rand_core::OsRng, 2048).expect("dkim key");
+                private_file(&kp, &k.to_pkcs1_pem(rsa::pkcs1::LineEnding::LF).unwrap());
+                k
+            }
+        };
+        let key_pem = key.to_pkcs1_pem(rsa::pkcs1::LineEnding::LF).unwrap().to_string();
+        let der = rsa::RsaPublicKey::from(&key).to_public_key_der().unwrap();
+        use base64::Engine;
+        let public_b64 = base64::engine::general_purpose::STANDARD.encode(der.as_bytes());
+        let sp = dir.join("mail-inbound-secret");
+        let secret = match std::fs::read_to_string(&sp) { Ok(s) if s.trim().len() >= 32 => s.trim().to_string(), _ => {
+            let mut b = [0u8; 24]; rand::RngCore::fill_bytes(&mut rand::rng(), &mut b);
+            let s: String = b.iter().map(|x| format!("{x:02x}")).collect();
+            private_file(&sp, &s); s
+        } };
+        Mail { domain: domain.into(), host: format!("mail.{domain}"), key_pem, public_b64, secret }
+    }
+
+    pub fn dkim_record(&self) -> String { format!("v=DKIM1; k=rsa; p={}", self.public_b64) }
+
+    /// Send one message to people outside Agape, straight to each recipient's mail server.
+    /// Returns, for each address, "delivered" or why not, in words.
+    pub async fn send(&self, from_name: &str, from_local: &str, to: &[String], subject: &str, body: &str, reply_to: Option<&str>) -> Vec<(String, Result<String, String>)> {
+        let mut out = vec![];
+        let resolver = match TokioResolver::builder_tokio() { Ok(b) => b.build(), Err(e) => { return to.iter().map(|t| (t.clone(), Err(format!("Couldn't look up mail servers: {e}")))).collect(); } };
+        let from: Mailbox = match format!("{} <{}@{}>", from_name.replace(['<', '>', '"'], ""), from_local, self.domain).parse() { Ok(m) => m, Err(e) => return to.iter().map(|t| (t.clone(), Err(format!("Bad sender: {e}")))).collect() };
+        for rcpt in to {
+            let r = self.send_one(&resolver, &from, rcpt, subject, body, reply_to).await;
+            out.push((rcpt.clone(), r));
+        }
+        out
+    }
+
+    async fn send_one(&self, resolver: &TokioResolver, from: &Mailbox, rcpt: &str, subject: &str, body: &str, reply_to: Option<&str>) -> Result<String, String> {
+        let to: Mailbox = rcpt.parse().map_err(|_| format!("{rcpt} isn't an email address"))?;
+        let mut b = Message::builder().from(from.clone()).to(to.clone()).subject(subject).header(ContentType::TEXT_PLAIN);
+        if let Some(r) = reply_to { if let Ok(m) = r.parse::<Mailbox>() { b = b.reply_to(m); } }
+        let mut msg = b.body(body.to_string()).map_err(|e| e.to_string())?;
+        let key = DkimSigningKey::new(&self.key_pem, DkimSigningAlgorithm::Rsa).map_err(|e| format!("{e:?}"))?;
+        lettre::message::dkim::dkim_sign(&mut msg, &DkimConfig::default_config(SELECTOR.into(), self.domain.clone(), key));
+        let domain = to.email.domain().to_string();
+        let mut hosts: Vec<(u16, String)> = match resolver.mx_lookup(domain.as_str()).await {
+            Ok(mx) => mx.iter().map(|m| (m.preference(), m.exchange().to_utf8().trim_end_matches('.').to_string())).collect(),
+            Err(_) => vec![(0, domain.clone())],
+        };
+        hosts.sort();
+        let mut last = format!("No mail server found for {domain}");
+        for (_, host) in hosts.iter().take(3) {
+            // opportunistic TLS, as mail servers do with each other: encrypted whenever the other side offers it
+            let tls = TlsParameters::builder(host.clone()).dangerous_accept_invalid_certs(true).dangerous_accept_invalid_hostnames(true).build_rustls().map_err(|e| e.to_string())?;
+            let t: AsyncSmtpTransport<Tokio1Executor> = AsyncSmtpTransport::<Tokio1Executor>::builder_dangerous(host.as_str()).port(25)
+                .hello_name(ClientId::Domain(self.host.clone())).tls(Tls::Opportunistic(tls)).timeout(Some(Duration::from_secs(25))).build();
+            match t.send(msg.clone()).await {
+                Ok(r) => return Ok(format!("Accepted by {host}: {}", r.message().collect::<Vec<_>>().join(" "))),
+                Err(e) => { last = format!("{host} refused it: {e}"); if e.is_permanent() { return Err(last); } }
+            }
+        }
+        Err(last)
+    }
+
+    /// Everything that decides whether mail from Agape lands in inboxes, checked live.
+    pub async fn diagnose(&self) -> Value {
+        let resolver = match TokioResolver::builder_tokio() { Ok(b) => b.build(), Err(e) => return json!({ "error": e.to_string() }) };
+        let txt = |name: String| { let r = resolver.clone(); async move { r.txt_lookup(name).await.map(|t| t.iter().map(|x| x.txt_data().iter().map(|d| String::from_utf8_lossy(d).to_string()).collect::<String>()).collect::<Vec<_>>()).unwrap_or_default() } };
+        // can this server reach other mail servers at all? (many hosts block port 25)
+        let port25 = match tokio::time::timeout(Duration::from_secs(8), tokio::net::TcpStream::connect(("gmail-smtp-in.l.google.com", 25))).await {
+            Ok(Ok(mut s)) => {
+                use tokio::io::AsyncReadExt;
+                let mut buf = [0u8; 200];
+                let banner = match tokio::time::timeout(Duration::from_secs(8), s.read(&mut buf)).await { Ok(Ok(n)) => String::from_utf8_lossy(&buf[..n]).trim().to_string(), _ => String::new() };
+                json!({ "ok": banner.starts_with("220"), "detail": if banner.is_empty() { "Connected, but Gmail said nothing".to_string() } else { banner } })
+            }
+            Ok(Err(e)) => json!({ "ok": false, "detail": format!("Blocked: {e}") }),
+            Err(_) => json!({ "ok": false, "detail": "Blocked: timed out (the hosting company probably blocks outgoing mail)" }),
+        };
+        let a = resolver.ipv4_lookup(self.host.as_str()).await.map(|r| r.iter().map(|x| x.to_string()).collect::<Vec<_>>()).unwrap_or_default();
+        let public = a.first().cloned().unwrap_or_default();
+        let ptr = if public.is_empty() { vec![] } else { match public.parse::<std::net::IpAddr>() { Ok(ip) => resolver.reverse_lookup(ip).await.map(|r| r.iter().map(|n| n.to_utf8().trim_end_matches('.').to_string()).collect()).unwrap_or_default(), Err(_) => vec![] } };
+        let spf = txt(self.domain.clone()).await.into_iter().find(|t| t.starts_with("v=spf1")).unwrap_or_default();
+        let dkim = txt(format!("{SELECTOR}._domainkey.{}", self.domain)).await.join("");
+        let dmarc = txt(format!("_dmarc.{}", self.domain)).await.into_iter().find(|t| t.starts_with("v=DMARC1")).unwrap_or_default();
+        let mx = resolver.mx_lookup(self.domain.as_str()).await.map(|m| m.iter().map(|x| x.exchange().to_utf8().trim_end_matches('.').to_string()).collect::<Vec<_>>()).unwrap_or_default();
+        let compact = |s: &str| s.replace([' ', '"'], "");
+        json!({
+            "port25": port25,
+            "mail_host": { "name": self.host, "ips": a, "ok": !a.is_empty() },
+            "reverse_dns": { "names": ptr, "ok": ptr.iter().any(|n| n.eq_ignore_ascii_case(&self.host)) },
+            "spf": { "value": spf, "ok": !public.is_empty() && (spf.contains(&format!("ip4:{public}")) || spf.contains(&format!("a:{}", self.host))) },
+            "dkim": { "value": dkim, "ok": compact(&dkim).contains(&self.public_b64) },
+            "dmarc": { "value": dmarc, "ok": !dmarc.is_empty() },
+            "mx": { "value": mx, "ok": mx.iter().any(|m| m.ends_with("mx.cloudflare.net")) },
+        })
+    }
+}
+
+/// A received message, as Agape keeps it.
+pub struct Incoming { pub from: String, pub from_name: String, pub to: Vec<String>, pub subject: String, pub body: String, pub attachments: Vec<String> }
+
+pub fn parse(raw: &[u8], envelope_to: &str, envelope_from: &str) -> Incoming {
+    let m = mail_parser::MessageParser::default().parse(raw);
+    let (mut from, mut from_name) = (envelope_from.to_string(), String::new());
+    let mut to: Vec<String> = vec![];
+    let (mut subject, mut body, mut attachments) = (String::new(), String::new(), vec![]);
+    if let Some(m) = &m {
+        if let Some(a) = m.from().and_then(|f| f.first()) { if let Some(e) = a.address() { from = e.to_string(); } from_name = a.name().unwrap_or("").to_string(); }
+        for list in [m.to(), m.cc()].into_iter().flatten() { for a in list.iter() { if let Some(e) = a.address() { to.push(e.to_lowercase()); } } }
+        subject = m.subject().unwrap_or("").to_string();
+        body = m.body_text(0).map(|b| b.to_string()).unwrap_or_default();
+        for a in m.attachments() { attachments.push(a.attachment_name().unwrap_or("attachment").to_string()); }
+    }
+    if !envelope_to.is_empty() && !to.iter().any(|t| t.eq_ignore_ascii_case(envelope_to)) { to.insert(0, envelope_to.to_lowercase()); }
+    Incoming { from, from_name, to, subject: subject.chars().take(300).collect(), body: body.chars().take(100_000).collect(), attachments }
+}
+
+/// The Cloudflare Worker that hands each incoming message to Agape. Pasted once into Cloudflare.
+pub fn worker_code(secret: &str, url: &str) -> String {
+    format!(r#"// Agape mail: Cloudflare hands every message for @agapetoyourseat.com to this Worker,
+// which passes it to Agape. If Agape can't take it, the sender is told it bounced.
+export default {{
+  async email(message, env, ctx) {{
+    const raw = await new Response(message.raw).arrayBuffer();
+    const r = await fetch("{url}", {{
+      method: "POST",
+      headers: {{ "x-agape-mail-secret": "{secret}", "x-envelope-to": message.to, "x-envelope-from": message.from, "content-type": "message/rfc822" }},
+      body: raw,
+    }});
+    if (!r.ok) message.setReject("Agape couldn't accept this message right now. Please try again later.");
+  }},
+}};
+"#)
+}

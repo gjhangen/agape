@@ -36,6 +36,8 @@ pub const PERMS: &[(&str, &str)] = &[
     ("structure", "Create and edit roles, templates and groups below them"),
 ];
 pub const HOST: &str = "host";
+/// Addresses nobody can take: they belong to Agape itself.
+const RESERVED: &[&str] = &["admin", "postmaster", "abuse", "hostmaster", "webmaster", "root", "noreply", "no-reply", "mailer-daemon", "security", "support", "billing", "legal", "privacy", "dmarc"];
 
 /// A blueprint for roles. Editable; changing one doesn't change roles already made from it.
 #[derive(Clone, Serialize, Deserialize)]
@@ -51,6 +53,8 @@ pub struct Group { pub id: String, pub name: String, #[serde(default)] pub about
 pub struct User { pub id: String, pub email: String, pub name: String, hash: String, #[serde(default)] pub role: String, pub at: u64, #[serde(default)] pub off: bool,
     /// Who they report to: a person ("a3") or a group ("g2"). Everyone but the host reports to someone.
     #[serde(default)] pub boss: Option<String>, #[serde(default)] pub title: String,
+    /// Their address at Agape's domain, before the @ ("gabriel" for gabriel@agapetoyourseat.com).
+    #[serde(default)] pub mailbox: String,
     /// From before roles existed ("owner", "admin", ...); read once and turned into a role.
     #[serde(default, rename = "level", skip_serializing)] legacy: Option<String> }
 
@@ -70,7 +74,9 @@ pub struct Entry { pub at: u64, pub who: String, pub what: String, #[serde(defau
 /// A message between people on Agape's team, or a notice Agape sent one of them.
 /// Every communication is kept, and is visible to the people in it and to everyone they report up to.
 #[derive(Clone, Serialize, Deserialize)]
-pub struct Note { pub id: String, pub at: u64, pub from: String, pub to: Vec<String>, pub subject: String, pub body: String, #[serde(default)] pub kind: String, #[serde(default)] pub read: Vec<String> }
+pub struct Note { pub id: String, pub at: u64, pub from: String, pub to: Vec<String>, pub subject: String, pub body: String, #[serde(default)] pub kind: String, #[serde(default)] pub read: Vec<String>,
+    /// Email only: who outside Agape sent it, or who outside Agape it went to, and what happened.
+    #[serde(default)] pub ext_from: String, #[serde(default)] pub ext_to: Vec<String>, #[serde(default)] pub status: Vec<String>, #[serde(default)] pub attachments: Vec<String> }
 
 #[derive(Default, Serialize, Deserialize)]
 struct State {
@@ -166,6 +172,7 @@ impl Admin {
         }
         let map = |l: &str| match l { "owner" | "host" => HOST, "admin" | "editor" => "r-admin", "manager" => "r-manager", _ => "r-member" }.to_string();
         for u in self.s.users.iter_mut() { if u.role.is_empty() { u.role = map(u.legacy.as_deref().unwrap_or("member")); } }
+        for id in self.s.users.iter().filter(|u| u.mailbox.is_empty()).map(|u| u.id.clone()).collect::<Vec<_>>() { self.give_mailbox(&id); }
         for i in self.s.invites.iter_mut() { if i.role.is_empty() { i.role = map(i.legacy.as_deref().unwrap_or("member")); } }
     }
 
@@ -191,8 +198,10 @@ impl Admin {
         if name.is_empty() { return Err("Add your name".into()); }
         good_pw(pw)?;
         if self.s.users.iter().any(|u| u.email == email) { return Err("There's already an account with that email".into()); }
-        let u = User { id: format!("a{}", self.s.users.len() + 1), email, name, hash: hash_pw(pw)?, role: role.into(), at: now(), off: false, boss: None, title: String::new(), legacy: None };
+        let u = User { id: format!("a{}", self.s.users.len() + 1), email, name, hash: hash_pw(pw)?, role: role.into(), at: now(), off: false, boss: None, title: String::new(), mailbox: String::new(), legacy: None };
         self.s.users.push(u.clone());
+        self.give_mailbox(&u.id);
+        let u = self.s.users.iter().find(|x| x.id == u.id).cloned().unwrap();
         Ok(u)
     }
 
@@ -490,7 +499,7 @@ impl Admin {
         let (mine, my_groups) = self.down(&viewer.id);
         let shown = |u: &&User| host || u.id == viewer.id || mine.contains(&u.id);
         let gshown = |g: &&Group| host || my_groups.contains(&g.id) || g.members.contains(&viewer.id);
-        let user = |u: &User| json!({ "id": u.id, "email": u.email, "name": u.name, "role": u.role, "role_name": self.role_name(&u.role), "at": u.at, "off": u.off, "boss": u.boss, "title": u.title, "mine": host || mine.contains(&u.id) });
+        let user = |u: &User| json!({ "id": u.id, "email": u.email, "name": u.name, "role": u.role, "role_name": self.role_name(&u.role), "at": u.at, "off": u.off, "boss": u.boss, "title": u.title, "mailbox": u.mailbox, "mine": host || mine.contains(&u.id) });
         json!({
             "users": self.s.users.iter().filter(shown).map(user).collect::<Vec<_>>(),
             "groups": self.s.groups.iter().filter(gshown).map(|g| json!({ "id": g.id, "name": g.name, "about": g.about, "members": g.members, "member_names": g.members.iter().map(|m| self.node_name(m)).collect::<Vec<_>>(), "boss": g.boss, "mine": host || my_groups.contains(&g.id) })).collect::<Vec<_>>(),
@@ -511,7 +520,7 @@ impl Admin {
         let mut ids: Vec<String> = vec![];
         for t in to { if !t.is_empty() && !ids.iter().any(|x| x == t) && self.s.users.iter().any(|u| u.id == *t) { ids.push(t.to_string()); } }
         if ids.is_empty() { return; }
-        self.s.notes.push(Note { id: format!("n{}", token(5)), at: now(), from: String::new(), to: ids, subject: subject.into(), body: body.into(), kind: kind.into(), read: vec![] });
+        self.s.notes.push(Note { id: format!("n{}", token(5)), at: now(), from: String::new(), to: ids, subject: subject.into(), body: body.into(), kind: kind.into(), read: vec![], ext_from: String::new(), ext_to: vec![], status: vec![], attachments: vec![] });
         if self.s.notes.len() > 20000 { self.s.notes.drain(0..2000); }
     }
     /// Tell everyone whose role has a permission (and the host).
@@ -530,7 +539,7 @@ impl Admin {
         let mut ids: Vec<String> = vec![];
         for t in to { for p in self.people_in(t) { if p != by.id && self.s.users.iter().any(|u| u.id == p && !u.off) && !ids.contains(&p) { ids.push(p); } } }
         if ids.is_empty() { return Err("Choose who it's for".into()); }
-        self.s.notes.push(Note { id: format!("n{}", token(5)), at: now(), from: by.id.clone(), to: ids, subject: if subject.is_empty() { "(no subject)".into() } else { subject }, body, kind: "message".into(), read: vec![by.id.clone()] });
+        self.s.notes.push(Note { id: format!("n{}", token(5)), at: now(), from: by.id.clone(), to: ids, subject: if subject.is_empty() { "(no subject)".into() } else { subject }, body, kind: "message".into(), read: vec![by.id.clone()], ext_from: String::new(), ext_to: vec![], status: vec![], attachments: vec![] });
         self.save();
         Ok(())
     }
@@ -539,7 +548,8 @@ impl Admin {
     pub fn inbox(&self, viewer: &User) -> Value {
         let list: Vec<Value> = self.s.notes.iter().rev().filter(|n| self.sees(viewer, &n.from, &n.to)).take(500).map(|n| {
             let mine = n.from == viewer.id || n.to.contains(&viewer.id);
-            json!({ "id": n.id, "at": n.at, "from": n.from, "from_name": self.node_name(&n.from), "to": n.to, "to_names": n.to.iter().map(|t| self.node_name(t)).collect::<Vec<_>>(),
+            json!({ "id": n.id, "at": n.at, "from": n.from, "from_name": if !n.ext_from.is_empty() { n.ext_from.clone() } else { self.node_name(&n.from) }, "to": n.to,
+                    "to_names": n.to.iter().map(|t| self.node_name(t)).chain(if n.from.is_empty() { vec![] } else { n.ext_to.clone() }).collect::<Vec<_>>(), "ext_from": n.ext_from, "ext_to": n.ext_to, "status": n.status, "attachments": n.attachments,
                     "subject": n.subject, "body": n.body, "kind": n.kind, "mine": mine, "sent": n.from == viewer.id, "unread": n.to.contains(&viewer.id) && !n.read.contains(&viewer.id) })
         }).collect();
         json!({ "notes": list })
@@ -549,6 +559,71 @@ impl Admin {
         self.save();
     }
     pub fn unread(&self, viewer: &User) -> usize { self.s.notes.iter().filter(|n| n.to.contains(&viewer.id) && !n.read.contains(&viewer.id)).count() }
+
+    // ---------------- email ----------------
+
+    /// A first address for someone: their first name, or first.last, or with a number.
+    fn give_mailbox(&mut self, id: &str) {
+        let Some(u) = self.s.users.iter().find(|u| u.id == id) else { return };
+        let clean = |x: &str| x.to_lowercase().chars().filter(|c| c.is_ascii_alphanumeric()).collect::<String>();
+        let parts: Vec<String> = u.name.split_whitespace().map(clean).filter(|p| !p.is_empty()).collect();
+        let first = parts.first().cloned().unwrap_or_else(|| clean(u.email.split('@').next().unwrap_or("team")));
+        let mut tries = vec![first.clone()];
+        if parts.len() > 1 { tries.push(format!("{}.{}", first, parts.last().unwrap())); }
+        for n in 2..50 { tries.push(format!("{first}{n}")); }
+        let pick = tries.into_iter().find(|t| !t.is_empty() && !RESERVED.contains(&t.as_str()) && !self.s.users.iter().any(|x| x.mailbox == *t));
+        if let (Some(p), Some(u)) = (pick, self.s.users.iter_mut().find(|u| u.id == id)) { u.mailbox = p; }
+    }
+    pub fn set_mailbox(&mut self, by: &User, id: &str, local: &str) -> Result<(), String> {
+        if id != by.id && !(self.can(by, "people") && self.oversees(by, id)) { return Err("You can change your own address, or the address of people below you".into()); }
+        let l = local.trim().to_lowercase();
+        if l.len() < 2 || l.len() > 40 || !l.chars().all(|c| c.is_ascii_alphanumeric() || c == '.' || c == '-' || c == '_') || l.starts_with('.') || l.ends_with('.') { return Err("Use 2 to 40 letters, numbers, dots, dashes or underscores".into()); }
+        if RESERVED.contains(&l.as_str()) { return Err("That address is kept for Agape itself".into()); }
+        if self.s.users.iter().any(|u| u.mailbox == l && u.id != id) { return Err("Someone already has that address".into()); }
+        let i = self.s.users.iter().position(|u| u.id == id).ok_or("No such person")?;
+        let was = std::mem::replace(&mut self.s.users[i].mailbox, l.clone());
+        self.note(&by.clone(), format!("Changed an address from {was} to {l}"));
+        self.save(); Ok(())
+    }
+    pub fn mailbox_of(&self, id: &str) -> Option<(String, String)> { self.s.users.iter().find(|u| u.id == id && !u.off).map(|u| (u.name.clone(), u.mailbox.clone())) }
+    fn by_mailbox(&self, local: &str) -> Option<String> { self.s.users.iter().find(|u| !u.off && u.mailbox.eq_ignore_ascii_case(local)).map(|u| u.id.clone()) }
+
+    /// Split what someone typed in "To" into people at Agape and addresses outside it.
+    pub fn recipients(&self, to: &[String], domain: &str) -> Result<(Vec<String>, Vec<String>), String> {
+        let (mut inside, mut outside): (Vec<String>, Vec<String>) = (vec![], vec![]);
+        for t in to.iter().flat_map(|t| t.split([',', ';'])).map(|t| t.trim()).filter(|t| !t.is_empty()) {
+            if self.exists(t) { for p in self.people_in(t) { if !inside.contains(&p) { inside.push(p); } } continue; }
+            let addr = t.rsplit('<').next().unwrap_or(t).trim_end_matches('>').trim().to_lowercase();
+            if !good_email(&addr) { return Err(format!("{t} isn't an email address")); }
+            match addr.split_once('@') {
+                Some((local, d)) if d.eq_ignore_ascii_case(domain) => match self.by_mailbox(local) { Some(id) => if !inside.contains(&id) { inside.push(id) }, None => return Err(format!("Nobody at Agape has the address {addr}")) },
+                _ => if !outside.contains(&addr) { outside.push(addr) },
+            }
+        }
+        if inside.is_empty() && outside.is_empty() { return Err("Choose who it's for".into()); }
+        Ok((inside, outside))
+    }
+
+    /// Keep an email someone at Agape sent (to people inside, outside, or both).
+    pub fn record_sent(&mut self, by: &User, inside: Vec<String>, outside: Vec<String>, subject: &str, body: &str, status: Vec<String>) {
+        let inside: Vec<String> = inside.into_iter().filter(|x| x != &by.id).collect();
+        self.s.notes.push(Note { id: format!("n{}", token(5)), at: now(), from: by.id.clone(), to: inside, subject: subject.into(), body: body.into(), kind: "email".into(), read: vec![by.id.clone()], ext_from: String::new(), ext_to: outside, status, attachments: vec![] });
+        self.save();
+    }
+
+    /// Keep an email that came in from outside, for whoever it was addressed to. Mail for an address
+    /// nobody has goes to the host, so nothing is lost.
+    pub fn receive(&mut self, from: &str, from_name: &str, to: &[String], subject: &str, body: &str, attachments: Vec<String>, domain: &str) -> usize {
+        let mut ids: Vec<String> = vec![];
+        for t in to { if let Some((local, d)) = t.split_once('@') { if d.eq_ignore_ascii_case(domain) { if let Some(id) = self.by_mailbox(local.split('+').next().unwrap_or(local)) { if !ids.contains(&id) { ids.push(id); } } } } }
+        if ids.is_empty() { if let Some(h) = self.s.users.iter().find(|u| u.role == HOST && !u.off) { ids.push(h.id.clone()); } }
+        let n = ids.len();
+        let from_full = if from_name.trim().is_empty() { from.to_string() } else { format!("{} <{}>", from_name.trim(), from) };
+        self.s.notes.push(Note { id: format!("n{}", token(5)), at: now(), from: String::new(), to: ids, subject: if subject.trim().is_empty() { "(no subject)".into() } else { subject.into() }, body: body.into(), kind: "email".into(), read: vec![], ext_from: from_full, ext_to: to.to_vec(), status: vec![], attachments });
+        if self.s.notes.len() > 20000 { self.s.notes.drain(0..2000); }
+        self.save();
+        n
+    }
 
     pub fn merchants(&self) -> &Vec<Merchant> { &self.s.merchants }
 
