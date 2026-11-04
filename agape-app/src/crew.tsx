@@ -80,7 +80,7 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
             <section className="cw-offer" aria-live="assertive">
               <div className="row gap"><span className="eyebrow grow">New trip</span><span className="num cw-timer">{countdown(t.expires - now)}</span></div>
               <b className="cw-pay num">{money(t.pay)}</b>
-              <small>{money(t.base ?? t.pay)} pay{t.tips ? ` + ${money(t.tips)} in tips, all yours` : ""}{t.raised > 0 ? ` · up ${money(t.raised)} since ${t.passes === 1 ? "a runner" : `${t.passes} runners`} passed` : ""}</small>
+              <small>{t.tips ? `${money(t.base ?? t.pay)} pay + ${money(t.tips)} in tips, all yours` : "Pay for the trip. Any tip a fan adds is yours on top."}{t.raised > 0 ? ` · up ${money(t.raised)} since ${t.passes === 1 ? "a runner" : `${t.passes} runners`} passed` : ""}</small>
               <ol className="cw-route"><li><b>Pick up</b> {t.stand_name}</li>{t.sections.map((s, i) => <li key={i}><b>Hand off</b> section {s.slice(1)}</li>)}</ol>
               <p className="sub">About {t.minutes} min · {t.orders.length} order{t.orders.length === 1 ? "" : "s"}</p>
               <div className="deal-act two">
@@ -103,7 +103,7 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
                   <div className="grow"><b>Section {o.seat.slice(1)}{(o as any).spot ? `, ${(o as any).spot}` : ""}</b>
                     <small>{o.items.map(x => `${x.qty}× ${x.name}`).join(", ")}{o.breakdown?.tip ? ` · ${money(o.breakdown.tip)} tip` : ""}</small>
                     {(o as any).check_id && <span className="id-chip cw-id">Check ID · 21+</span>}
-                    {t.picked && o.stage === "PickedUp" && <div className="row gap">
+                    {t.picked && o.stage === "PickedUp" && o.handoff_ok_at && now < o.handoff_ok_at - 3 * 60_000 + Math.max(60_000, t.minutes * 30_000) ? <small className="sub cw-walking">On your way to the seat.</small> : t.picked && o.stage === "PickedUp" && <div className="row gap">
                       <button className="btn ghost sm" disabled={!o.handoff_ok_at || now < o.handoff_ok_at} onClick={() => act({ do: "unreachable", order: o.id }, "Marked. You're still paid for the trip.")}>Can't find them</button>
                       <button className="btn primary sm grow" onClick={() => act({ do: "delivered", order: o.id }, (o as any).check_id ? "ID checked, handed over." : "Handed over.")}>Handed over</button></div>}
                   </div>

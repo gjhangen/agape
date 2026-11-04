@@ -11,6 +11,7 @@ import { Note } from "./explain";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
 declare const AGAPE_WORLD: any;
+let demoCode = "";
 const PARTNER = location.pathname.includes("partner");
 const BIZ = "dock-pizza";
 const START_MINUTE = 46;
@@ -86,7 +87,7 @@ function Console({ stage, next, toast, o, b, parties, refresh }: { stage: Stage;
 function beat(stage: Stage, o: OpsView | null): Beat {
   if (PARTNER) {
     if (stage !== "app") return { id: "p0", title: "A pizzeria four minutes from the arena", body: <>Dock Street Pizza partners with {BRAND.venue}. You own it. Fans unlock your perk with the points they earn ordering, and walk over after the event.</> };
-    return { id: "p1", title: "Results, as they happen", body: <>Every unlock and every code used at your counter shows up here. Partners pay for results, not for impressions.</> };
+    return { id: "p1", title: "Results, as they happen", body: <>Every unlock and every code used at your counter shows up here. Partners pay for results, not for impressions.{demoCode && <> Fans come in after the event with a code on their phone. To try the counter now, here is one a fan unlocked tonight: <b className="num">{demoCode}</b>.</>}</> };
   }
   if (stage !== "app") return { id: "v0", title: `Operations at ${BRAND.venue}`, body: <>You run operations here. The whole night runs on Agape: every stand, every runner and every dollar, on one screen. Tonight was set up before the doors opened.</> };
   if (!o) return { id: "x", title: "", body: null };
@@ -106,7 +107,17 @@ function App() {
     setWorldOverride(demoWorld(levelFeatures(LEVEL)));
     const x = await boot(19, "s104"); if (!x.ok) return;
     kernel.step(START_MINUTE * 6);
-    if (PARTNER) { kernel.act({ do: "drive", party: BIZ }); setParties(kernel.view("parties")); } else kernel.act({ do: "drive", party: "ops" });
+    if (PARTNER) {
+      kernel.act({ do: "drive", party: BIZ }); setParties(kernel.view("parties"));
+      // the demo walks one fan in the door: they unlock the perk with their points, and their code is told in the story
+      const place = (kernel.view("business", BIZ) as any)?.passes?.find((x: any) => x.kind === "perk")?.place;
+      if (place) for (let i = 0; i < 400 && !demoCode; i++) {
+        const fan = `fan${i}`;
+        if (!kernel.act({ do: "unlock", place, as: fan }).ok) continue;
+        const f: any = kernel.view("fan", fan);
+        demoCode = f?.me?.passes?.find((x: any) => x.place === place)?.code ?? "";
+      }
+    } else kernel.act({ do: "drive", party: "ops" });
     refresh(); setReady(true);
     setTimeout(() => setStage("signin"), 1500);
   })(); }, []);

@@ -717,6 +717,10 @@ function Me({ v, refresh, toast, open, settings, setting }: Ctx) {
                 {o.breakdown.fee > 0 && <LedgerLine label="Delivery" amount={o.breakdown.fee} />}
                 {o.breakdown.tip > 0 && <LedgerLine label="Tip" amount={o.breakdown.tip} />}
                 <LedgerLine label={o.stage === "Settled" ? "Charged" : "Not charged"} amount={o.stage === "Settled" ? o.charge : 0} strong />
+                {o.stage === "Settled" && o.late && o.late_credit ? <LedgerLine label="Back for being late" amount={-o.late_credit} /> : null}
+                {o.problem?.state.state === "refunded" && <LedgerLine label={`Refunded · ${o.problem.words.toLowerCase()}`} amount={-(o.problem.state.amount ?? 0)} />}
+                {o.problem?.state.state === "open" && <small className="sub">Your report is with the venue. You'll hear back here.</small>}
+                {o.problem?.state.state === "declined" && <small className="sub">Report reviewed: {o.problem.state.why}</small>}
               </div>
             )}
             {o.stage === "Settled" && <After o={o} toast={toast} refresh={refresh} />}

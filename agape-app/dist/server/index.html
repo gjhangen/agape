@@ -1639,7 +1639,8 @@ html.talk-open, html.talk-open body { overflow: hidden; }
 .held-card .btn { justify-self: end; background: #FFC94D; color: #14161B; border: 0; }
 
 /* ---------- held: shown by stillness ---------- */
-html.night-held :is(.device-screen, .st-venue) :is(*, *::before, *::after) { animation-play-state: paused !important; transition: none !important; }
+/* only what loops is stopped: things arriving on screen still arrive */
+html.night-held :is(.youpin .pulse, .mc-shine, .live-dot, .an-dot, .cw-online.on i, .cw-radar, .st-glow, .st-moment) { animation-play-state: paused !important; }
 
 /* ---------- payment, asked once at the first order ---------- */
 .pay-ask { display: grid; gap: 10px; padding: 14px; border-radius: var(--r-md); border: 1.5px solid var(--accent); background: var(--accent-soft); width: 100%; }
@@ -1652,7 +1653,7 @@ html.night-held :is(.device-screen, .st-venue) :is(*, *::before, *::after) { ani
 
 body { margin: 0; }
 @media (min-width: 761px) {
-  .story:not(.tablet):not(.laptop) .device-frame { height: max(560px, calc(100vh - 210px)); width: calc(max(560px, calc(100vh - 210px)) * 390 / 844 + 24px); max-width: 414px; min-height: 0; }
+  .story:not(.tablet):not(.laptop) .device-frame { height: max(460px, calc(100vh - 210px)); width: calc(max(460px, calc(100vh - 210px)) * 390 / 844 + 24px); max-width: 414px; min-height: 0; }
   .story:not(.tablet):not(.laptop) .st-device { margin-top: 30px; }
 }
 .sheet-actions:has(.pay-ask) { flex-wrap: wrap; }
@@ -1662,6 +1663,17 @@ body { margin: 0; }
 /* in-app messages sit above the tab bar, never over Back or Close */
 .story .toasts.in-phone, .story.full .toasts.in-phone, .story:not(.tablet):not(.laptop) .toasts.in-phone { top: auto !important; bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
 .story.tablet .toasts.in-phone, .story.laptop .toasts.in-phone { bottom: 24px; width: min(420px, calc(100% - 28px)); }
+/* staff devices fit the window on a computer */
+@media (min-width: 761px) {
+  .story.tablet .st-device, .story.laptop .st-device { margin-top: 30px; }
+  .device-frame.tablet { height: max(480px, min(680px, calc(100vh - 220px))); min-height: 0; }
+  .device-frame.laptop { height: max(480px, min(720px, calc(100vh - 230px))); min-height: 0; }
+}
+/* the role and level strip scrolls sideways on a phone: its edge fades to say so */
+@media (max-width: 760px) {
+  .st-strip { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); padding-right: 28px; }
+}
+.redeem input::placeholder { letter-spacing: normal; font-family: var(--body); }
 </style></head><body><div id="root"><div class="site"><section class="site-hero"><h1>Order from your seat.<br>It comes to you.</h1></section></div></div><script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script><script>var AGAPE_WORLD={
  "venue": "arena",
