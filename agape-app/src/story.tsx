@@ -190,7 +190,7 @@ function Story() {
     <div className="story" style={{ ["--venue" as any]: BRAND.home.color }}>
       <header className="st-top">
         <a className="st-brand" href="/"><b>agape</b><span>demo</span></a>
-        <nav className="st-seats" aria-label="Other seats">{[["Fan", "/try/"], ["Runner", "/try/runner/"], ["Kitchen", "/try/kitchen/"], ["Venue", "/try/venue/"], ["Partner", "/try/partner/"]].map(([l, h]) => <a key={h} href={h} className={l === "Fan" ? "on" : ""}>{l}</a>)}</nav>
+        <nav className="st-seats" aria-label="Other seats">{[["Fan", "/try/"], ["Runner", "/try/runner/"], ["Kitchen", "/try/kitchen/"], ["Venue", "/try/venue/"], ["Partner", "/try/partner/"], ["HQ", "/try/hq/"]].map(([l, h]) => <a key={h} href={h} className={l === "Fan" ? "on" : ""}>{l}</a>)}</nav>
         <div className="st-levels" role="group" aria-label="Level">
           {LEVELS.map(l => <button key={l.n} className={level === l.n ? "on" : ""} onClick={() => changeLevel(l.n)} title={l.line}><b>{l.n}</b><span>{l.name}</span></button>)}
         </div>

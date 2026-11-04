@@ -635,8 +635,9 @@ impl Night {
             let when = t + (2 + self.rng.below(4) as i64) * 60_000;
             self.replies.push((when, to, from, line));
         }
+        let (players_on, around_on) = (self.on("players"), self.on("around"));
         // fans write to the players on the floor tonight
-        if self.rng.chance(0.06) {
+        if players_on && self.rng.chance(0.06) {
             let on_floor: Vec<String> = [&self.league.tonight.home, &self.league.tonight.away].iter().filter_map(|g| self.league.team(g)).flat_map(|g| g.roster.iter().take(5).map(|m| m.id.clone())).collect();
             let to = on_floor[self.rng.below(on_floor.len() as u64) as usize].clone();
             let f = self.fans[self.rng.below(self.cfg.fans as u64) as usize].id.clone();
@@ -645,13 +646,13 @@ impl Night {
             if !self.live.contains(&f) { let _ = self.message(&f, &to, line); }
         }
         // the crowd asks players for shoutouts; businesses sponsor every twelve minutes
-        if self.rng.chance(0.06) && !self.claimed.is_empty() {
+        if players_on && self.rng.chance(0.06) && !self.claimed.is_empty() {
             let who: Vec<String> = self.claimed.iter().cloned().collect();
             let to = who[self.rng.below(who.len() as u64) as usize].clone();
             let f = self.fans[self.rng.below(self.cfg.fans as u64) as usize].id.clone();
             if !self.live.contains(&f) { let _ = self.propose_deal(&f, &to, "shoutout", "", 0); }
         }
-        if t % (12 * 60_000) == 0 && t > 0 && t < fin {
+        if players_on && !self.claimed.is_empty() && t % (12 * 60_000) == 0 && t > 0 && t < fin {
             let bizs = ["dock-pizza", "copper-tap", "harbor-cinema", "harborline"];
             let b = bizs[self.rng.below(4) as usize];
             if !self.driven.contains(b) {
@@ -664,13 +665,13 @@ impl Night {
             }
         }
         // the crowd unlocks partner perks, and uses them after the game
-        if t < fin && self.rng.chance(0.04) {
+        if around_on && t < fin && self.rng.chance(0.04) {
             let places: Vec<String> = self.world.def.around.iter().filter(|a| a.perk.is_some()).map(|a| a.id.clone()).collect();
             let p = places[self.rng.below(places.len() as u64) as usize].clone();
             let f = self.fans[self.rng.below(self.cfg.fans as u64) as usize].id.clone();
             if !self.live.contains(&f) { let _ = self.unlock(&f, &p); }
         }
-        if t > fin && self.rng.chance(0.2) {
+        if around_on && t > fin && self.rng.chance(0.2) {
             let held: Vec<(String, String)> = self.ledger.balances_iter().filter(|((a, u), v)| a.purpose == "holdings" && !self.live.contains(&a.party) && **v > 0 && matches!(u, Unit::Thing(s) if s.starts_with("pass:")))
                 .filter_map(|((a, u), _)| match u { Unit::Thing(s) => Some((a.party.clone(), s[5..].to_string())), _ => None })
                 .filter(|(_, p)| self.world.def.around.iter().any(|a| a.id == *p && a.perk.is_some()) && !self.driven.contains(p)).collect();

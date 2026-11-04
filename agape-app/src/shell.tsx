@@ -2,7 +2,7 @@
 // person's hands, and the story beside it. The app inside the device never knows it's in a demo.
 import { React, useEffect, useRef, useState } from "./r";
 import { kernel } from "./kernel";
-import { BRAND, momentText } from "./parts";
+import { BRAND, LEVELS, momentText } from "./parts";
 import { ExplainCard, ExplainLayer, Note } from "./explain";
 import { TalkToUs } from "./talk";
 
@@ -28,9 +28,9 @@ export function useNight(ready: boolean, paused: boolean, speed: number, tick: (
 
 export type Beat = { id: string; title: string; body: React.ReactNode };
 
-export function Shell({ tag, device, screen, beat, meta, notes, explainable, toasts, ready, onTick, hold }: {
+export function Shell({ tag, device, screen, beat, meta, notes, explainable, toasts, ready, onTick, hold, level, minLevel = 1 }: {
   tag: string; device: "phone" | "tablet" | "laptop"; screen: React.ReactNode; beat: Beat; meta?: React.ReactNode;
-  notes: Note[]; explainable: boolean; toasts: { id: number; text: string }[]; ready: boolean; onTick: () => void; hold?: boolean;
+  notes: Note[]; explainable: boolean; toasts: { id: number; text: string }[]; ready: boolean; onTick: () => void; hold?: boolean; level?: number; minLevel?: number;
 }) {
   const [speed, setSpeed] = useState(1);
   const [playing, setPlaying] = useState(true);
@@ -60,9 +60,12 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
       <header className="st-top">
         <a className="st-brand" href="/"><b>agape</b><span>{tag}</span></a>
         <nav className="st-seats" aria-label="Other seats">
-          {[["Fan", "/try/"], ["Runner", "/try/runner/"], ["Kitchen", "/try/kitchen/"], ["Venue", "/try/venue/"], ["Partner", "/try/partner/"]].map(([l, h]) =>
+          {[["Fan", "/try/"], ["Runner", "/try/runner/"], ["Kitchen", "/try/kitchen/"], ["Venue", "/try/venue/"], ["Partner", "/try/partner/"], ["HQ", "/try/hq/"]].map(([l, h]) =>
             <a key={h} href={h} className={location.pathname === h ? "on" : ""}>{l}</a>)}
         </nav>
+        {level != null && <div className="st-levels" role="group" aria-label="Level">
+          {LEVELS.filter(l => l.n >= minLevel).map(l => <a key={l.n} className={"st-lv" + (level === l.n ? " on" : "")} href={`?level=${l.n}`} title={l.line}><b>{l.n}</b><span>{l.name}</span></a>)}
+        </div>}
         <div className="st-ctl">
           <button className="btn h-btn" onClick={() => setPlaying(!playing)}>{playing ? "Pause" : "Play"}</button>
           <div className="seg h-seg" role="group" aria-label="Speed">{SPEEDS.map((s, i) => <button key={s.label} className={speed === i ? "on" : ""} onClick={() => setSpeed(i)}>{s.label}</button>)}</div>
@@ -111,3 +114,6 @@ export function useToasts() {
   const toast = (text: string) => { const id = Date.now() + Math.random(); setToasts(t => [...t, { id, text }]); setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4200); };
   return { toasts, toast };
 }
+
+/** The level asked for in the address, kept within what this seat has. */
+export function levelParam(min: number, d: number) { const n = Number(new URLSearchParams(location.search).get("level")); return n >= min && n <= LEVELS.length ? n : d; }

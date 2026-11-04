@@ -6,7 +6,7 @@ import { BRAND, Icon, money, levelFeatures } from "./parts";
 import { OpsLens, OpsView } from "./roles";
 import { BusinessLens } from "./deals";
 import { SetupLens } from "./setup";
-import { Beat, Shell, useToasts } from "./shell";
+import { Beat, Shell, levelParam, useToasts } from "./shell";
 import { Note } from "./explain";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
@@ -14,6 +14,7 @@ declare const AGAPE_WORLD: any;
 const PARTNER = location.pathname.includes("partner");
 const BIZ = "dock-pizza";
 const START_MINUTE = 46;
+const LEVEL = PARTNER ? levelParam(4, 4) : levelParam(1, 1);
 type Stage = "boot" | "signin" | "tonight" | "app";
 
 const VENUE_NOTES: Note[] = [
@@ -102,14 +103,14 @@ function App() {
   const { toasts, toast } = useToasts();
   const refresh = () => { if (PARTNER) { setB(kernel.view("business", BIZ)); } else setO(kernel.view("ops") as OpsView); };
   useEffect(() => { (async () => {
-    setWorldOverride({ ...AGAPE_WORLD, features: PARTNER ? levelFeatures(4) : undefined });
+    setWorldOverride({ ...AGAPE_WORLD, features: levelFeatures(LEVEL) });
     const x = await boot(19, "s104"); if (!x.ok) return;
     kernel.step(START_MINUTE * 6);
     if (PARTNER) { kernel.act({ do: "drive", party: BIZ }); setParties(kernel.view("parties")); } else kernel.act({ do: "drive", party: "ops" });
     refresh(); setReady(true);
     setTimeout(() => setStage("signin"), 1500);
   })(); }, []);
-  return <Shell tag={PARTNER ? "Partner · Agape Venue" : "Venue · Agape Venue"} device="laptop" ready={ready} onTick={refresh} toasts={toasts} notes={PARTNER ? PARTNER_NOTES : VENUE_NOTES} explainable={stage === "app"}
+  return <Shell tag={PARTNER ? "Partner · Agape Venue" : "Venue · Agape Venue"} device="laptop" ready={ready} onTick={refresh} toasts={toasts} notes={PARTNER ? PARTNER_NOTES : VENUE_NOTES} explainable={stage === "app"} level={LEVEL} minLevel={PARTNER ? 4 : 1}
     beat={beat(stage, o)} screen={<Console stage={stage} next={setStage} toast={toast} o={o} b={b} parties={parties} refresh={refresh} />} />;
 }
 

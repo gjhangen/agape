@@ -85,6 +85,7 @@ for (const [dir, entry, title, desc] of [
   ["kitchen", "src/station.tsx", "Agape · a kitchen's night", "Watch orders land on the stand's screen and leave on time."],
   ["venue", "src/console.tsx", "Agape · the venue's night", "Run the whole night: every order, every runner, every dollar."],
   ["partner", "src/console.tsx", "Agape · a partner's night", "Reach fans in the moment, and see what it brought in."],
+  ["hq", "src/hq.tsx", "Agape · HQ", "Where Agape's own team runs every venue at once."],
 ]) {
   const js = await bundle(entry);
   mkdirSync(`dist/server/try/${dir}`, { recursive: true });

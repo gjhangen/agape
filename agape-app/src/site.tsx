@@ -12,6 +12,7 @@ const SEATS: { id: string; who: string; line: string; time: string; href: string
   { id: "kitchen", who: "Kitchen", line: "Watch orders land on the stand's screen and leave on time.", time: "2 min", href: "/try/kitchen/", ready: true },
   { id: "venue", who: "Venue", line: "Run the whole night: every order, every runner, every dollar.", time: "3 min", href: "/try/venue/", ready: true },
   { id: "partner", who: "Partner", line: "Reach fans in the moment, and see exactly what it brought in.", time: "2 min", href: "/try/partner/", ready: true },
+  { id: "hq", who: "Agape HQ", line: "Where Agape's own team runs every venue, the crew and the money.", time: "2 min", href: "/try/hq/", ready: true },
 ];
 
 function Site() {

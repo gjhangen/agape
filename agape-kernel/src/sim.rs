@@ -742,7 +742,8 @@ impl Night {
             (format!("{} · buzzer-beater", last_name(&as_.1)), away.clone(), Some(as_.0.clone()), 60, "Rare"),
             (format!("{} · 18–0 run", self.league.team(&home).unwrap().short), home.clone(), None, 25, "Legendary"),
         ];
-        for (k, (title, team, party, supply, rarity)) in season.into_iter().enumerate() {
+        let cards_on = self.on("cards");
+        for (k, (title, team, party, supply, rarity)) in season.into_iter().enumerate().filter(|_| cards_on) {
             let id = format!("s{k}");
             self.social.mint(&mut self.ledger, Edition { id: id.clone(), kind: "season".into(), title, team, party, t: 0, supply, rarity: rarity.into(), open_until: -1 }).unwrap();
             for _ in 0..(supply * 7 / 10) {
@@ -751,13 +752,17 @@ impl Night {
                 if self.rng.chance(0.25) { let price = price_for(rarity, &mut self.rng); let _ = self.list_card(&f, &id, price); }
             }
         }
-        self.seed_offers();
-        self.seed_deals();
+        if self.on("offers") { self.seed_offers(); }
+        if self.on("players") { self.seed_deals(); }
         self
     }
 
+    /// Whether the venue has this switched on. Anything it hasn't mentioned is on.
+    pub fn on(&self, feature: &str) -> bool { self.world.def.features.get(feature).copied().unwrap_or(true) }
+
     /// A moment becomes a card with a fixed supply, collectable for five minutes.
     fn mint_moment(&mut self, kind: &str, side: &str, scorer: &str) -> Option<String> {
+        if !self.on("cards") { return None; }
         let (supply, rarity) = match kind { "splash" => (60, "Rare"), "run" => (150, "Uncommon"), "lead_change" => (200, "Common"), _ => return None };
         let group = self.group_of(side);
         let who = self.league.member(scorer).map(|(_, m)| last_name(&m.name)).unwrap_or_default();
@@ -877,9 +882,9 @@ impl Night {
                     self.note_about("moment", &team, k, &party, edition);
                 }
                 Output::Emitted { kind, fields, .. } if kind == "ops.alert" => { self.report.alerts += 1; self.note("alert", "", fields["kind"].key()); }
-                Output::Ask { ask, question, options, otherwise, locks_ms, points, .. } => self.open_question(ask, question, options, otherwise, locks_ms, points, t),
+                Output::Ask { ask, question, options, otherwise, locks_ms, points, .. } if self.on("predictions") => self.open_question(ask, question, options, otherwise, locks_ms, points, t),
                 Output::Settle { ask, .. } => self.settle_question(&ask),
-                Output::Offer { rule, thing, price, discount, payer, expires_ms, limits, .. } => {
+                Output::Offer { rule, thing, price, discount, payer, expires_ms, limits, .. } if self.on("offers") => {
                     let mut limits = limits.clone();
                     if let Some(m) = self.cfg.force_mode { limits.mode = m; if m == Mode::Guaranteed { limits.tiers.clear(); } }
                     let spec = OfferSpec { source: &rule, thing: &thing, price, discount, payer: payer.as_deref(), expires_ms: expires_ms.or(Some(600_000)), t_ms: t, pushed: true };
@@ -933,7 +938,7 @@ impl Night {
             self.note_about("score", team, format!("+{pts}"), &m.id, None);
         }
         // the crowd talks, more when something happens
-        if t <= self.end_min * 60_000 && ph != "postgame" {
+        if t <= self.end_min * 60_000 && ph != "postgame" && self.on("chat") {
             let last_moment = self.feed.iter().rev().find(|f| f.kind == "moment" && t - f.t < 60_000).map(|f| (f.text.clone(), f.team.clone()));
             // a few voices at a time, never the same line twice in a row of recent chat
             let n = 1 + if last_moment.is_some() { 3 } else { 0 };
@@ -951,7 +956,7 @@ impl Night {
         // player has promoted tonight), and after the final walks over and uses them
         {
             let perks: Vec<(String, Option<String>)> = self.world.def.around.iter().filter(|a| a.perk.is_some()).map(|a| (a.id.clone(), a.operator.clone())).collect();
-            if !perks.is_empty() && self.cfg.fans > 0 {
+            if !perks.is_empty() && self.cfg.fans > 0 && self.on("around") {
                 if ph != "postgame" && t <= self.end_min * 60_000 {
                     let (place, op) = perks[self.rng.below(perks.len() as u64) as usize].clone();
                     let promoted = op.as_ref().map_or(false, |o| self.trade.of_kind(crate::exchange::Kind::Deal).any(|d| d.buyer == *o && d.stage == crate::exchange::Stage::Settled));
@@ -970,7 +975,7 @@ impl Night {
             }
         }
         // the crowd collects open drops and trades cards
-        if t <= self.end_min * 60_000 {
+        if t <= self.end_min * 60_000 && self.on("cards") {
             let open: Vec<(String, i64)> = self.social.editions.values().filter(|e| e.open_until >= t).map(|e| (e.id.clone(), e.supply)).collect();
             for (id, supply) in open {
                 let k = self.rng.below((supply / 12).max(2) as u64);
@@ -997,7 +1002,7 @@ impl Night {
                 }
             }
         }
-        if t <= self.end_min * 60_000 && self.rng.chance(0.08) && !self.league.upcoming.is_empty() {
+        if t <= self.end_min * 60_000 && self.on("tickets") && self.rng.chance(0.08) && !self.league.upcoming.is_empty() {
             let e = self.league.upcoming[self.rng.below(self.league.upcoming.len() as u64) as usize].id.clone();
             let secs = self.ticket_sections();
             let sec = secs[self.rng.below(secs.len() as u64) as usize].clone();
@@ -1007,7 +1012,7 @@ impl Night {
         }
         // some of the crowd books rides home around the final
         let fin = self.script_final();
-        if t > fin - 40 * 60_000 && t < fin && self.rng.chance(0.15) {
+        if t > fin - 40 * 60_000 && t < fin && self.on("around") && self.rng.chance(0.15) {
             let f = self.fans[self.rng.below(self.cfg.fans as u64) as usize].id.clone();
             let at = fin + self.rng.below(15) as i64 * 60_000;
             let _ = self.book_ride(&f, "ride-b", at);

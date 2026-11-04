@@ -4,7 +4,7 @@ import { ItemArt } from "./Art";
 import {
   BRAND, CommitmentCard, LedgerLine, MapView, MeasureTile, Offer, OFFER_COPY, Order, PlaceView,
   countdown, money, rel, runnerName, venueTime,
-  MoneyFlows,
+  MoneyFlows, feature,
 } from "./parts";
 
 const placeName = (p: string, stands: MapView["stands"]) =>
@@ -208,7 +208,7 @@ function ServiceControl({ o, x }: { o: OpsView; x: StaffActs }) {
   );
 }
 
-function Problems({ o, x }: { o: OpsView; x: StaffActs }) {
+export function Problems({ o, x }: { o: OpsView; x: StaffActs }) {
   if (o.problems.length === 0) return null;
   return (
     <section className="block">
@@ -254,6 +254,7 @@ export function OpsLens({ o, compact, x }: { o: OpsView; compact?: boolean; x?: 
           </ul>
         </section>
         {!compact && <section className="block">
+          {feature("offers") && <>
           <div className="block-head"><h2>Offers</h2><span className="sub">What fans see, live</span></div>
           {o.offers.length === 0 && <p className="empty">No offers yet tonight.</p>}
           <ul className="offer-rows">
@@ -269,14 +270,15 @@ export function OpsLens({ o, compact, x }: { o: OpsView; compact?: boolean; x?: 
             <thead><tr><th>Source</th><th>Shown</th><th>Taken</th><th>Sold</th><th>Gross</th><th>Sponsor paid</th></tr></thead>
             <tbody>{o.attribution.map(a => <tr key={a.source}><td>{OFFER_COPY[a.source]?.title ?? (a.source === "menu" ? "Menu" : a.source)}</td>
               <td className="num">{a.shown || "–"}</td><td className="num">{a.accepted || "–"}</td><td className="num">{a.settled}</td><td className="num">{money(a.gross)}</td><td className="num">{a.spend ? money(a.spend) : "–"}</td></tr>)}</tbody>
-          </table></div>
-          <div className="block-head"><h2>Beyond food</h2><span className="sub">{o.exchanges.replays ? "Rebuilt from the log: matches" : "Log replay does not match"}</span></div>
+          </table></div></>}
+          {o.exchanges.kinds.some(k => k.total > 0) && <>
+          <div className="block-head"><h2>Beyond food</h2><span className="sub">tickets, perks, deals and trades tonight</span></div>
           <div className="table-wrap"><table className="attr">
             <thead><tr><th>Kind</th><th>All</th><th>Open</th><th>Done</th><th>Ended</th><th>Settled</th></tr></thead>
             <tbody>{o.exchanges.kinds.filter(k => k.total > 0).map(k => <tr key={k.kind}><td>{k.name}</td><td className="num">{k.total}</td><td className="num">{k.live || "–"}</td><td className="num">{k.settled}</td>
               <td className="num">{k.closed || "–"}</td><td className="num">{[k.money ? money(k.money) : "", k.points ? `${k.points.toLocaleString()} pts` : ""].filter(Boolean).join(" + ") || "–"}</td></tr>)}</tbody>
           </table></div>
-          {o.exchanges.exits.length > 0 && <ul className="earned">{o.exchanges.exits.map((e, i) => <li key={i}><span className="grow">{e.kind}: {EXIT_COPY[e.exit] ?? e.exit}</span><small>{e.owner === "nobody" ? "nobody's fault" : `on ${e.owner}`}</small><b className="num">{e.count}</b></li>)}</ul>}
+          {o.exchanges.exits.length > 0 && <ul className="earned">{o.exchanges.exits.map((e, i) => <li key={i}><span className="grow">{e.kind}: {EXIT_COPY[e.exit] ?? e.exit}</span><small>{e.owner === "nobody" ? "nobody's fault" : `on ${e.owner}`}</small><b className="num">{e.count}</b></li>)}</ul>}</>}
           <div className="block-head"><h2>Money tonight</h2><span className="sub">Every dollar in, and where it went</span></div>
           <MoneyFlows f={(o.ledger as any).flows ?? {}} />
         </section>}
