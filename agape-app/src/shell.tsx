@@ -40,7 +40,9 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
   const [fan, setFan] = useState<any>(null);
   const [pulse, setPulse] = useState(0);
   const last = useRef("");
-  useNight(ready, !playing || !!hold, speed, onTick);
+  const waiting = useHoldOnBeat(beat.id);
+  const { full, setFull } = useFull();
+  useNight(ready, !playing || !!hold || waiting, speed, onTick);
   // the event around the device: the scoreboard and the roar on big moments
   useEffect(() => {
     const i = setInterval(() => {
@@ -56,9 +58,10 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
   const c = fan?.clock;
   const moment = fan?.live.event.find((e: any) => e.kind === "moment");
   return (
-    <div className={"story " + device} style={{ ["--venue" as any]: BRAND.home.color }}>
+    <div className={"story " + device + (full ? " full" : "")} style={{ ["--venue" as any]: BRAND.home.color }}>
       <header className="st-top">
         <a className="st-brand" href="/"><b>agape</b><span>{tag}</span></a>
+        <div className="st-strip">
         <nav className="st-seats" aria-label="Other seats">
           {[["Fan", "/try/"], ["Runner", "/try/runner/"], ["Kitchen", "/try/kitchen/"], ["Venue", "/try/venue/"], ["Partner", "/try/partner/"], ["HQ", "/try/hq/"]].map(([l, h]) =>
             <a key={h} href={h + (EVENT === "concert" ? "?event=concert" : "")} className={location.pathname === h ? "on" : ""}>{l}</a>)}
@@ -67,10 +70,12 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
           {LEVELS.filter(l => l.n >= minLevel).map(l => <a key={l.n} className={"st-lv" + (level === l.n ? " on" : "")} href={withParam("level", String(l.n))} title={l.line}><b>{l.n}</b><span>{l.name}</span></a>)}
         </div>}
         <EventSwitch />
+        </div>
         <div className="st-ctl">
           <button className="btn h-btn" onClick={() => setPlaying(!playing)}>{playing ? "Pause" : "Play"}</button>
           <div className="seg h-seg" role="group" aria-label="Speed">{SPEEDS.map((s, i) => <button key={s.label} className={speed === i ? "on" : ""} onClick={() => setSpeed(i)}>{s.label}</button>)}</div>
           <button className={"btn h-btn" + (explain ? " lit" : "")} aria-pressed={explain} disabled={!explainable} onClick={() => { setExplain(!explain); setNote(null); }}>{explain ? "Explaining" : "Explain"}</button>
+          <button className="btn h-btn" onClick={() => setFull(true)}>Full screen</button>
           <button className="btn h-btn" onClick={() => location.reload()}>Start over</button>
         </div>
       </header>
@@ -94,6 +99,7 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
         <aside className="st-story" aria-live="polite">
           {note ? <ExplainCard n={note} close={() => setNote(null)} /> : <>
             {explain && <p className="st-tip">Explain is on: tap anything glowing.</p>}
+            <HeldNote on={waiting} />
             <span className="eyebrow">{tag}</span>
             <h2 key={beat.id}>{beat.title}</h2>
             <p key={beat.id + "b"}>{beat.body}</p>
@@ -106,6 +112,7 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
           </div>
         </aside>
       </main>
+      {full && <HeldCard beat={beat} on={waiting} exit={() => setFull(false)} />}
       {talk && <TalkToUs close={() => setTalk(false)} version={null} />}
     </div>
   );
@@ -135,4 +142,43 @@ export function EventSwitch() {
   return <div className="st-levels st-event" role="group" aria-label="Kind of night">
     {[["game", "Game"], ["concert", "Concert"]].map(([k, l]) => <a key={k} className={"st-lv" + (EVENT === k ? " on" : "")} href={withParam("event", k)}><span>{l}</span></a>)}
   </div>;
+}
+
+/** The story holds the night at each new step until the person does something on the page: a tap, a click
+ *  or a key, inside the app or outside it. Then the night carries on. */
+export function useHoldOnBeat(beatId: string) {
+  const [waiting, setWaiting] = useState(false);
+  const first = useRef(true);
+  useEffect(() => {
+    if (first.current) { first.current = false; return; }
+    if (!beatId || beatId === "x" || beatId === "wait") return;
+    setWaiting(true);
+  }, [beatId]);
+  useEffect(() => {
+    if (!waiting) return;
+    const go = () => setWaiting(false);
+    // the next action, not the one that brought this step on
+    const t = setTimeout(() => { addEventListener("pointerdown", go, { once: true, capture: true }); addEventListener("keydown", go, { once: true, capture: true }); }, 350);
+    return () => { clearTimeout(t); removeEventListener("pointerdown", go, true); removeEventListener("keydown", go, true); };
+  }, [waiting]);
+  return waiting;
+}
+
+/** Full screen: the app alone, edge to edge, with a way back. */
+export function useFull() {
+  const [full, setFull] = useState(false);
+  useEffect(() => { document.documentElement.classList.toggle("demo-full", full); }, [full]);
+  return { full, setFull };
+}
+
+/** The story, shrunk to one card over a full-screen app while the night is held for it. */
+export function HeldCard({ beat, on, exit }: { beat: Beat; on: boolean; exit: () => void }) {
+  return <>
+    <button className="full-exit" onClick={exit} aria-label="Leave full screen">Exit full screen</button>
+    {on && <div className="held-card" role="status"><b>{beat.title}</b><span>{beat.body}</span><small>Tap anywhere to continue</small></div>}
+  </>;
+}
+
+export function HeldNote({ on }: { on: boolean }) {
+  return on ? <p className="st-held">Paused while you read · tap or press anything to continue</p> : null;
 }

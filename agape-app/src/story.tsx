@@ -8,7 +8,7 @@ import { BRAND, Icon, LEVELS, levelFeatures, momentText, runnerName, venueTime }
 import { applyLook, applyMode, savedLook, savedMode, setVenueColor } from "./themes";
 import { TalkToUs } from "./talk";
 import { ExplainCard, ExplainLayer, FAN_NOTES, Note } from "./explain";
-import { EVENT, EventSwitch, demoWorld, withParam } from "./shell";
+import { EVENT, EventSwitch, HeldCard, HeldNote, demoWorld, useFull, useHoldOnBeat, withParam } from "./shell";
 
 declare const AGAPE_WORLD: any;
 const SPEEDS = [{ label: "1×", tps: 0.1 }, { label: "6×", tps: 0.6 }, { label: "30×", tps: 3 }];
@@ -148,6 +148,9 @@ function Story() {
   const [talk, setTalk] = useState(false);
   const [seen] = useState(() => new Set<string>());
   const [ready, setReady] = useState(false);
+  const beat = beatFor(stage, v, level, seen);
+  const waiting = useHoldOnBeat(stage === "app" ? beat.id : "");
+  const { full, setFull } = useFull();
   const [explain, setExplain] = useState(false);
   const [note, setNote] = useState<Note | null>(null);
   const acc = useRef(0);
@@ -163,7 +166,7 @@ function Story() {
   useEffect(() => { start(level, "s104").then(() => { setTimeout(() => setStage("welcome"), 1900); }); }, []);
   // the night runs from the moment the doors open, whether or not anyone is looking at the phone
   useEffect(() => {
-    if (!ready || !playing || sheet) return;
+    if (!ready || !playing || sheet || waiting) return;
     const i = setInterval(() => {
       acc.current += SPEEDS[speed].tps * 0.25;
       const n = Math.floor(acc.current);
@@ -173,8 +176,7 @@ function Story() {
       if (stage === "app") refresh(); else setV(kernel.view("fan") as FanView);
     }, 250);
     return () => clearInterval(i);
-  }, [ready, playing, speed, sheet, stage]);
-  const beat = beatFor(stage, v, level, seen);
+  }, [ready, playing, speed, sheet, stage, waiting]);
   useEffect(() => { seen.add(beat.id); if (beat.id !== "arrive") setHint(false); }, [beat.id]);
   const pulse = useCrowd(v, sound);
   const changeLevel = async (n: number) => {
@@ -189,19 +191,22 @@ function Story() {
   const c = v?.clock;
   const moment = v?.live.event.find(e => e.kind === "moment");
   return (
-    <div className="story" style={{ ["--venue" as any]: BRAND.home.color }}>
+    <div className={"story phone-demo" + (full ? " full" : "")} style={{ ["--venue" as any]: BRAND.home.color }}>
       <header className="st-top">
         <a className="st-brand" href="/"><b>agape</b><span>demo</span></a>
+        <div className="st-strip">
         <nav className="st-seats" aria-label="Other seats">{[["Fan", "/try/"], ["Runner", "/try/runner/"], ["Kitchen", "/try/kitchen/"], ["Venue", "/try/venue/"], ["Partner", "/try/partner/"], ["HQ", "/try/hq/"]].map(([l, h]) => <a key={h} href={h + (EVENT === "concert" ? "?event=concert" : "")} className={l === "Fan" ? "on" : ""}>{l}</a>)}</nav>
         <div className="st-levels" role="group" aria-label="Level">
           {LEVELS.map(l => <button key={l.n} className={level === l.n ? "on" : ""} onClick={() => changeLevel(l.n)} title={l.line}><b>{l.n}</b><span>{l.name}</span></button>)}
         </div>
         <EventSwitch />
+        </div>
         <div className="st-ctl">
           <button className="btn h-btn" onClick={() => setPlaying(!playing)}>{playing ? "Pause" : "Play"}</button>
           <div className="seg h-seg" role="group" aria-label="Speed">{SPEEDS.map((s, i) => <button key={s.label} className={speed === i ? "on" : ""} onClick={() => setSpeed(i)}>{s.label}</button>)}</div>
           <button className={"btn h-btn" + (explain ? " lit" : "")} aria-pressed={explain} disabled={stage !== "app"} onClick={() => { setExplain(!explain); setNote(null); }}>{explain ? "Explaining" : "Explain"}</button>
-          <button className="btn h-btn" aria-pressed={sound} onClick={() => setSound(!sound)}>{sound ? "Crowd on" : "Crowd off"}</button>
+          <button className="btn h-btn snd" aria-pressed={sound} onClick={() => setSound(!sound)}>{sound ? "Crowd on" : "Crowd off"}</button>
+          <button className="btn h-btn" onClick={() => setFull(true)}>Full screen</button>
           <button className="btn h-btn" onClick={restart}>Start over</button>
         </div>
       </header>
@@ -231,6 +236,7 @@ function Story() {
         </div>
         <aside className="st-story" aria-live="polite">
           {note ? <ExplainCard n={note} close={() => setNote(null)} /> : <>
+          <HeldNote on={waiting} />
           {explain && stage === "app" && <p className="st-tip">Explain is on: tap anything glowing on the phone.</p>}
           <span className="eyebrow">{stage === "app" ? `Level ${level} · ${LEVELS[level - 1].name}` : "Opening Agape"}</span>
           <h2 key={beat.id}>{beat.title}</h2>
@@ -247,6 +253,7 @@ function Story() {
           </div>
         </aside>
       </main>
+      {full && <HeldCard beat={beat} on={waiting} exit={() => setFull(false)} />}
       {talk && <TalkToUs close={() => setTalk(false)} version={null} />}
     </div>
   );
