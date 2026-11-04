@@ -492,4 +492,18 @@ function Account({ me, toast, out }: { me: Me; toast: (s: string) => void; out: 
   </>;
 }
 
-ReactDOM.createRoot(document.getElementById("root")!).render(<App />);
+/** If anything on the page breaks, say so in words, with a way back, instead of leaving a blank page. */
+class Guard extends React.Component<{ children: React.ReactNode }, { error: string }> {
+  state = { error: "" };
+  static getDerivedStateFromError(e: any) { return { error: String(e?.message ?? e) }; }
+  componentDidCatch(e: any) { console.error(e); }
+  render() {
+    if (!this.state.error) return this.props.children;
+    return <div className="ad-gate"><div className="ad-gate-card"><Mark /><h1>Something went wrong on this page</h1>
+      <p className="ad-sub">Your account and everything you saved are safe. Reload to try again. If it keeps happening, send Agape this line:</p>
+      <p className="ad-err mono">{this.state.error} · {navigator.userAgent.replace(/^Mozilla\/5\.0 /, "")}</p>
+      <button className="ad-btn primary block" onClick={() => location.reload()}>Reload</button>
+      <button className="ad-link" style={{ marginTop: 12 }} onClick={() => { try { localStorage.removeItem(KEY); } catch {} location.href = "/admin/"; }}>Sign out and start over</button></div></div>;
+  }
+}
+ReactDOM.createRoot(document.getElementById("root")!).render(<Guard><App /></Guard>);

@@ -59,7 +59,7 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
 .ad-gate-foot { margin-top: 16px; }
 
 /* signed in */
-.ad-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 20px; padding: 10px 24px; background: color-mix(in srgb, var(--card) 92%, transparent); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
+.ad-top { position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 20px; padding: 10px 24px; background: color-mix(in srgb, var(--card) 92%, transparent); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); border-bottom: 1px solid var(--line); }
 .ad-nav { display: flex; gap: 4px; flex: 1; overflow-x: auto; scrollbar-width: none; }
 .ad-nav button { border: 0; background: none; padding: 8px 12px; border-radius: 8px; font-weight: 600; color: var(--muted); cursor: pointer; white-space: nowrap; }
 .ad-nav button:hover { color: var(--ink); background: var(--sunk); }
