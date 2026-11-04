@@ -432,11 +432,13 @@ impl Night {
         let traded = self.trade.of_kind(crate::exchange::Kind::Card).any(|a| a.stage == crate::exchange::Stage::Settled && (a.buyer == fan || a.maker == fan));
         let tips: i64 = self.orders.iter().filter(|o| o.c.quote.fan == fan && o.c.stage == Stage::Settled).map(|o| o.c.quote.tip).sum();
         let all = [("first_order", "First order", "Had something brought to your seat", ordered),
-                   ("called_it", "Called it", "Picked a quarter right", called),
+                   ("called_it", "Called it", "Made a call that came true", called),
                    ("collector", "Collector", "Hold three different cards", unit_cards >= 3),
                    ("trader", "Trader", "Bought or sold a card", traded),
                    ("good_tipper", "Good tipper", "Tipped your runners $5 in a night", tips >= 500)];
-        all.iter().map(|(id, name, how, got)| json!({ "id": id, "name": name, "how": how, "earned": got })).collect()
+        // only the badges this night can actually give
+        all.iter().filter(|(id, ..)| match *id { "called_it" => self.on("predictions"), "collector" | "trader" => self.on("cards"), _ => true })
+            .map(|(id, name, how, got)| json!({ "id": id, "name": name, "how": how, "earned": got })).collect()
     }
 
     fn earn_history(&self, fan: &str) -> Vec<Value> {

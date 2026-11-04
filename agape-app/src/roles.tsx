@@ -128,7 +128,7 @@ export function StandLens({ s, pick, stands, x }: { s: StandView; pick: (id: str
         </select>
       </header>
       {x && <Shift on={s.on_shift} human={s.human} as={me} x={x} who="this kitchen" />}
-      {s.paused_offers && <p className="banner warn">Your kitchen is past the 15-minute promise. Offers for your items are paused on fans' phones until you catch up.</p>}
+      {s.paused_offers && <p className="banner warn">Your stand is past its 15-minute target. Offers for your items are paused on fans' phones until you catch up.</p>}
       <div className="tiles four">
         <MeasureTile label="Kitchen wait" value={`${Math.round(s.wait / 60)} min`} tone={s.paused_offers ? "bad" : s.wait > 600 ? "warn" : "good"} />
         <MeasureTile label="In the queue" value={s.queue_len} />
@@ -192,17 +192,17 @@ function ServiceControl({ o, x }: { o: OpsView; x: StaffActs }) {
   const [sure, setSure] = React.useState(false);
   if (o.halt) return (
     <section className="block halt-control on">
-      <div className="block-head"><h2>Service is stopped</h2><span className="sub">since {venueTime(o.halt.since)}</span></div>
+      <div className="block-head"><h2>Service is paused</h2><span className="sub">since {venueTime(o.halt.since)}</span></div>
       <p>Fans see: “{o.halt.reason}”</p>
       <button className="btn primary big wide" onClick={() => staffAct("ops", x, { do: "resume" }, "Service is back on.")}>Resume service</button>
     </section>
   );
   return (
     <section className="block halt-control">
-      <div className="block-head"><h2>Emergency stop</h2><span className="sub">every stand, every phone</span></div>
+      <div className="block-head"><h2>Pause all service</h2><span className="sub">every stand, every phone</span></div>
       <input value={reason} onChange={e => { setReason(e.target.value); setSure(false); }} maxLength={160} placeholder="What fans should be told" aria-label="Reason" />
       {!sure ? <button className="btn ghost wide" disabled={!reason.trim()} onClick={() => setSure(true)}>Stop service…</button>
-        : <button className="btn danger wide" onClick={() => { staffAct("ops", x, { do: "halt", reason }, "Service stopped. Every fan has been told."); setSure(false); setReason(""); }}>Stop all service now</button>}
+        : <button className="btn danger wide" onClick={() => { staffAct("ops", x, { do: "halt", reason }, "Service paused. Every fan has been told."); setSure(false); setReason(""); }}>Pause all service now</button>}
       <small className="sub">Nothing new can be ordered. Orders not yet being made are cancelled and nobody is charged; food already cooking or on its way still goes out.</small>
     </section>
   );
@@ -243,12 +243,12 @@ export function OpsLens({ o, compact, x }: { o: OpsView; compact?: boolean; x?: 
       </div>
       <div className="role-grid">
         <section className="block">
-          <div className="block-head"><h2>Floor</h2><span className="sub">{o.signals.toLocaleString()} events recorded tonight</span></div>
+          <div className="block-head"><h2>Floor</h2><span className="sub">{o.signals.toLocaleString()} updates recorded tonight</span></div>
           <div className="map-wrap"><PlaceView m={o.map} /></div>
           <ul className="waits">
             {stands.map(s => (
               <li key={s.id}><span className="grow">{s.name}</span>
-                <span className="bar"><i className={s.busy ? "bad" : s.wait > 600 ? "warn" : "good"} style={{ width: `${(s.wait / maxWait) * 100}%` }} /><b className="mark" style={{ left: `${(900 / maxWait) * 100}%` }} title="15-minute promise" /></span>
+                <span className="bar"><i className={s.busy ? "bad" : s.wait > 600 ? "warn" : "good"} style={{ width: `${(s.wait / maxWait) * 100}%` }} /><b className="mark" style={{ left: `${(900 / maxWait) * 100}%` }} title="15-minute stand target" /></span>
                 <span className="num">{Math.round(s.wait / 60)}m</span></li>
             ))}
           </ul>
@@ -274,7 +274,7 @@ export function OpsLens({ o, compact, x }: { o: OpsView; compact?: boolean; x?: 
           {o.exchanges.kinds.some(k => k.total > 0) && <>
           <div className="block-head"><h2>Beyond food</h2><span className="sub">tickets, perks, deals and trades tonight</span></div>
           <div className="table-wrap"><table className="attr">
-            <thead><tr><th>Kind</th><th>All</th><th>Open</th><th>Done</th><th>Ended</th><th>Settled</th></tr></thead>
+            <thead><tr><th>Kind</th><th>All</th><th>Open</th><th>Completed</th><th>Ended</th><th>Value</th></tr></thead>
             <tbody>{o.exchanges.kinds.filter(k => k.total > 0).map(k => <tr key={k.kind}><td>{k.name}</td><td className="num">{k.total}</td><td className="num">{k.live || "–"}</td><td className="num">{k.settled}</td>
               <td className="num">{k.closed || "–"}</td><td className="num">{[k.money ? money(k.money) : "", k.points ? `${k.points.toLocaleString()} pts` : ""].filter(Boolean).join(" + ") || "–"}</td></tr>)}</tbody>
           </table></div>

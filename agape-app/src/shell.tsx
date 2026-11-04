@@ -62,8 +62,8 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
       <header className="st-top">
         <a className="st-brand" href="/"><b>agape</b><span>{tag}</span></a>
         <div className="st-strip">
-        <nav className="st-seats" aria-label="Other seats">
-          {[["Fan", "/try/"], ["Runner", "/try/runner/"], ["Kitchen", "/try/kitchen/"], ["Venue", "/try/venue/"], ["Partner", "/try/partner/"], ["HQ", "/try/hq/"]].map(([l, h]) =>
+        <nav className="st-seats" aria-label="Other roles">
+          {[["Fan", "/try/"], ["Runner", "/try/runner/"], ["Stand", "/try/kitchen/"], ["Venue", "/try/venue/"], ["Partner", "/try/partner/"], ["HQ", "/try/hq/"]].map(([l, h]) =>
             <a key={h} href={h + (EVENT === "concert" ? "?event=concert" : "")} className={location.pathname === h ? "on" : ""}>{l}</a>)}
         </nav>
         {level != null && <div className="st-levels" role="group" aria-label="Level">
@@ -97,12 +97,12 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
           </div>
         </div>
         <aside className="st-story" aria-live="polite">
-          {note ? <ExplainCard n={note} close={() => setNote(null)} /> : <>
+          {<>
             {explain && <p className="st-tip">Explain is on: tap anything glowing.</p>}
-            <HeldNote on={waiting} />
             <span className="eyebrow">{tag}</span>
             <h2 key={beat.id}>{beat.title}</h2>
             <p key={beat.id + "b"}>{beat.body}</p>
+            {level != null && <p className="st-status"><b className={"lv-" + LEVELS[level - 1].status.toLowerCase().replace(" ", "-")}>{LEVELS[level - 1].status}</b> {LEVELS[level - 1].gaps}</p>}
             {meta && <div className="st-meta">{meta}</div>}
           </>}
           <div className="st-more">
@@ -113,6 +113,7 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
         </aside>
       </main>
       {full && <HeldCard beat={beat} on={waiting} exit={() => setFull(false)} />}
+      {note && <DemoModal close={() => setNote(null)}><ExplainCard n={note} close={() => setNote(null)} /></DemoModal>}
       {talk && <TalkToUs close={() => setTalk(false)} version={null} />}
     </div>
   );
@@ -133,7 +134,7 @@ export const EVENT = new URLSearchParams(location.search).get("event") === "conc
 /** The world this demo runs: the sample arena, as a game or a concert, with the given features. */
 export function demoWorld(features?: Record<string, boolean>) {
   const base = EVENT === "concert" ? concertWorld(AGAPE_WORLD) : { ...AGAPE_WORLD };
-  return features ? { ...base, features: { ...features, ...(EVENT === "concert" ? { predictions: false } : {}) } } : base;
+  return features ? { ...base, features: { ...features, ...(EVENT === "concert" ? { predictions: false, colors: false } : {}) } } : base;
 }
 /** A link to this page with one setting changed. */
 export function withParam(k: string, v: string) { const q = new URLSearchParams(location.search); q.set(k, v); return `?${q}`; }
@@ -149,6 +150,8 @@ export function EventSwitch() {
 export function useHoldOnBeat(beatId: string) {
   const [waiting, setWaiting] = useState(false);
   const first = useRef(true);
+  // held is shown by stillness: every moving thing on the page stops until the person acts
+  useEffect(() => { document.documentElement.classList.toggle("night-held", waiting); }, [waiting]);
   useEffect(() => {
     if (first.current) { first.current = false; return; }
     if (!beatId || beatId === "x" || beatId === "wait") return;
@@ -175,10 +178,21 @@ export function useFull() {
 export function HeldCard({ beat, on, exit }: { beat: Beat; on: boolean; exit: () => void }) {
   return <>
     <button className="full-exit" onClick={exit} aria-label="Leave full screen">Exit full screen</button>
-    {on && <div className="held-card" role="status"><b>{beat.title}</b><span>{beat.body}</span><small>Tap anywhere to continue</small></div>}
+    {on && <div className="demo-dim held"><div className="held-card" role="status"><b>{beat.title}</b><span>{beat.body}</span><button className="btn sm">Continue</button></div></div>}
   </>;
 }
 
-export function HeldNote({ on }: { on: boolean }) {
-  return on ? <p className="st-held">Paused while you read · tap or press anything to continue</p> : null;
+/** Anything the demo says over the app: the app darkens behind it until it's put away. */
+export function DemoModal({ close, children, wide }: { close: () => void; children: React.ReactNode; wide?: boolean }) {
+  useEffect(() => { const k = (e: KeyboardEvent) => e.key === "Escape" && close(); addEventListener("keydown", k); return () => removeEventListener("keydown", k); }, []);
+  return <div className="demo-dim" onClick={e => e.target === e.currentTarget && close()}><div className={"demo-modal" + (wide ? " wide" : "")} role="dialog" aria-modal="true">{children}</div></div>;
 }
+
+/** Inviting someone takes their email first. */
+export function Invite({ toast }: { toast: (t: string) => void }) {
+  const [email, setEmail] = useState("");
+  return <form className="row gap invite" onSubmit={e => { e.preventDefault(); if (!/.+@.+\..+/.test(email)) { toast("Add their work email first."); return; } toast(`Invitation sent to ${email}.`); setEmail(""); }}>
+    <input className="grow" type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="Their work email" aria-label="Email to invite" />
+    <button className="btn ghost">Invite</button></form>;
+}
+

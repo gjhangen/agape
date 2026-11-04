@@ -1,84 +1,113 @@
 // agapetoyourseat.com: what Agape is, why there's a demo, and a way into it from every seat.
 import { React, ReactDOM, useEffect, useState } from "./r";
 import { TalkToUs } from "./talk";
-import { LEVELS } from "./parts";
+import { Icon, LEVELS } from "./parts";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
-type Glance = { home: string; away: string; home_score: number; away_score: number; label: string } | null;
 
-const SEATS: { id: string; who: string; line: string; time: string; href: string; ready: boolean }[] = [
-  { id: "fan", who: "Fan", line: "Open the app, take your seat, order a hot dog and watch it reach you.", time: "3 min", href: "/try/", ready: true },
-  { id: "runner", who: "Runner", line: "See trips offered with the pay up front, then carry them to the seats.", time: "2 min", href: "/try/runner/", ready: true },
-  { id: "kitchen", who: "Kitchen", line: "Watch orders land on the stand's screen and leave on time.", time: "2 min", href: "/try/kitchen/", ready: true },
-  { id: "venue", who: "Venue", line: "Run the whole night: every order, every runner, every dollar.", time: "3 min", href: "/try/venue/", ready: true },
-  { id: "partner", who: "Partner", line: "Reach fans in the moment, and see exactly what it brought in.", time: "2 min", href: "/try/partner/", ready: true },
-  { id: "hq", who: "Agape HQ", line: "Where Agape's own team runs every venue, the crew and the money.", time: "2 min", href: "/try/hq/", ready: true },
+type Seat = { id: string; who: string; icon: Parameters<typeof Icon>[0]["name"]; line: string; time: string; href: string; device: string };
+const SEATS: Seat[] = [
+  { id: "fan", who: "Fan", icon: "me", line: "Open the app, take your seat, order, and watch it reach you.", time: "3 min", href: "/try/", device: "Phone" },
+  { id: "runner", who: "Runner", icon: "cash", line: "Trips offered with the pay up front, carried to the seats.", time: "2 min", href: "/try/runner/", device: "Phone" },
+  { id: "kitchen", who: "Stand", icon: "get", line: "Orders land on the stand's screen and leave on time.", time: "2 min", href: "/try/kitchen/", device: "Tablet" },
+  { id: "venue", who: "Venue", icon: "chart", line: "The whole night: every order, every runner, every dollar.", time: "3 min", href: "/try/venue/", device: "Laptop" },
+  { id: "partner", who: "Partner", icon: "store", line: "Reach fans in the moment, and see what it brought in.", time: "2 min", href: "/try/partner/", device: "Laptop" },
+  { id: "hq", who: "Agape HQ", icon: "home", line: "Agape's own team: every venue, the crew and the money.", time: "2 min", href: "/try/hq/", device: "Laptop" },
 ];
 
+/** What the fan sees, drawn small: one order on its way to a seat. */
+function OrderGlance() {
+  const steps = ["Ordered", "Being made", "On the way", "At your seat"];
+  const [i, setI] = useState(0);
+  useEffect(() => { const t = setInterval(() => setI(x => (x + 1) % (steps.length + 1)), 1600); return () => clearInterval(t); }, []);
+  const at = Math.min(i, steps.length - 1);
+  return (
+    <div className="glance" aria-hidden="true">
+      <div className="glance-head"><span className="eyebrow">Section 104 · Row F · Seat 7</span><b>Hot dog</b><small>At your seat by <b>7:42 PM</b></small></div>
+      <ol className="glance-steps">{steps.map((x, k) => <li key={x} className={k < at ? "done" : k === at ? "now" : ""}><i />{x}</li>)}</ol>
+      <div className="glance-foot"><span>Charged when it arrives</span><span>Your runner keeps every tip</span></div>
+    </div>
+  );
+}
+
 function Site() {
-  const [talk, setTalk] = useState(false);
-  const [g, setG] = useState<Glance>(null);
-  useEffect(() => { fetch("/api/v/harbor/glance").then(r => r.ok ? r.json() : null).then(x => x && setG({ home: x.home?.abbr ?? "", away: x.away?.abbr ?? "", home_score: x.home?.score ?? 0, away_score: x.away?.score ?? 0, label: x.clock?.label ?? "" })).catch(() => {}); }, []);
-  void g;
+  const [talk, setTalk] = useState(() => location.hash === "#talk");
+  const [kind, setKind] = useState<"game" | "concert">("game");
+  const open = () => { setTalk(true); history.replaceState(null, "", "#talk"); };
+  const close = () => { setTalk(false); history.replaceState(null, "", location.pathname); };
+  const q = kind === "concert" ? "?event=concert" : "";
   return (
     <div className="site">
       <header className="site-top">
         <span className="site-mark"><b>agape</b><span>to your seat</span></span>
-        <nav><a href="#how">How it works</a><a href="#demo">Try it</a><button className="btn sm primary" onClick={() => setTalk(true)}>Talk to us</button></nav>
+        <nav><a href="#how">How it works</a><a href="#demo">Try it</a><button className="btn sm primary" onClick={open}>Talk to us</button></nav>
       </header>
 
       <section className="site-hero">
-        <h1>Order from your seat.<br />It comes to you.</h1>
-        <p className="lede">Agape brings food, drinks and gear to your seat at games, concerts and every live event, made by the venue's own kitchens and carried by runners, so you never miss the moment you came for.</p>
-        <div className="site-acts"><a className="btn primary big" href="/try/">See it as a fan</a><a className="btn big" href="#demo">Choose another seat</a></div>
+        <div className="hero-copy">
+          <h1>Order from your seat.<br />It comes to you.</h1>
+          <p className="lede">Food, drinks and gear at games, concerts and every live event, made by the venue's own kitchens and carried to your seat, so you never miss the moment you came for.</p>
+          <div className="site-acts"><a className="btn primary big" href="#demo">Step into a night</a><button className="btn big" onClick={open}>Bring Agape to your venue</button></div>
+        </div>
+        <OrderGlance />
       </section>
 
       <section className="site-sec" id="how">
         <h2>How it works</h2>
         <ol className="site-steps">
-          <li><b>Open Agape at the event.</b><span>It knows the venue. Tell it your seat, or scan your ticket.</span></li>
-          <li><b>See when it reaches you, then order.</b><span>Every time shown is when it gets to your seat, measured from how fast each kitchen and runner is going right now.</span></li>
-          <li><b>Stay in the moment.</b><span>The kitchen makes it, a runner brings it, and you're charged when it arrives. Your runner keeps every tip.</span></li>
+          <li><b>Take your seat</b><span>Agape knows the venue. Scan your ticket or type your seat.</span></li>
+          <li><b>See when it reaches you</b><span>Every time shown is when it gets to your seat, measured from how fast each kitchen and runner is going right now.</span></li>
+          <li><b>Stay in the moment</b><span>The kitchen makes it, a runner brings it, and you're charged when it arrives.</span></li>
         </ol>
       </section>
 
       <section className="site-sec">
-        <h2>Why it matters</h2>
+        <h2>Good for everyone in the building</h2>
         <div className="site-why">
-          <div><b>Fans</b><span>Never miss the play, the song or the moment for a line.</span></div>
-          <div><b>Venues</b><span>Sell more at every seat, serve faster, see the whole night as it happens.</span></div>
-          <div><b>Runners</b><span>Work on your own schedule, see the pay before you take a trip, keep every tip.</span></div>
-          <div><b>Partners</b><span>Reach people at the moment they care most, and see what it brought in.</span></div>
+          {([["me", "Fans", "Never miss the play, the song or the moment for a line."], ["chart", "Venues", "Sell more at every seat, serve faster, see the whole night live."], ["cash", "Runners", "Your own schedule, the pay shown before you take a trip, every tip kept."], ["store", "Partners", "Reach people when they care most, and see what it brought in."]] as const).map(([ic, who, line]) =>
+            <div key={who}><span className="why-ic"><Icon name={ic} /></span><b>{who}</b><span>{line}</span></div>)}
         </div>
       </section>
 
       <section className="site-sec" id="demo">
-        <h2>Step into a night</h2>
-        <p className="site-why-demo">Agape isn't at a venue near you yet, so we built a whole night you can step into: a full arena, a game in progress and thousands of fans, running in your browser. Choose a seat. Each one is a short story about one person's night.</p>
+        <div className="sec-head">
+          <h2>Step into a night</h2>
+          <p className="site-why-demo">Agape isn't at a venue yet, so we built a whole night you can walk into: a full arena and thousands of fans, running in your browser. Pick a role; each is a short story of one person's night.</p>
+        </div>
+        <div className="demo-pick">
+          <div className="seg kind" role="group" aria-label="Kind of night">{(["game", "concert"] as const).map(k => <button key={k} className={kind === k ? "on" : ""} aria-pressed={kind === k} onClick={() => setKind(k)}>{k === "game" ? "A game" : "A concert"}</button>)}</div>
+        </div>
         <div className="site-seats">
-          {SEATS.map(s => (
-            <a key={s.id} className={"site-seat" + (s.id === "fan" ? " ready" : "")} href={s.href}>
-              <span className="ss-who">{s.who}</span><span className="ss-line">{s.line}</span>
-              <span className="ss-meta">{s.time}</span>
+          {SEATS.map(x => (
+            <a key={x.id} className="site-seat" href={x.href + q}>
+              <span className="ss-top"><span className="ss-ic"><Icon name={x.icon} /></span><span className="ss-who">{x.who}</span></span>
+              <span className="ss-line">{x.line}</span>
+              <span className="ss-meta">{x.device} · {x.time}</span>
             </a>
           ))}
         </div>
-        <p className="site-why-demo">Every seat works for a game or a concert. <a href="/try/?event=concert">See a concert night as a fan</a>.</p>
-        <a className="site-behind" href="/demo/"><b>Behind the scenes</b><span>Every seat at once: the whole arena, sped up, for anyone who wants to see all of it.</span></a>
+        <a className="site-behind" href={"/demo/" + q}><b>Behind the scenes</b><span>Every role at once: the whole arena, sped up.</span></a>
       </section>
 
       <section className="site-sec">
-        <h2>Where Agape is headed</h2>
-        <p className="site-why-demo">Agape launches doing one thing completely: ordering to your seat. Each level after it is a complete product of its own. The fan demo lets you switch between them.</p>
-        <ol className="site-levels">{LEVELS.map(l => <li key={l.n}><b>Level {l.n} · {l.name}</b><span>{l.line}</span></li>)}</ol>
+        <div className="sec-head">
+          <h2>Where Agape is headed</h2>
+          <p className="site-why-demo">Agape launches doing one thing completely: ordering to your seat. Each level after it is a complete product of its own, and the fan demo lets you switch between them.</p>
+        </div>
+        <ol className="site-levels">{LEVELS.map(l => <li key={l.n} className={"lv-card s-" + l.status.toLowerCase().replace(" ", "-")}>
+          <span className="lv-n">{l.n}</span>
+          <b>{l.name}</b>
+          <span>{l.line}</span>
+          <em className={"lv-tag lv-" + l.status.toLowerCase().replace(" ", "-")}>{l.status}</em>
+          <details><summary>What's done</summary><small>{l.gaps}</small></details>
+        </li>)}</ol>
       </section>
 
       <footer className="site-foot">
         <span>Agape · to your seat</span>
-        <button className="link-inline" onClick={() => setTalk(true)}>Talk to us</button>
-        <a href="/app/">Live pilot</a>
+        <button className="link-inline" onClick={open}>Talk to us</button>
       </footer>
-      {talk && <TalkToUs close={() => setTalk(false)} version={null} />}
+      {talk && <TalkToUs close={close} version={null} />}
     </div>
   );
 }

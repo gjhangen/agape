@@ -16,11 +16,18 @@ type Tab = "orders" | "tonight" | "settings";
 
 const NOTES: Note[] = [
   { sel: ".sx-open", title: "Open for orders", what: "When the stand opens, orders from every seat start landing here.", who: "The stand manager", why: "The venue's own kitchens make everything, so the venue keeps its food quality and most of every sale.", level: 1 },
-  { sel: ".sx-col.making", title: "On the stations", what: "Each station shows one order and how long it should take. Bump it when it's ready.", who: "Cooks", why: "Prep times are measured, which is what makes every arrival time fans see honest.", level: 1 },
-  { sel: ".sx-col.next", title: "Coming up", what: "Orders waiting for a free station, oldest first. Orders placed ahead for the break wait until it's time to start them.", who: "The kitchen", why: "Fans can order ahead for the rush, so the kitchen's busiest minutes are spread out.", level: 1 },
-  { sel: ".sx-col.shelf", title: "The ready shelf", what: "Finished orders waiting for a runner or for the fan to pick up.", who: "Runners and fans picking up", why: "Runners are offered trips the moment orders land here, batched by section.", level: 1 },
+  { sel: ".sx-col.making", title: "On the stations", what: "Each station shows one order and how long it should take. Tap Ready when it's done.", who: "Cooks", why: "Prep times are measured, which is what makes every arrival time fans see honest.", level: 1 },
+  { sel: ".sx-col.next", title: "Coming up", what: "Orders waiting for a free station, oldest first. Orders placed ahead for the break wait until it's time to start them.", who: "The stand", why: "Fans can order ahead for the rush, so the stand's busiest minutes are spread out.", level: 1 },
+  { sel: ".sx-col.shelf", title: "The ready shelf", what: "Finished orders waiting for a runner or for the fan to pick up.", who: "Runners and fans picking up", why: "Runners are offered trips the moment orders land here, grouped by where they're going.", level: 1 },
   { sel: ".sx-wait", title: "The wait, live", what: "How long a new order takes to reach a seat right now. Fans see the same number.", who: "The stand and every fan", why: "When it climbs, fans are steered to faster stands, so no stand drowns.", level: 1 },
 ];
+
+/** Saying you can't make an order cancels it for the fan, so it asks once more. */
+function CantMake({ id, act }: { id: number; act: (a: Record<string, unknown>, ok: string) => void }) {
+  const [sure, setSure] = React.useState(false);
+  return sure ? <button className="btn danger sm" onClick={() => act({ do: "cannot_make", order: id }, "Cancelled. The fan was told at once and isn't charged.")}>Cancel it</button>
+    : <button className="btn ghost sm" onClick={() => setSure(true)}>Can't make</button>;
+}
 
 function Station({ s, stage, next, toast, refresh }: { s: StandView | null; stage: Stage; next: (x: Stage) => void; toast: (t: string) => void; refresh: () => void }) {
   const [tab, setTab] = useState<Tab>("orders");
@@ -43,9 +50,9 @@ function Station({ s, stage, next, toast, refresh }: { s: StandView | null; stag
       <h2>Tonight at {s?.name}</h2>
       <div className="sx-setup-grid">
         <div className="cw-check"><span className="cw-tick">✓</span><div><b>6 stations</b><small>Grills, fryers and the counter</small></div></div>
-        <div className="cw-check"><span className="cw-tick">✓</span><div><b>Menu confirmed</b><small>Hot dogs, burgers, fries, drinks</small></div></div>
+        <div className="cw-check"><span className="cw-tick">✓</span><div><b>Menu confirmed</b><small>Burgers, tenders, the black bean burger and combos</small></div></div>
         <div className="cw-check"><span className="cw-tick">✓</span><div><b>8 on the crew</b><small>You can change who's on any time</small></div></div>
-        <div className="cw-check"><span className="cw-tick">✓</span><div><b>{EVENT === "concert" ? "Changeover forecast" : "Halftime forecast"}</b><small>The busiest 15 minutes of the night, starting about 8:20 PM</small></div></div>
+        <div className="cw-check"><span className="cw-tick">✓</span><div><b>{EVENT === "concert" ? "Changeover forecast" : "Halftime forecast"}</b><small>The busiest 15 minutes of the night, starting about 8:29 PM</small></div></div>
       </div>
       <button className="btn ob-primary sx-open" onClick={() => { act({ do: "clock_in" }, "You're open. Orders are coming in."); next("app"); }}>Open for orders</button>
     </div>
@@ -70,13 +77,13 @@ function Station({ s, stage, next, toast, refresh }: { s: StandView | null; stag
       <div className="sx-main">
         <header className="sx-top">
           <div><b>{s.name}</b><small>{s.on_shift ? "Open" : "Closed"} · {venueTime(now)}</small></div>
-          <div className="sx-wait"><span className="eyebrow">New orders reach seats in</span><b className="num">{Math.max(1, Math.round(s.wait / 60))} min</b></div>
-          <button className={"sx-open" + (s.on_shift ? " on" : "")} onClick={() => act({ do: s.on_shift ? "clock_out" : "clock_in" }, s.on_shift ? "Closed for new orders." : "You're open.")}>{s.on_shift ? "Open" : "Closed"}</button>
+          <div className="sx-wait"><span className="eyebrow">A new order is ready in</span><b className="num">{Math.max(1, Math.round(s.wait / 60))} min</b></div>
+          <button className={"sx-open" + (s.on_shift ? " on" : "")} onClick={() => act({ do: s.on_shift ? "clock_out" : "clock_in" }, s.on_shift ? "Stopped taking new orders." : "You're open.")}>{s.on_shift ? "Stop new orders" : "Open for orders"}</button>
         </header>
         {tab === "orders" && <div className="sx-cols">
           <section className="sx-col next"><h3>Coming up <span className="num">{s.queue_len}</span></h3>{s.queue.length ? s.queue.slice(0, 6).map(o => ticket(o)) : <p className="empty">Nothing waiting.</p>}</section>
           <section className="sx-col making"><h3>Making <span className="num">{making.length} of {s.stations.length}</span></h3>
-            {making.length ? s.stations.map(x => x.order && ticket(x.order, <div className="row gap"><button className="btn ghost sm" onClick={() => act({ do: "cannot_make", order: x.order!.id }, "The fan was told at once and isn't charged.")}>Can't make</button><button className="btn primary sm grow" onClick={() => act({ do: "ready", order: x.order!.id }, `#${x.order!.id} is on the shelf.`)}>Ready</button></div>, x.until))
+            {making.length ? s.stations.map(x => x.order && ticket(x.order, <div className="row gap"><CantMake id={x.order!.id} act={act} /><button className="btn primary sm grow" onClick={() => act({ do: "ready", order: x.order!.id }, `#${x.order!.id} is on the shelf.`)}>Ready</button></div>, x.until))
               : <p className="empty">Stations are free.</p>}</section>
           <section className="sx-col shelf"><h3>Ready shelf <span className="num">{s.ready.length + (s.pickups?.length ?? 0)}</span></h3>
             {s.ready.map(o => ticket(o, <small className="sub">A runner is being offered it</small>))}
@@ -89,7 +96,7 @@ function Station({ s, stage, next, toast, refresh }: { s: StandView | null; stag
         </div>}
         {tab === "settings" && <div className="sx-report settings-list">
           {[["Menu", "What's on tonight, prices and prep times"], ["Crew", "Who's working and their roles"], ["Stations", "6 stations"], ["Printer and screens", "Kitchen printer connected"], ["Payouts", "Harbor Arena food service"], ["Help", "Talk to Agape"]].map(([a, b]) =>
-            <button key={a} className="set-row" onClick={() => toast(`${a}: ${b}.`)}><span className="grow"><b>{a}</b><small>{b}</small></span><Icon name="chev" size={18} /></button>)}
+            <div key={a} className="set-row static"><span className="grow"><b>{a}</b><small>{b}</small></span></div>)}
         </div>}
       </div>
     </div>
@@ -97,12 +104,12 @@ function Station({ s, stage, next, toast, refresh }: { s: StandView | null; stag
 }
 
 function beat(stage: Stage, s: StandView | null): Beat {
-  if (stage === "boot" || stage === "pin") return { id: "a", title: `${s?.name ?? "Grill 104"}, before the ${EVENT === "concert" ? "first act" : "tip-off"}`, body: <>This is the stand's screen: a tablet at the counter, or a screen on the wall. The kitchen is the venue's own. Agape sends it orders from every seat and tells fans honestly how long they'll take.</> };
+  if (stage === "boot" || stage === "pin") return { id: "a", title: `${s?.name ?? "Grill 104"}, before the ${EVENT === "concert" ? "first act" : "tip-off"}`, body: <>You manage this stand. This is its screen: a tablet at the counter, or a screen on the wall. Enter any four digits to sign in. The kitchen is the venue's own. Agape sends it orders from every seat and tells fans honestly how long they'll take.</> };
   if (stage === "setup") return { id: "b", title: "Ready for the night", body: <>Stations, menu and crew are set once and confirmed each night. The forecast says when the rush will come: at {EVENT === "concert" ? "the changeover before the headliner" : "halftime"}.</> };
   if (!s) return { id: "x", title: "", body: null };
   const late = s.stations.some(x => x.order && x.until < s.clock.t);
-  if (late) return { id: "late", title: "Something's running late", body: <>A ticket has passed its time. Bump it the moment it's done: the fan's arrival time updates, and if it ends up late they get money back without asking.</> };
-  if (s.ready.length) return { id: "shelf", title: "Off the shelf in seconds", body: <>As soon as an order is bumped, the nearest runner is offered the trip. The kitchen never has to find anyone.</> };
+  if (late) return { id: "late", title: "Something's running late", body: <>A ticket has passed its time. Tap Ready the moment it's done: the fan's arrival time updates, and if it ends up late they get money back without asking.</> };
+  if (s.ready.length) return { id: "shelf", title: "Off the shelf in seconds", body: <>As soon as you tap Ready, the nearest runner is offered the trip. You never have to find anyone.</> };
   if (s.stations.some(x => x.order)) return { id: "make", title: "You're cooking", body: <>Each station holds one order with its time. Tap Ready when it's done, and it moves to the shelf for a runner.</> };
   return { id: "wait", title: "Orders land here", body: <>Orders from every seat in the arena arrive here as fans place them, oldest first.</> };
 }
@@ -119,7 +126,7 @@ function App() {
     kernel.step(START_MINUTE * 6); refresh(); setReady(true);
     setTimeout(() => setStage("pin"), 1600);
   })(); }, []);
-  return <Shell tag={`Kitchen · Agape Station`} device="tablet" ready={ready} onTick={refresh} toasts={toasts} notes={NOTES} explainable={stage === "app"}
+  return <Shell tag="Stand · Agape Station" device="tablet" ready={ready} onTick={refresh} toasts={toasts} notes={NOTES} explainable={stage === "app"}
     beat={beat(stage, s)} meta={s && stage === "app" ? <span>{BRAND.venue} · {s.queue_len} waiting · {s.ready.length} on the shelf</span> : undefined}
     screen={<Station s={s} stage={stage} next={setStage} toast={toast} refresh={refresh} />} />;
 }

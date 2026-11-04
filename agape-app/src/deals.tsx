@@ -41,7 +41,7 @@ export function DealCard({ d, as, act, open, now }: { d: Deal; as: string; act: 
       {d.status === "done" && <p className="sub">{d.incoming ? `You received ${amount(d.pay, d.amount - d.fee)} after Agape's 10%.` : `Paid. ${d.other_name.split(" ")[0]} received ${amount(d.pay, d.amount - d.fee)}.`}</p>}
       {d.next === "waiting" && (
         <div className="deal-act">
-          <p className="sub grow">{d.waits_for_claim ? `${d.other_name} isn't on Agape yet. Your ${amount(d.pay, d.amount)} waits in escrow until they claim their profile and answer.` : `Held in escrow while ${d.other_name.split(" ")[0]} decides. If they say no, it all comes back.`}</p>
+          <p className="sub grow">{d.waits_for_claim ? `${d.other_name} isn't on Agape yet. Your ${amount(d.pay, d.amount)} is held by Agape until they claim their profile and answer.` : `Held by Agape while ${d.other_name.split(" ")[0]} decides. If they say no, it all comes back.`}</p>
           <button className="btn ghost sm" onClick={() => act({ do: "withdraw", as, deal: d.id }, "Withdrawn. Every point is back.")}>Take it back</button>
         </div>
       )}
@@ -49,7 +49,7 @@ export function DealCard({ d, as, act, open, now }: { d: Deal; as: string; act: 
       {d.next === "respond" && (
         <div className="deal-act two">
           <button className="btn ghost" onClick={() => act({ do: "respond", as, deal: d.id, yes: false }, "Declined. The offer went back to them.")}>Decline</button>
-          <button className="btn primary" onClick={() => act({ do: "respond", as, deal: d.id, yes: true }, "Agreed. The pay is already in escrow for you.")}>Accept</button>
+          <button className="btn primary" onClick={() => act({ do: "respond", as, deal: d.id, yes: true }, "Agreed. Agape is already holding the pay for you.")}>Accept</button>
         </div>
       )}
       {d.next === "deliver" && (
@@ -92,7 +92,7 @@ export function Rates({ rates, to, name, as, act, balance }: { rates: Rate[]; to
                 <input value={note} onChange={e => setNote(e.target.value)} maxLength={200} aria-label="Add a note" placeholder={r.kind === "shoutout" ? "Who it's for, by name (optional)" : "Anything they should know (optional)"} />
                 <button className="btn primary wide" disabled={!r.affordable}>{r.affordable ? `Offer ${amount(r.pay, r.price)}` : r.pay === "points" ? `${(r.price - (balance ?? 0)).toLocaleString()} more pts needed` : "Not enough budget left"}</button>
                 {!r.affordable && r.pay === "points" && <small className="sub">Earn points by ordering, calling a quarter in Live, or buying tickets. Points from other fans count too.</small>}
-                <small className="sub">Held in escrow from now. Paid to {first} only when it's done; all of it back if they say no or you take it back first.</small>
+                <small className="sub">Held by Agape from now. Paid to {first} only when it's done; all of it back if they say no or you take it back first.</small>
               </form>
             )}
           </div>
@@ -137,7 +137,7 @@ export function PlayerLens({ p, players, pick, toast, refresh }: { p: any; playe
       {!p.claimed ? (
         <section className="block claim">
           <h2>This is your profile, {p.name.split(" ")[0]}</h2>
-          <p>{p.followers > 0 ? `${p.followers.toLocaleString()} fans already follow you here` : "Your page is already here"}{p.deals.length ? `, and ${p.deals.length} offer${p.deals.length === 1 ? " is" : "s are"} waiting in escrow for you` : ""}. Claim it to answer messages, take deals and get paid.</p>
+          <p>{p.followers > 0 ? `${p.followers.toLocaleString()} fans already follow you here` : "Your page is already here"}{p.deals.length ? `, and ${p.deals.length} offer${p.deals.length === 1 ? " is" : "s are"} waiting for you` : ""}. Claim it to answer messages, take deals and get paid.</p>
           <p className="sub">{p.group.name} confirm it's you.</p>
           <button className="btn primary big wide" onClick={() => act({ do: "claim", member: p.id }, "Profile claimed. It's yours now.")}>Claim my profile</button>
         </section>
@@ -147,7 +147,7 @@ export function PlayerLens({ p, players, pick, toast, refresh }: { p: any; playe
             <MeasureTile label="Followers" value={p.followers.toLocaleString()} />
             <MeasureTile label="Earned in points" value={p.earned.points.toLocaleString()} sub="spend them on cards and perks" />
             <MeasureTile label="Earned in money" value={money(p.earned.money)} sub="from businesses" />
-            <MeasureTile label="Agreed, not yet paid" value={escrow.m ? money(escrow.m) : `${escrow.p.toLocaleString()} pts`} sub={escrow.m && escrow.p ? `+ ${escrow.p.toLocaleString()} pts` : "held for you in escrow"} />
+            <MeasureTile label="Agreed, not yet paid" value={escrow.m ? money(escrow.m) : `${escrow.p.toLocaleString()} pts`} sub={escrow.m && escrow.p ? `+ ${escrow.p.toLocaleString()} pts` : "held for you by Agape"} />
           </div>
           <div className="role-grid">
             <section className="block">
@@ -215,7 +215,7 @@ export function BusinessLens({ b, businesses, pick, toast, refresh }: { b: any; 
           : <MeasureTile label="Revenue tonight" value={money(b.money.revenue)} sub="after Agape's share" />}
         {feature("players") ? <>
           <MeasureTile label="Deal budget" value={money(b.money.budget)} sub="free to offer" />
-          <MeasureTile label="Offered, not yet paid" value={money(b.money.in_escrow)} sub="held in escrow" />
+          <MeasureTile label="Offered, not yet paid" value={money(b.money.in_escrow)} sub="held by Agape until delivered" />
           <MeasureTile label="Paid to players" value={money(b.money.spent_on_deals)} /></>
           : <MeasureTile label="Redeemed tonight" value={perks.reduce((a: number, x: any) => a + x.used, 0)} sub="fans who came in with a code" />}
       </div>
@@ -247,7 +247,7 @@ export function BusinessLens({ b, businesses, pick, toast, refresh }: { b: any; 
           <div className="block-head"><h2>Deals</h2><span className="sub">{needs.length ? `${needs.length} need you` : ""}</span></div>
           {needs.map((d: Deal) => <DealCard key={d.id} d={d} as={b.id} act={act} now={0} />)}
           {rest.slice(0, 8).map((d: Deal) => <DealCard key={d.id} d={d} as={b.id} act={act} now={0} />)}
-          {b.deals.length === 0 && <p className="empty">Sponsor a player or a timeout below. The money is held until they deliver.</p>}
+          {b.deals.length === 0 && <p className="empty">Back a player below. The money is held until they deliver.</p>}
         </section>
         <section className="block">
           <div className="block-head"><h2>Sponsor someone <Opt k="players" /></h2><span className="sub">players on Agape and tonight's teams</span></div>

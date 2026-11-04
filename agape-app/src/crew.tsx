@@ -20,7 +20,7 @@ const NOTES: Note[] = [
   { sel: ".cw-steps", title: "One step at a time", what: "Pick up at the stand, then hand off seat by seat, with the row and seat and an ID check where needed.", who: "Runners on a trip", why: "Fewer mistakes, faster handoffs, honest arrival times for fans.", level: 1 },
   { sel: ".cw-id", title: "Checking ID", what: "Drinks with alcohol are handed over only after the runner checks ID at the seat.", who: "Runners certified for it", why: "The venue's license is protected, so venues can let Agape carry drinks.", level: 1 },
   { sel: ".cw-earn-big", title: "Earnings, live", what: "Trip pay and every tip, added the moment each delivery is made.", who: "Runners", why: "Runners see exactly what a night is worth, which is why they come back for the next one.", level: 1 },
-  { sel: ".cw-cashout", title: "Cash out tonight", what: "Earnings go to a debit card the same night.", who: "Runners", why: "Agape processes the payments, so it can pay out instantly.", level: 1 },
+  { sel: ".cw-cashout", title: "Cash out tonight", what: "Earnings reach a debit card within minutes, or are paid out every Monday.", who: "Runners", why: "Agape runs the payments, so it can pay out the same night.", level: 1 },
 ];
 
 const crewBase = { set: false, pay: 0, tips: 0, delivered: 0 };
@@ -54,7 +54,7 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
       <button className="cw-shift on" onClick={() => next("app")}>
         <div className="grow"><b>{BRAND.venue}</b><small>{EVENT === "concert" ? "Lumen Rivers: The Tidelines Tour" : `${BRAND.home.name} vs ${BRAND.away.name}`} · tonight 6:45 to 10:30 PM</small><small className="cw-hot">Busy night expected · higher pay at {EVENT === "concert" ? "the changeover" : "halftime"}</small></div><span className="btn primary sm">Claim</span>
       </button>
-      <div className="cw-shift"><div className="grow"><b>{BRAND.venue}</b><small>Concert · Saturday 7:00 PM to 11:30 PM</small></div><span className="sub">Opens Thursday</span></div>
+      <div className="cw-shift"><div className="grow"><b>{BRAND.venue}</b><small>Concert · Friday, Nov 13 · 6:45 to 11:00 PM</small></div><span className="sub">Opens Thursday</span></div>
     </div>
   );
   if (!r) return null;
@@ -75,7 +75,7 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
         {tab === "home" && <>
           {!on && <section className="cw-hero"><h2>Ready when you are</h2><p>Go online to get trips near you. Tonight is busy: most runners are out on trips right now.</p>
             <button className="btn primary big wide" onClick={() => act({ do: "clock_in" }, "You're online. Trips near you will show up here.")}>Go online</button></section>}
-          {on && !t && <section className="cw-hero waiting"><span className="cw-radar" aria-hidden="true" /><h2>Finding your next trip</h2><p>Orders are batched by section from each stand's ready shelf. The nearest runner is offered first.</p></section>}
+          {on && !t && <section className="cw-hero waiting"><span className="cw-radar" aria-hidden="true" /><h2>Finding your next trip</h2><p>Orders going the same way are grouped into one trip. The nearest runner is offered it first.</p></section>}
           {t && !t.accepted && (
             <section className="cw-offer" aria-live="assertive">
               <div className="row gap"><span className="eyebrow grow">New trip</span><span className="num cw-timer">{countdown(t.expires - now)}</span></div>
@@ -123,10 +123,16 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
           <section className="block"><h2>This week</h2><div className="cw-bars">{[0, 0, 0, 0, 0, 0, pay + tips].map((v, i) => <div key={i}><i style={{ height: `${Math.max(4, Math.min(100, v / 40))}%` }} /><small>{"MTWTFSS"[i]}</small></div>)}</div></section>
         </>}
         {tab === "me" && <>
-          <header className="me-head"><span className="me-av big">{name.slice(0, 1)}</span><div className="grow"><h2>{name}</h2><small>Runner since this season · {r.rating ? `★ ${r.rating.toFixed(1)}` : "new"}</small></div></header>
+          <header className="me-head"><span className="me-av big">{name.slice(0, 1)}</span><div className="grow"><h2>{name}</h2><small>Runner since March · {r.rating ? `★ ${r.rating.toFixed(1)}` : "new"}</small></div></header>
           <section className="block settings-list">
-            {[["Documents", "ID and background check approved"], ["ID-check certification", "Valid for drinks with alcohol"], ["Payouts", "Debit card •••• 1234"], ["How I get around", "On foot"], ["Safety", "Share your trip, call venue security"], ["Notifications", "New trips, shift reminders"], ["Help", "Talk to Agape crew support"]].map(([a, b]) =>
-              <button key={a} className="set-row" onClick={() => toast(a === "Safety" ? "Venue security is one tap away during a shift." : `${a}: ${b}.`)}><span className="grow"><b>{a}</b><small>{b}</small></span><Icon name="chev" size={18} /></button>)}
+            {[["Documents", "ID and background check approved"], ["ID-check certification", "Valid for drinks with alcohol, renews in March"], ["Payouts", "Debit card •••• 1234 · within minutes, or every Monday"], ["How you get around", "On foot"], ["Notifications", "New trips and shift reminders, on"]].map(([a, b]) =>
+              <div key={a} className="set-row static"><span className="grow"><b>{a}</b><small>{b}</small></span></div>)}
+          </section>
+          <section className="block"><h2>Safety</h2>
+            <p className="explain">During a shift, venue security and Agape crew support are a tap away.</p>
+            <div className="row gap"><button className="btn ghost grow" onClick={() => toast("Your trip is shared with your emergency contact until your shift ends.")}>Share my trip</button>
+              <button className="btn primary grow" onClick={() => toast(`Calling ${BRAND.venue} security.`)}>Call venue security</button></div>
+            <button className="btn ghost block" onClick={() => toast("Agape crew support will call you back in a few minutes.")}>Talk to crew support</button>
           </section>
         </>}
       </div>
@@ -139,17 +145,17 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
 
 function beat(stage: Stage, r: RunnerView | null): Beat {
   const name = runnerName(RUNNER).replace(/ .\.$/, "");
-  if (stage === "boot" || stage === "welcome") return { id: "w", title: `Meet ${name}`, body: <>She runs for Agape at {BRAND.venue} on the nights she chooses. Runners are independent: they pick their nights, see the pay for every trip before they take it, and keep every tip.</> };
-  if (stage === "ready") return { id: "r", title: "Before the first night", body: <>An ID and background check, a short training, and certification to check IDs, so she can carry drinks. Payouts go to her debit card.</> };
-  if (stage === "shift") return { id: "s", title: "She picks her night", body: <>Shifts are posted per event. Busy nights say so, and offers rise when runners are scarce.</> };
+  if (stage === "boot" || stage === "welcome") return { id: "w", title: `You're ${name}`, body: <>You run for Agape at {BRAND.venue} on the nights you choose. Runners are independent: you pick your nights, see the pay for every trip before you take it, and keep every tip.</> };
+  if (stage === "ready") return { id: "r", title: "Before your first night", body: <>An ID and background check, a short training, and certification to check IDs, so you can carry drinks. Payouts go to your debit card.</> };
+  if (stage === "shift") return { id: "s", title: "You pick your night", body: <>Shifts are posted per event. Busy nights say so, and offers rise when runners are scarce.</> };
   if (!r) return { id: "x", title: "", body: null };
   const t = r.trip;
-  if (!r.on_shift) return { id: "off", title: "Going online", body: <>She's at the venue. Going online puts her in line for trips near where she's standing.</> };
-  if (!t) return r.delivered > crewBase.delivered ? { id: "done", title: "Paid as she goes", body: <>Each delivery adds its trip pay and tip to her earnings at once. She can cash out tonight from Earnings, or keep going.</> }
-    : { id: "wait", title: "Waiting for a trip", body: <>Orders reach the ready shelf as kitchens finish them, and the nearest free runner is offered the trip. On a busy night it's seconds.</> };
-  if (!t.accepted) return { id: "offer", title: "An offer, with the pay up front", body: <>{money(t.pay)} for about {t.minutes} minutes: the pay is priced on the walk and wait, and the tip is shown on top. If she passes, it goes to the next runner for a little more.</> };
+  if (!r.on_shift) return { id: "off", title: "Going online", body: <>You're at the venue. Going online puts you in line for trips near where you're standing.</> };
+  if (!t) return r.delivered > crewBase.delivered ? { id: "done", title: "Paid as you go", body: <>Each trip adds its pay and tips to your earnings at once. You can cash out tonight from Earnings, or keep going.</> }
+    : { id: "wait", title: "Waiting for a trip", body: <>Orders are ready as stands finish them, and you're offered the next trip that's ready. On a busy night it takes seconds.</> };
+  if (!t.accepted) return { id: "offer", title: "An offer, with the pay up front", body: <>{money(t.pay)} for about {t.minutes} minutes: the pay is priced on the walk and wait, and the tip is shown on top. If you pass, it goes to the next runner for a little more.</> };
   if (!t.picked) return { id: "pick", title: `To ${t.stand_name}`, body: <>The order is on the ready shelf. She grabs it by its number and confirms the pickup.</> };
-  return { id: "hand", title: "Seat by seat", body: <>Section, row and seat for each order. Drinks with alcohol need an ID check first. The fan's phone shows her coming.</> };
+  return { id: "hand", title: "Seat by seat", body: <>Section, row and seat for each order. Drinks with alcohol need an ID check first. The fan's phone shows you coming.</> };
 }
 
 function App() {
@@ -161,10 +167,12 @@ function App() {
   useEffect(() => { (async () => {
     setWorldOverride(demoWorld());
     const x = await boot(13, "s104"); if (!x.ok) return;
+    // this runner is yours from the start: the simulation never runs their trips
+    kernel.act({ do: "drive", party: RUNNER });
     kernel.step(START_MINUTE * 6); refresh(); setReady(true);
     setTimeout(() => setStage("welcome"), 1700);
   })(); }, []);
-  return <Shell tag="Runner · Agape Crew" device="phone" ready={ready} onTick={refresh} hold={false} toasts={toasts} notes={NOTES} explainable={stage === "app"}
+  return <Shell tag="Runner · Agape Crew" device="phone" ready={ready} onTick={refresh} hold={!!(r?.trip && !r.trip.accepted)} toasts={toasts} notes={NOTES} explainable={stage === "app"}
     beat={beat(stage, r)} meta={r && stage === "app" ? <><span>Online runners can be offered trips; offline, the night goes on without them.</span></> : undefined}
     screen={<Crew r={r} stage={stage} next={setStage} toast={toast} refresh={refresh} />} />;
 }

@@ -100,6 +100,9 @@ const art: Record<string, JSX.Element> = {
     <path d="M22 10c2 4 6 6 10 6s8-2 10-6" stroke={C.jerseyD} strokeWidth="3" fill="none" />
     <text x="32" y="44" textAnchor="middle" fontSize="16" fontWeight="800" fill={C.num} fontFamily="Big Shoulders Display, Impact, sans-serif">23</text>
   </g>,
+  poster: <g>
+    <rect x="16" y="8" width="32" height="46" rx="2" fill="#2A1B4D" /><circle cx="32" cy="26" r="9" fill="#FFC94D" /><path d="M20 46h24M20 40h24" stroke="#FFFFFF" strokeWidth="3" />
+  </g>,
   beanie: <g>
     <circle cx="32" cy="12" r="6" fill={C.pom} /><path d="M12 42c0-14 9-26 20-26s20 12 20 26z" fill={C.beanie} />
     <rect x="10" y="40" width="44" height="12" rx="4" fill="#244F86" />{[16, 24, 32, 40, 48].map(x => <rect key={x} x={x - 1} y="42" width="2" height="8" fill="#1A3A66" />)}
@@ -143,7 +146,8 @@ export function artKey(name: string): string {
   if (n.includes("nacho")) return "nachos";
   if (n.includes("bowl")) return "bowl";
   if (n.includes("horchata")) return "horchata";
-  if (n.includes("jersey")) return "jersey";
+  if (n.includes("jersey") || /\btee\b/.test(n) || n.includes("hoodie")) return "jersey";
+  if (n.includes("poster")) return "poster";
   if (n.includes("beanie")) return "beanie";
   if (n.includes("finger")) return "finger";
   if (n.includes("hot dog")) return "hotdog";

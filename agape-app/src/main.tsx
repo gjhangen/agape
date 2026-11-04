@@ -18,8 +18,8 @@ const SPEEDS = [
   { id: "x120", label: "120×", tps: 12 },
 ];
 type Persp = "fan" | "runner" | "stand" | "player" | "business" | "ops" | "setup";
-const PERSPECTIVES: [Persp, string, string][] = [["fan", "Fan", "Section 104, on their phone"], ["runner", "Runner", "Carries orders to seats"], ["stand", "Kitchen", "Makes the orders"],
-  ["ops", "Venue ops", "The whole night, live"], ["business", "Business", "Sponsors and nearby partners"], ["player", "Player", "Optional · deals and fans"], ["setup", "Studio", "Make it yours"]];
+const PERSPECTIVES: [Persp, string, string][] = [["fan", "Fan", "Section 104, on their phone"], ["runner", "Runner", "Carries orders to seats"], ["stand", "Stand", "Makes the orders"],
+  ["ops", "Venue", "The whole night, live"], ["business", "Partner", "Sponsors and nearby businesses"], ["player", "Player", "Level 5 · requests and fans"], ["setup", "Studio", "Make it yours"]];
 
 /** A walk through the night, one seat at a time. */
 const TOUR: { persp: Persp; title: string; body: string }[] = [

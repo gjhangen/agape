@@ -4,7 +4,7 @@ import { React, ReactDOM, useEffect, useState } from "./r";
 import { boot, kernel, setWorldOverride } from "./kernel";
 import { BRAND, Icon, money, MeasureTile, venueTime } from "./parts";
 import { OpsView, Problems } from "./roles";
-import { Beat, Shell, demoWorld, useToasts } from "./shell";
+import { Beat, Invite, Shell, demoWorld, useToasts } from "./shell";
 import { Note } from "./explain";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
@@ -24,7 +24,7 @@ function HQ({ o, stage, next, toast, refresh }: { o: OpsView | null; stage: Stag
   if (stage === "signin") return (
     <form className="ob lp-signin" onSubmit={e => { e.preventDefault(); next("app"); }}>
       <div className="lp-card"><b className="ob-logo dark">agape hq</b><h2>Sign in</h2>
-        <label className="sf wide"><span>Agape email</span><input defaultValue="jordan@agapetoyourseat.com" /></label>
+        <label className="sf wide"><span>Agape email</span><input defaultValue="sam@agapetoyourseat.com" /></label>
         <label className="sf wide"><span>Security key</span><input defaultValue="Touch your key" readOnly /></label>
         <button className="btn ob-primary">Sign in</button><small className="ob-fine">Staff only. Every action here is recorded.</small></div>
     </form>
@@ -73,8 +73,8 @@ function HQ({ o, stage, next, toast, refresh }: { o: OpsView | null; stage: Stag
             <MeasureTile label="Applications" value="14" sub="waiting for a background check" />
           </div>
           <section className="block settings-list"><h2>To do</h2>
-            {[["Approve 6 runners for Mesa Dome", "Checks cleared, training done"], ["Renew ID-check certification", "3 runners expire this month"], ["Review a rating", "A runner was rated 2 stars at section 212"]].map(([a, b]) =>
-              <button key={a} className="set-row" onClick={() => toast(`${a}: done.`)}><span className="grow"><b>{a}</b><small>{b}</small></span><Icon name="chev" size={18} /></button>)}
+            {[["Approve 6 runners for Mesa Dome", "Background checks cleared and training done. Review each before approving."], ["Renew ID-check certification", "3 runners' certifications expire this month. Remind them to retake it."], ["Review a rating", "A runner was rated 2 stars at section 212. Read the fan's note and the trip first."]].map(([a, b]) =>
+              <details key={a} className="faq todo"><summary>{a}</summary><p>{b}</p><button className="btn primary sm" onClick={() => toast(`${a}: marked for review by operations.`)}>Open the review</button></details>)}
           </section>
         </>}
         {tab === "money" && <>
@@ -87,7 +87,7 @@ function HQ({ o, stage, next, toast, refresh }: { o: OpsView | null; stage: Stag
           <section className="block"><h2>Payouts</h2>
             <ul className="earned">
               <li><span className="grow">{BRAND.venue} stands and venue</span><small>weekly</small><b className="num">{money((f.stands ?? 0) + (f.venue_partners ?? 0))}</b></li>
-              <li><span className="grow">Runners</span><small>instant or Monday</small><b className="num">{money(f.runners ?? 0)}</b></li>
+              <li><span className="grow">Runners</span><small>within minutes, or every Monday</small><b className="num">{money(f.runners ?? 0)}</b></li>
               <li><span className="grow">Sales tax</span><small>to the state, monthly</small><b className="num">{money(f.tax ?? 0)}</b></li>
             </ul>
           </section>
@@ -95,9 +95,9 @@ function HQ({ o, stage, next, toast, refresh }: { o: OpsView | null; stage: Stag
         {tab === "people" && <>
           <header className="role-head"><h2 className="hq-h">Staff</h2><span className="sub">Who works at Agape and what they can do here</span></header>
           <section className="block settings-list">
-            {[["Founder", "Everything"], ["Co-founder", "Everything"], ["Jordan", "Operations · venues, support, crew"], ["Riley", "Finance · money and payouts"]].map(([a, b]) =>
-              <button key={a} className="set-row" onClick={() => toast(`${a}: ${b}.`)}><span className="me-av">{a[0]}</span><span className="grow"><b>{a}</b><small>{b}</small></span><Icon name="chev" size={18} /></button>)}
-            <button className="btn ghost" onClick={() => toast("Invitation sent.")}>Invite someone</button>
+            {[["Founder", "Full access"], ["Co-founder", "Full access"], ["Sam", "Operations · venues, support, crew"], ["Riley", "Finance · money and payouts"]].map(([a, b]) =>
+              <div key={a} className="set-row static"><span className="me-av">{a[0]}</span><span className="grow"><b>{a}</b><small>{b}</small></span></div>)}
+            <Invite toast={toast} />
           </section>
         </>}
       </div></div>
@@ -106,9 +106,9 @@ function HQ({ o, stage, next, toast, refresh }: { o: OpsView | null; stage: Stag
 }
 
 function beat(stage: Stage, o: OpsView | null): Beat {
-  if (stage !== "app") return { id: "a", title: "Agape's own team", body: <>HQ is where Agape's people run the company: every venue at once, the support queue, the crew, partners, payouts and Agape's own money. It's separate from the apps venues and runners use.</> };
+  if (stage !== "app") return { id: "a", title: "Agape's own team", body: <>This is the app you'd use if you worked at Agape: every venue at once, the support queue, the crew, partners, payouts and Agape's own money. It's separate from the apps venues and runners use.</> };
   if (o && o.problems.some(p => p.state.state === "Open")) return { id: "p", title: "A fan needs help", body: <>A problem reported anywhere shows up here as well as at the venue. One tap refunds the fan, and the party at fault covers it.</> };
-  return { id: "b", title: "One team, many venues", body: <>Tonight one venue is live and two are on the way. Every number here comes from the same books as the venue's own, so there's nothing to reconcile.</> };
+  return { id: "b", title: "One team, many venues", body: <>You're on Agape's operations team. Harbor Arena is live; Mesa Dome and Riverside are examples of venues on the way, not real ones. Every number here comes from the same books as the venue's own, so there's nothing to reconcile.</> };
 }
 
 function App() {
@@ -123,7 +123,7 @@ function App() {
     kernel.step(70 * 6); kernel.act({ do: "drive", party: "ops" }); refresh(); setReady(true);
     setTimeout(() => setStage("signin"), 1500);
   })(); }, []);
-  return <Shell tag="Agape · HQ" device="laptop" ready={ready} onTick={refresh} toasts={toasts} notes={NOTES} explainable={stage === "app"}
+  return <Shell tag="HQ · Agape HQ" device="laptop" ready={ready} onTick={refresh} toasts={toasts} notes={NOTES} explainable={stage === "app"}
     beat={beat(stage, o)} screen={<HQ o={o} stage={stage} next={setStage} toast={toast} refresh={refresh} />} />;
 }
 

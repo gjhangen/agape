@@ -54,6 +54,9 @@ const CHAT: &[&str] = &["LET'S GO {HOME}", "defense!!", "that was a foul", "who'
     "first game here, this place is wild", "box out!!", "{p2} needs the ball more", "who's got the halftime pick?", "hot dog came in 4 min, unreal",
     "upper deck making noise", "that's a travel all day", "ref you're missing a great game", "can we get a stop", "my kid caught a shirt!!",
     "anyone collecting the cards tonight?", "{p3} with the hustle", "sweep the boards", "love this building", "big run coming, I can feel it"];
+const CHAT_PRE: &[&str] = &["let's gooo", "first time in this building", "who's getting food before it starts?", "these seats are amazing", "{HOME} warmups look sharp", "can't wait", "ordered from my seat, this is the way", "section's filling up", "it's gonna be loud tonight"];
+const CHAT_SHOW: &[&str] = &["{HOME}!!!", "this sound is unreal", "who's getting merch?", "I can't believe we're here", "play Fever Line!!", "the lights tonight", "best opener I've seen in a while", "my voice is already gone", "hot dog came in 6 min, didn't miss a song", "this section is LOUD"];
+const CHAT_SONG: &[&str] = &["THIS SONG", "everybody's singing", "chills", "I'm actually crying", "LOUDER", "filming this whole thing", "best night ever", "the whole arena knows every word"];
 const CHAT_RUN: &[&str] = &["{HOME} RUN", "here we go!!", "they can't stop us", "LOUDER", "WHAT A PLAY", "this building is shaking", "{STAR}!!!", "get that card!!", "we're so back"];
 const CHAT_AWAY: &[&str] = &["ugh", "wake up {home}", "timeout please", "we're fine. we're fine.", "defense??", "they can't keep shooting like this", "still plenty of time", "need a stop here", "come on {home}"];
 
@@ -310,7 +313,9 @@ impl Night {
     pub fn new(world_def: WorldDef, tpl: Template, cfg: Config) -> Night {
         let mut league: crate::league::League = serde_json::from_str(include_str!("../templates/league.json")).expect("league");
         let original = league.clone();
-        if let Some(b) = &world_def.brand {
+        // a performance night doesn't rename the league's teams: the brand there is the performers' colors
+        let performance = world_def.event.as_ref().map_or(false, |e| e.kind == "concert");
+        if let Some(b) = world_def.brand.as_ref().filter(|_| !performance) {
             let ids = [league.tonight.home.clone(), league.tonight.away.clone()];
             for (id, tb) in ids.iter().zip([&b.home, &b.away]) {
                 let (Some(tb), Some(g)) = (tb, league.teams.iter_mut().find(|g| &g.id == id)) else { continue };
@@ -744,7 +749,7 @@ impl Night {
             (format!("{} · buzzer-beater", last_name(&as_.1)), away.clone(), Some(as_.0.clone()), 60, "Rare"),
             (format!("{} · 18–0 run", self.league.team(&home).unwrap().short), home.clone(), None, 25, "Legendary"),
         ];
-        let cards_on = self.on("cards");
+        let cards_on = self.on("cards") && self.concert().is_none();
         for (k, (title, team, party, supply, rarity)) in season.into_iter().enumerate().filter(|_| cards_on) {
             let id = format!("s{k}");
             self.social.mint(&mut self.ledger, Edition { id: id.clone(), kind: "season".into(), title, team, party, t: 0, supply, rarity: rarity.into(), open_until: -1 }).unwrap();
@@ -993,7 +998,9 @@ impl Night {
             for _ in 0..n {
                 if !self.rng.chance(0.45) { continue; }
                 let fan = self.fans[self.rng.below(sim_fans_n(&self.cfg) as u64) as usize].clone();
-                let pool = match &last_moment { Some((_, team)) if team == "home" => CHAT_RUN, Some((_, team)) if team == "away" => CHAT_AWAY, _ => CHAT };
+                let pool = if self.concert().is_some() { if last_moment.is_some() { CHAT_SONG } else { CHAT_SHOW } }
+                    else if ph == "pregame" { CHAT_PRE }
+                    else { match &last_moment { Some((_, team)) if team == "home" => CHAT_RUN, Some((_, team)) if team == "away" => CHAT_AWAY, _ => CHAT } };
                 let text = pool[self.rng.below(pool.len() as u64) as usize];
                 if self.chat.iter().rev().take(12).any(|c| c.3 == text) { continue; }
                 let text = self.crowd_words(text);
@@ -1185,7 +1192,14 @@ impl Night {
         let lapsed: Vec<String> = self.trips.iter().filter(|(_, x)| !x.accepted && t - x.offered_at >= TRIP_OFFER_MS).map(|(k, _)| k.clone()).collect();
         for r in lapsed { self.return_trip(&r, t + 30_000); }
         if !self.ready.is_empty() {
-            for a in dispatch(&self.world, &mut self.costs, &self.ready, &self.runners, t) {
+            // a runner run by a person gets trips only while on shift, and is offered them first; the simulation never runs their trips
+            let pool: Vec<crate::engines::Runner> = self.runners.iter().filter(|r| !self.driven.contains(&r.id) || self.live.contains(&r.id)).cloned().collect();
+            let (people, sim): (Vec<_>, Vec<_>) = pool.into_iter().partition(|r| self.live.contains(&r.id));
+            let mut assigns = if people.is_empty() { vec![] } else { dispatch(&self.world, &mut self.costs, &self.ready, &people, t) };
+            let taken: BTreeSet<String> = assigns.iter().flat_map(|a| a.orders.clone()).collect();
+            let rest: Vec<crate::engines::Ready> = self.ready.iter().filter(|r| !taken.contains(&r.order)).cloned().collect();
+            assigns.extend(dispatch(&self.world, &mut self.costs, &rest, &sim, t));
+            for a in assigns {
                 let ids: Vec<usize> = a.orders.iter().map(|s| s.parse().unwrap()).collect();
                 let (pay, first, passes) = self.trip_pay(&ids, a.done_s);
                 self.pay_stats.0 += 1;

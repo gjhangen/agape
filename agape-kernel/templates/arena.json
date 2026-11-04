@@ -272,7 +272,7 @@
    "kind": "ride",
    "name": "Rideshare pickup, Zone B",
    "walk_min": 6,
-   "blurb": "Marked lane on Pier Street. Cars queue here after the final.",
+   "blurb": "Marked lane on Pier Street. Cars queue here after the event.",
    "operator": "harborline",
    "service": {
     "kind": "ride"
@@ -283,7 +283,7 @@
    "kind": "parking",
    "name": "Lot C exit",
    "walk_min": 9,
-   "blurb": "Exits onto Harbor Drive. Expect a line for about 20 minutes after the final.",
+   "blurb": "Exits onto Harbor Drive. Expect a line for about 20 minutes after the event.",
    "operator": "pierpark",
    "service": {
     "kind": "parking",
@@ -298,7 +298,7 @@
    "walk_min": 4,
    "blurb": "Wood-fired, open until 1 AM.",
    "perk": {
-    "title": "20% off your order after the game",
+    "title": "20% off your order after the event",
     "cost": 150,
     "supply": 200
    },
@@ -352,7 +352,7 @@
    "id": "dock-pizza",
    "kind": "partner",
    "name": "Dock Street Pizza",
-   "blurb": "Wood-fired pies from a 900-degree oven. A post-game tradition since 2009.",
+   "blurb": "Wood-fired pies from a 900-degree oven. An after-the-event tradition since 2009.",
    "hours": "Until 1 AM"
   },
   {

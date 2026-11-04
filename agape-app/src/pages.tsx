@@ -5,7 +5,7 @@
 import { React, useEffect, useState } from "./r";
 import { actWith, Deal, DealCard, Rates, Say, Thread } from "./deals";
 import { kernel } from "./kernel";
-import { feature, Opt, countdown, money, venueTime, SignalRow, momentText, LedgerLine } from "./parts";
+import { concourse, feature, Opt, W, countdown, money, venueTime, SignalRow, momentText, LedgerLine } from "./parts";
 import { R, SECS, wedge } from "./geo";
 import { CardArt } from "./cardart";
 
@@ -70,7 +70,7 @@ export function Page({ id, close, back, open, toast, now, depth, acts }: { id: s
     <div className="page" role="dialog" aria-modal="true" aria-label={p.name ?? p.title ?? "Page"}>
       <div className="page-bar">
         <button className="btn ghost sm" onClick={depth > 1 ? back : close}>{depth > 1 ? "Back" : "Close"}</button>
-        {p.node !== "card" && p.node !== "game" && !p.is_you && <button className={"btn sm " + (p.you_follow ? "ghost" : "primary")} onClick={follow}>{p.you_follow ? "Following" : "Follow"}</button>}
+        {(feature("chat") || feature("players")) && p.node !== "card" && p.node !== "game" && !p.is_you && <button className={"btn sm " + (p.you_follow ? "ghost" : "primary")} onClick={follow}>{p.you_follow ? "Following" : "Follow"}</button>}
       </div>
       <div className="page-body">
         {p.node === "member" && <MemberPage p={p} open={open} now={now} toast={toast} refresh={refresh} />}
@@ -106,15 +106,15 @@ function MemberPage({ p, open, now, toast, refresh }: { p: any; open: OpenPage; 
       </div>
       {feature("players") && p.your_deals.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Your deals with {first}</h3><div className="deal-list">{p.your_deals.map((d: Deal) => <DealCard key={d.id} d={d} as="you" act={act} now={now} />)}</div></section>}
       {feature("players") && p.rates.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Ask {first} <Opt k="players" /></h3>
-        {!p.claimed && <p className="note">{first} isn't on Agape yet. You can still make an offer: it waits in escrow until they claim their profile, and you can take it back any time before they answer.</p>}
+        {!p.claimed && <p className="note">{first} isn't on Agape yet. You can still make an offer: Agape holds it until they claim their profile, and you can take it back any time before they answer.</p>}
         <Rates rates={p.rates} to={p.id} name={p.name} act={act} balance={p.balance} />
         <small className="sub">You have {p.balance.toLocaleString()} pts.</small>
       </section>}
-      <section className="pg-sec"><h3 className="eyebrow">Message</h3>
-        {!p.claimed && p.thread.length === 0 && <p className="note">Messages wait for {first} until they join.</p>}
+      {feature("players") && <section className="pg-sec"><h3 className="eyebrow">Message</h3>
+        {!p.claimed && p.thread.length === 0 && <p className="note">{first} will see your message when they join Agape.</p>}
         <Thread lines={p.thread} name={p.name} />
         <Say name={first} send={text => act({ do: "message", to: p.id, text }, "Sent.")} />
-      </section>
+      </section>}
       {p.cards.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Their cards</h3><div className="card-row">{p.cards.map((c: Card) => <MomentCard key={c.id} c={c} size="sm" onClick={() => open(c.id)} />)}</div></section>}
       {p.stream.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Tonight</h3><ol className="signals">{p.stream.map((f: any, i: number) => <SignalRow key={i} f={f} />)}</ol></section>}
     </>
@@ -139,7 +139,7 @@ function GroupPage({ p, open }: { p: any; open: OpenPage }) {
 
 function CardPage({ p, open, toast, refresh, now }: { p: any; open: OpenPage; toast: (s: string) => void; refresh: () => void; now: number }) {
   const [price, setPrice] = useState(String(p.floor ?? 100));
-  const act = (a: any, ok: string) => { const r = kernel.act(a); toast(r.ok ? ok : r.error === "CantAfford" ? "Not enough points for that one." : r.error === "Closed" ? "That drop just closed." : r.error); refresh(); };
+  const act = (a: any, ok: string) => { const r = kernel.act(a); toast(r.ok ? ok : r.error === "CantAfford" ? "Not enough points for that one." : r.error === "Closed" ? "That card is gone." : r.error); refresh(); };
   return (
     <>
       <div className="card-hero"><MomentCard c={p} size="lg" /></div>
@@ -147,7 +147,7 @@ function CardPage({ p, open, toast, refresh, now }: { p: any; open: OpenPage; to
       {p.open && !p.collected && (
         <div className="drop">
           <div className="drain"><span className="drain-label num">{p.left} of {p.supply} left · closes in {countdown(p.open_until - now)}</span><span className="drain-bar"><i style={{ width: `${(p.left / p.supply) * 100}%` }} /></span></div>
-          <button className="btn primary block" onClick={() => act({ do: "collect", edition: p.id }, "It's yours. Find it in Me.")}>Collect it, free</button>
+          <button className="btn primary block" onClick={() => act({ do: "collect", edition: p.id }, "It's yours. Find it in Play, with the rest of your collection.")}>Collect it, free</button>
         </div>
       )}
       {p.yours > 0 && (
@@ -189,7 +189,7 @@ function FanPage({ p, open, toast, refresh }: { p: any; open: OpenPage; toast: (
       {earned.length > 0 && <div className="badges small">{earned.map((b: any) => <span key={b.id} className="badge-chip on">{b.name}</span>)}</div>}
       {p.cards.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Collection</h3><div className="card-row">{p.cards.map((x: any) => <MomentCard key={x.card.id} c={x.card} size="sm" onClick={() => open(x.card.id)} />)}</div></section>}
       {p.said.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Said tonight</h3><ul className="said">{p.said.map((c: any, i: number) => <li key={i}>{c.text}<time className="num">{venueTime(c.t)}</time></li>)}</ul></section>}
-      {!p.is_you && <section className="pg-sec"><h3 className="eyebrow">Message</h3>
+      {!p.is_you && feature("chat") && <section className="pg-sec"><h3 className="eyebrow">Message</h3>
         {p.thread.length > 0 && <ol className="thread">{p.thread.map((m: any, i: number) => <li key={i} className={m.mine ? "mine" : ""}>{m.text}</li>)}</ol>}
         <form className="say" onSubmit={send}><input id="dm" value={text} maxLength={500} onChange={e => setText(e.target.value)} placeholder={`Message ${p.name}`} aria-label={`Message ${p.name}`} /><button className="btn primary sm" disabled={!text.trim()}>Send</button></form>
       </section>}
@@ -261,9 +261,9 @@ function EventPage({ p, open, toast, refresh }: { p: any; open: OpenPage; toast:
           {[p.home, p.away].map((t: any) => <button key={t.id} className="mu-team" style={{ ["--team" as any]: t.color }} onClick={() => open(t.id)}><b>{t.name}</b><small>{t.record}</small></button>)}
         </div>
       )}
-      {p.yours.length > 0 && <div className="ticket"><div className="grow"><b>You're going</b><small>{p.yours.map((y: any) => `${y.section === "sFL" ? "Courtside" : "Sec " + y.section.slice(1)} · ${y.seats.join(", ")}`).join(" · ")}</small></div></div>}
+      {p.yours.length > 0 && <div className="ticket"><div className="grow"><b>You're going</b><small>{p.yours.map((y: any) => `${y.section === "sFL" ? W.floor : "Sec " + y.section.slice(1)} · ${y.seats.join(", ")}`).join(" · ")}</small></div></div>}
       {p.resale?.filter((l: any) => !l.mine).length > 0 && <section className="pg-sec"><h3 className="eyebrow">From other fans</h3>
-        {p.resale.filter((l: any) => !l.mine).map((l: any) => <div key={l.id} className="upgrade-row"><div className="grow"><b>{l.section === "sFL" ? "Courtside" : `Section ${l.section.slice(1)}`}, seats {l.seats.split(",").join(", ")}</b><small>from {l.seller} · at most 120% of face value</small></div>
+        {p.resale.filter((l: any) => !l.mine).map((l: any) => <div key={l.id} className="upgrade-row"><div className="grow"><b>{l.section === "sFL" ? W.floor : `Section ${l.section.slice(1)}`}, seats {l.seats.split(",").join(", ")}</b><small>from {l.seller} · at most 120% of face value</small></div>
           {resale === l.id
             ? <span className="confirm-inline"><button className="btn ghost sm" onClick={() => setResale(null)}>Cancel</button><button className="btn primary sm" onClick={() => { const r = kernel.act({ do: "buy_resale", listing: l.id }); toast(r.ok ? "They're yours. They're in Me." : r.error === "CantAfford" ? "Not enough to cover them." : r.error); setResale(null); refresh(); }}>Confirm · {money(l.price)}</button></span>
             : <button className="btn primary sm" onClick={() => setResale(l.id)}>Buy · {money(l.price)}</button>}</div>)}
@@ -274,17 +274,17 @@ function EventPage({ p, open, toast, refresh }: { p: any; open: OpenPage; toast:
       </section>
       {s && q?.ok && (
         <section className="pg-sec seat-pick">
-          <div className="row gap"><b className="grow">{sec === "sFL" ? "Courtside floor" : `Section ${sec!.slice(1)}`} · {s.view ?? ""}</b><button className="link-inline small" onClick={() => open(sec!)}>About this section</button></div>
+          <div className="row gap"><b className="grow">{sec === "sFL" ? W.floor : `Section ${sec!.slice(1)}`} · {s.view ?? ""}</b><button className="link-inline small" onClick={() => open(sec!)}>About this section</button></div>
           <div className="qty"><span className="eyebrow">How many</span>
             <div className="stepper"><button onClick={() => setQty(Math.max(1, qty - 1))} aria-label="One fewer">−</button><b className="num">{qty}</b><button onClick={() => setQty(Math.min(8, qty + 1))} aria-label="One more">+</button></div></div>
           {q.seats.length ? <p className="promise">Row {q.seats[0][0]}, seats {q.seats.map((x: string) => x.slice(1)).join(", ")}. The best seats side by side in this section, held the moment you buy.</p>
             : <p className="note">Not {qty} seats together here. Try fewer or another section.</p>}
           <div className="lines"><LedgerLine label={`${qty} × ${money(s.price)}`} amount={q.quote.subtotal} /><LedgerLine label="Service fee" amount={q.quote.fee} /><LedgerLine label="Tax" amount={q.quote.tax} /><LedgerLine label="You pay" amount={q.quote.charge} strong /></div>
-          <small>You earn {q.quote.points.toLocaleString()} points toward your level.</small>
+          <small>You earn {q.quote.points.toLocaleString()} points toward your status.</small>
           {!sure ? <button className="btn primary block big" disabled={!q.seats.length} onClick={() => setSure(true)}>Review · {money(q.quote.charge)}</button> : (
             <div className="confirm-box" role="group" aria-label="Confirm your tickets">
               <b>{p.title} · {p.date} · {p.time}</b>
-              <span>{sec === "sFL" ? "Courtside" : `Section ${sec!.slice(1)}`}, row {q.seats[0]?.[0]}, seats {q.seats.map((x: string) => x.slice(1)).join(", ")}</span>
+              <span>{sec === "sFL" ? W.floor : `Section ${sec!.slice(1)}`}, row {q.seats[0]?.[0]}, seats {q.seats.map((x: string) => x.slice(1)).join(", ")}</span>
               <small>{money(q.quote.charge)} to your card. Can't go after all? Resell them to other fans in Me, at up to 120% of face value.</small>
               <div className="row gap"><button className="btn" onClick={() => setSure(false)}>Change</button><button className="btn primary big grow" onClick={buy}>Buy · {money(q.quote.charge)}</button></div>
             </div>
@@ -316,7 +316,7 @@ function VenuePage({ p, open }: { p: any; open: OpenPage }) {
 function SectionPage({ p, open }: { p: any; open: OpenPage }) {
   return (
     <>
-      <header className="ph fan"><span className="ph-num">{p.name.replace("Section ", "")}</span><div><h2>{p.name}</h2>{p.view}{p.level ? ` · level ${p.level}` : ""}{p.yours_tonight ? " · you're here tonight" : ""}</div></header>
+      <header className="ph fan"><span className="ph-num">{p.name.replace("Section ", "")}</span><div><h2>{p.name}</h2>{p.view}{p.level ? ` · ${concourse(p.level)}` : ""}{p.yours_tonight ? " · you're here tonight" : ""}</div></header>
       <section className="pg-sec"><h3 className="eyebrow">Seats here</h3>
         {p.events.map((e: any) => <button key={e.id} className="event-row" onClick={() => open(e.id)}><span className="grow"><b>{e.title}</b><small>{e.date} · {e.left ? `${e.left} left` : "Sold out"}</small></span><span className="num price-tag">{money(e.price)}</span></button>)}
       </section>
@@ -332,7 +332,7 @@ function BusinessPage({ p, open, toast, refresh, acts, now }: { p: any; open: Op
   return (
     <>
       <header className="ph fan"><span className="ph-num">{p.name.slice(0, 1)}</span><div><h2>{p.name}</h2>{p.blurb}<br /><small>{p.hours}{p.walk_min ? ` · ${p.walk_min} min walk from the arena` : ""} · {p.followers} followers</small></div></header>
-      {p.wait != null && <p className="note">Kitchen wait right now: about {Math.max(1, Math.round(p.wait / 60))} min.</p>}
+      {p.wait != null && <p className="note">Stand wait right now: about {Math.max(1, Math.round(p.wait / 60))} min.</p>}
       {p.menu.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Menu</h3>
         {p.menu.map((m: any) => <button key={m.id} className="event-row" onClick={() => acts.order(m.id)}><span className="grow"><b>{m.name}</b></span><span className="num price-tag">{money(m.price)}</span></button>)}</section>}
       {h?.perk && <section className="pg-sec"><h3 className="eyebrow">For Agape fans</h3>

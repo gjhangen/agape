@@ -4,6 +4,7 @@ import { React, useEffect, useState } from "./r";
 export function TalkToUs({ close, version }: { close: () => void; version?: string | null }) {
   const [f, setF] = useState({ name: "", contact: "", org: "", role: "venue", note: "" });
   const [state, setState] = useState<"idle" | "busy" | "sent" | string>("idle");
+  useEffect(() => { document.documentElement.classList.add("talk-open"); return () => document.documentElement.classList.remove("talk-open"); }, []);
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === "Escape" && close(); addEventListener("keydown", k); return () => removeEventListener("keydown", k); }, []);
   const set = (k: string) => (e: any) => setF({ ...f, [k]: e.target.value });
   const send = async (e: React.FormEvent) => {
@@ -14,11 +15,16 @@ export function TalkToUs({ close, version }: { close: () => void; version?: stri
     } catch { setState("We couldn't send that from here. Please try again on agapetoyourseat.com."); }
   };
   return (
-    <div className="info-back" onClick={e => e.target === e.currentTarget && close()}>
-      <form className="info talk" role="dialog" aria-modal="true" aria-label="Talk to the Agape team" onSubmit={send}>
-        <div className="sheet-head"><h2>Talk to the Agape team</h2><button type="button" className="btn ghost sm" onClick={close}>Close</button></div>
-        {state === "sent" ? <><p>Thanks, {f.name.split(" ")[0]}. We'll be in touch within a day.</p><button type="button" className="btn primary big wide" onClick={close}>Done</button></> : <>
+    <div className="talk-page" role="dialog" aria-modal="true" aria-label="Talk to the Agape team">
+      <header className="talk-top"><span className="site-mark"><b>agape</b><span>to your seat</span></span><button type="button" className="btn ghost sm" onClick={close}>Close</button></header>
+      <div className="talk-body">
+        <div className="talk-pitch">
+          <h1>Talk to the Agape team</h1>
           <p>Bringing Agape to a venue, partnering, or investing: leave a way to reach you and we'll get back to you within a day.</p>
+          <ul><li>Start with ordering to the seat; switch on more when you want it</li><li>Your own kitchens make everything, and independent runners carry it</li><li>Agape earns a share of what it sells, so it only earns when you do</li></ul>
+        </div>
+        {state === "sent" ? <div className="talk-form talk-done"><h2>Thanks, {f.name.split(" ")[0]}.</h2><p>We'll be in touch within a day.</p><button type="button" className="btn primary big wide" onClick={close}>Done</button></div> :
+        <form className="talk-form talk" onSubmit={send}>
           <div className="talk-roles" role="group" aria-label="You are">
             {[["venue", "A venue or team"], ["business", "A business"], ["investor", "An investor"], ["other", "Something else"]].map(([id, label]) =>
               <button type="button" key={id} className={"chip" + (f.role === id ? " on" : "")} aria-pressed={f.role === id} onClick={() => setF({ ...f, role: id })}>{label}</button>)}
@@ -29,8 +35,8 @@ export function TalkToUs({ close, version }: { close: () => void; version?: stri
           <label>Anything we should know <small>optional</small><textarea value={f.note} onChange={set("note")} rows={3} /></label>
           {state !== "idle" && state !== "busy" && <p className="banner warn" role="alert">{state}</p>}
           <button className="btn primary big wide" disabled={state === "busy"}>{state === "busy" ? "Sending…" : "Send"}</button>
-        </>}
-      </form>
+        </form>}
+      </div>
     </div>
   );
 }

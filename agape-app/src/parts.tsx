@@ -27,7 +27,8 @@ export const feature = (k: string): boolean => world()?.features?.[k] !== false;
 export const OPTIONAL = new Set(["chat", "predictions", "cards", "tickets", "around", "upgrades", "players"]);
 /** A small tag beside anything that isn't part of the launch set, so nobody mistakes it for the plan. */
 export function Opt({ k }: { k: string }) {
-  return OPTIONAL.has(k) ? <span className="opt" title="Optional: built and working, switched on per venue. Not part of the launch set.">Optional</span> : null;
+  // the level system shows what's in the launch; the app itself never says so
+  void k; return null;
 }
 /** A team's logo when the venue has given one, otherwise its color dot. */
 export function TeamMark({ side, big }: { side: "home" | "away"; big?: boolean }) {
@@ -37,8 +38,8 @@ export function TeamMark({ side, big }: { side: "home" | "away"; big?: boolean }
 export const team = (t: string) => (t === "home" ? BRAND.home.short : t === "away" ? BRAND.away.short : "");
 
 export const OFFER_COPY: Record<string, { title: string; blurb: string }> = {
-  halftime_combo: { title: "Halftime combo", blurb: "Cheeseburger and a fountain soda" },
-  get run_merch() { return { title: `${BRAND.home.short} run · foam finger`, blurb: "Wave it while it's hot" }; },
+  get halftime_combo() { return { title: isConcert() ? "Changeover combo" : "Halftime combo", blurb: "Cheeseburger and a fountain soda" }; },
+  get run_merch() { return isConcert() ? { title: "Tour poster", blurb: "Only while this song's playing" } : { title: `${BRAND.home.short} run · foam finger`, blurb: "Wave it while it's hot" }; },
   water_break: { title: "Water break", blurb: "On the house" },
 };
 
@@ -72,7 +73,7 @@ export const STAGES: Record<string, { label: string; step: number; tone?: "good"
   FanCancelled: { label: "Cancelled. You weren't charged.", step: -1, tone: "info" },
   PaymentFailed: { label: "Payment didn't go through. You weren't charged.", step: -1, tone: "bad" },
   StandCannotFulfil: { label: "The stand couldn't make it. You weren't charged.", step: -1, tone: "bad" },
-  FanUnreachable: { label: "We couldn't find you at your seat. Tip returned.", step: -1, tone: "bad" },
+  FanUnreachable: { label: "We couldn't find you at your seat. Your tip was refunded; the order was charged.", step: -1, tone: "bad" },
   DisputeUpheld: { label: "Refunded in full.", step: -1, tone: "info" },
   VenueHalted: { label: "The venue stopped service before it was made. You weren't charged.", step: -1, tone: "info" },
 };
@@ -81,9 +82,9 @@ export const WHY_NOT: Record<string, string> = {
   AgeUnverified: "21+ · tap to unlock",
   WrongLevel: "Upper level only",
   SoldOut: "Sold out",
-  ClosedForNight: "Kitchens are closed for the night",
+  ClosedForNight: "Stands are closed for the night",
   PlaceClosed: "Stand closed",
-  StandBusy: "Kitchen is backed up",
+  StandBusy: "This stand is backed up",
 };
 export const whyNot = (w: string | null) => (!w ? "" : w.startsWith("SpanClosed") ? "Last call has passed" : WHY_NOT[w] ?? w);
 
@@ -96,7 +97,8 @@ export function momentText(kind: string, t: string) {
     case "last_call": return "Last call for beer";
     case "favorite": return "The whole place is singing";
     case "encore": return "Encore!";
-    default: return kind.replace(/_/g, " ");
+    case "halftime_combo": return isConcert() ? "Changeover deal" : "Halftime deal";
+    default: { const w = kind.replace(/_/g, " "); return w.charAt(0).toUpperCase() + w.slice(1); }
   }
 }
 
@@ -120,7 +122,7 @@ function endedText(o: Offer) {
     case "Condition": return o.condition ? `${o.condition}. That's over now` : "Ended";
     case "SoldOut": return "Sold out";
     case "BudgetSpent": case "CapReached": return o.guaranteed ? "You claimed this one" : "All claimed";
-    case "Paused": return "Paused while the kitchen catches up";
+    case "Paused": return "Paused while the stand catches up";
     default: return "";
   }
 }
@@ -274,7 +276,7 @@ export function SignalRow({ f }: { f: FeedItem }) {
   if (f.kind === "moment") text = momentText(f.text, f.team);
   if (f.kind === "score") { const [pts, star] = f.text.replace("+", "").split(" "); text = `${team(f.team)} +${pts}${star && f.team === "home" ? ` · ${BRAND.star}` : ""}`; cls += " " + f.team; }
   if (f.kind === "offer") text = `New offer: ${f.text}`;
-  if (f.kind === "alert") text = "Kitchens are surging. Waits are climbing";
+  if (f.kind === "alert") text = "Stands are busy. Waits are climbing";
   return (
     <li className={"signal " + cls}>
       <time className="num">{venueTime(f.t)}</time>
@@ -341,7 +343,7 @@ export function PlaceView({ m, onStand, focusStand, showRunners = true, heat = t
         return (
           <g key={s.id} transform={`translate(${x},${y})`} className={"stand " + tone + (focusStand === s.id ? " focus" : "")} onClick={() => onStand?.(s.id)} role={onStand ? "button" : undefined} tabIndex={onStand ? 0 : undefined}>
             <circle r={9} /><text y={3.5} textAnchor="middle">{s.name.match(/\d+/)?.[0]}</text>
-            <title>{`${s.name} · ${Math.round(s.wait / 60)} min kitchen wait`}</title>
+            <title>{`${s.name} · ${Math.round(s.wait / 60)} min stand wait`}</title>
           </g>
         );
       })}
@@ -377,7 +379,7 @@ const FLOW_OUT: [string, string, string?][] = [
   ["people", "Players, drivers and fans reselling", "what they earned"],
   ["tax", "Sales tax held"],
   ["interchange", "Card networks", "interchange, paid by Agape"],
-  ["agape", "Agape: share and delivery fees", "after runner pay and points"],
+  ["agape", "Agape: share and delivery fees", "after runner pay"],
   ["agape_processing", "Agape: card processing", "what sellers paid, less interchange"],
   ["held", "Still held", "for deals not finished yet"],
 ];
@@ -396,12 +398,18 @@ export function MoneyFlows({ f }: { f: Record<string, number> }) {
 }
 
 /** Agape grows in levels; each is a complete product. A level is a set of what's switched on. */
-export const LEVELS: { n: number; name: string; line: string; on: string[] }[] = [
-  { n: 1, name: "Order to your seat", line: "Food, drinks and gear brought to your seat, with live arrival times", on: [] },
-  { n: 2, name: "Deals", line: "Points, this event's offers and sponsor perks, your seat and upgrades", on: ["points", "offers", "gifting", "priority", "upgrades", "colors"] },
-  { n: 3, name: "Play", line: "Calls, section battles, moments to collect and trade", on: ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards"] },
-  { n: 4, name: "Beyond the night", line: "Tickets and resale, rides, parking and places nearby", on: ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards", "tickets", "around"] },
-  { n: 5, name: "Community", line: "Your section, the crowd, profiles and the people you follow", on: ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards", "tickets", "around", "chat", "players"] },
+/** Each level, what it adds, and honestly how finished it is. */
+export const LEVELS: { n: number; name: string; line: string; on: string[]; status: string; gaps: string }[] = [
+  { n: 1, name: "Order to your seat", line: "Food, drinks and gear brought to your seat, with live arrival times", on: [], status: "Complete",
+    gaps: "Everything at this level works end to end: ordering, stands, runners, payment, refunds and settings." },
+  { n: 2, name: "Deals", line: "Points, this event's offers and sponsor perks, your seat and upgrades", on: ["points", "offers", "gifting", "priority", "upgrades", "colors"], status: "Built",
+    gaps: "Works end to end. Not yet built: a tool for a sponsor to write its own deals; tonight's deals come from the venue's setup." },
+  { n: 3, name: "Play", line: "Calls, section battles, moments to collect and trade", on: ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards"], status: "Preview",
+    gaps: "Calls, the section battle and cards work. Not yet built: prizes being handed out, and challenges and badges beyond a first set." },
+  { n: 4, name: "Beyond the night", line: "Tickets and resale, rides, parking and places nearby", on: ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards", "tickets", "around"], status: "Preview",
+    gaps: "Tickets, resale, rides, parking and partner perks work inside the demo. Not yet built: a real ticketing or rideshare partner behind them, and the app's home when there's no event." },
+  { n: 5, name: "Community", line: "Your section, the crowd, profiles and the people you follow", on: ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards", "tickets", "around", "chat", "players"], status: "Early preview",
+    gaps: "Section chat, following and requests to players work. Not yet built: posts and comments, profiles you edit, and the marketplace as its own place." },
 ];
 export const ALL_FEATURES = ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards", "tickets", "around", "chat", "players"];
 export function levelFeatures(n: number): Record<string, boolean> {
@@ -441,12 +449,33 @@ export function Icon({ name, size = 24 }: { name: "get" | "deals" | "play" | "pe
 export const isConcert = () => world()?.event?.kind === "concert";
 /** The concert Harbor Arena hosts in the demo: three acts, the headliner's setlist, a tour's merch. */
 export function concertWorld(base: any): any {
-  const things = base.things.map((t: any) => t.id === "jersey" ? { ...t, name: "Tour tee" } : t.id === "foam_finger" ? { ...t, name: "Tour poster" } : t.id === "beanie" ? { ...t, name: "Tour hoodie", price: 6500 } : t);
-  return { ...base, things,
+  const things = base.things.map((t: any) => t.id === "jersey" ? { ...t, name: "Tour tee", price: 4000 } : t.id === "foam_finger" ? { ...t, name: "Tour poster", price: 2500 } : t.id === "beanie" ? { ...t, name: "Tour hoodie", price: 6500 } : t);
+  const stands = base.stands.map((s: any) => s.name === "Team Shop 101" ? { ...s, name: "Tour Merch 101" } : s);
+  return { ...base, things, stands,
     event: { kind: "concert", title: "Lumen Rivers: The Tidelines Tour", acts: ["Paper Kites Club", "Northbound", "Lumen Rivers"],
       songs: ["Harbor Lights", "Slow Burn", "Paper Moons", "Northern Static", "Satellite Hearts", "Undertow", "Glasshouse", "Gold in the Water", "Saltwater Radio", "Long Way Home", "Fever Line", "Night Swimmer", "Ember", "Tidelines"],
       early: ["Kite String", "Summer Static", "Low Tide Radio", "Paper Planes", "Weekend Ghosts", "Blue Hour", "Copper Sky", "Northern Line", "Wildfire Season", "Roads We Took", "Glow", "Afterlight", "Same Old Sea", "Home by Morning"],
       favorites: ["Satellite Hearts", "Fever Line"] },
     brand: { home: { name: "Lumen Rivers", short: "Lumen Rivers", abbr: "LR", color: "#6D3FD8", players: [] }, away: { name: "Northbound", short: "Northbound", abbr: "NB", color: "#1F8A8A", players: [] } },
-    features: { ...(base.features ?? {}), predictions: false } };
+    features: { ...(base.features ?? {}), predictions: false, colors: false } };
 }
+
+/** The night's words, for a game or a concert: one place, so nothing says "halftime" at a show. */
+export const W = {
+  get event() { return isConcert() ? "show" : "game"; },
+  get half() { return isConcert() ? "the changeover" : "halftime"; },
+  get Half() { return isConcert() ? "Changeover" : "Halftime"; },
+  get end() { return isConcert() ? "the end of the show" : "the final"; },
+  get start() { return isConcert() ? "the first act" : "tip-off"; },
+  get lastCallWhen() { return isConcert() ? "the finale starts" : "the 4th quarter starts"; },
+  get floor() { return isConcert() ? "Floor" : "Courtside"; },
+  get matchup() { return isConcert() ? ((world() as any)?.event?.title ?? BRAND.home.name) : `${BRAND.home.name} vs ${BRAND.away.name}`; },
+  get moments(): Record<string, string> { return isConcert()
+    ? { halftime: "Changeover", last_call: "The finale", final: "End of the show", second_half: "The headliner", start: "First act" }
+    : { halftime: "Halftime", last_call: "Start of the 4th", final: "Final buzzer", second_half: "Start of the 3rd", start: "Tip-off" }; },
+  get short(): Record<string, string> { return isConcert()
+    ? { Changeover: "Break", "The finale": "Finale", "End of the show": "End", "The headliner": "Headliner", "First act": "Start" }
+    : { Halftime: "Half", "Start of the 3rd": "Q3", "Start of the 4th": "Q4", "Final buzzer": "Final", "Tip-off": "Tip" }; },
+};
+/** Floors of the building, in fans' words. */
+export const concourse = (level: number) => level <= 1 ? "lower concourse" : "upper concourse";

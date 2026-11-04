@@ -6,7 +6,7 @@ import { BRAND, Icon, money, levelFeatures } from "./parts";
 import { OpsLens, OpsView } from "./roles";
 import { BusinessLens } from "./deals";
 import { SetupLens } from "./setup";
-import { Beat, Shell, EVENT, demoWorld, levelParam, useToasts } from "./shell";
+import { Beat, Invite, Shell, EVENT, demoWorld, levelParam, useToasts } from "./shell";
 import { Note } from "./explain";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
@@ -24,20 +24,20 @@ const VENUE_NOTES: Note[] = [
   { sel: ".ops-foot", title: "Stop service", what: "One switch pauses ordering everywhere and tells every fan why.", who: "Operations", why: "Safety first, and the venue stays in charge of its own building.", level: 1 },
 ];
 const PARTNER_NOTES: Note[] = [
-  { sel: ".role-head", title: "A partner's home", what: "A business near the venue, or a sponsor, sees its offers and what they brought in.", who: "Partners", why: "Partners pay to reach fans at the moment they care most, and see exactly what it returned.", level: 2 },
-  { sel: ".tiles", title: "Results, not impressions", what: "Fans who came through the door, what they spent, what it cost.", who: "Partners", why: "Proven results are why partners renew: that's Agape's attention business.", level: 2 },
+  { sel: ".role-head", title: "A partner's home", what: "A business near the venue, or a sponsor, sees its offers and what they brought in.", who: "Partners", why: "Partners pay to reach fans at the moment they care most, and see exactly what it returned.", level: 4 },
+  { sel: ".tiles", title: "Results, not impressions", what: "Fans who came through the door, what they spent, what it cost.", who: "Partners", why: "Proven results are why partners renew: that's Agape's attention business.", level: 4 },
 ];
 
 function Console({ stage, next, toast, o, b, parties, refresh }: { stage: Stage; next: (s: Stage) => void; toast: (t: string) => void; o: OpsView | null; b: any; parties: any; refresh: () => void }) {
   const [tab, setTab] = useState<"live" | "setup" | "team" | "settings">("live");
-  if (stage === "boot") return <div className="ob ob-boot"><div className="ob-mark"><b>agape</b><small>{PARTNER ? "partners" : "venue"}</small></div></div>;
+  if (stage === "boot") return <div className="ob ob-boot"><div className="ob-mark"><b>agape</b><small>venue</small></div></div>;
   if (stage === "signin") return (
     <form className="ob lp-signin" onSubmit={e => { e.preventDefault(); next("tonight"); }}>
       <div className="lp-card">
-        <b className="ob-logo dark">agape {PARTNER ? "partners" : "venue"}</b>
+        <b className="ob-logo dark">agape venue</b>{PARTNER && <small className="ob-sub">Partner account</small>}
         <h2>Sign in</h2>
-        <label className="sf wide"><span>Work email</span><input defaultValue={PARTNER ? "owner@dockpizza.com" : "ops@harborarena.com"} /></label>
-        <label className="sf wide"><span>Password</span><input type="password" defaultValue="••••••••••" /></label>
+        <label className="sf wide"><span>Work email</span><input placeholder={PARTNER ? "you@dockstreetpizza.com" : "you@harborarena.com"} /></label>
+        <label className="sf wide"><span>Password</span><input type="password" placeholder="Your password" /></label>
         <button className="btn ob-primary">Sign in</button>
         <small className="ob-fine">Protected with two-step sign-in.</small>
       </div>
@@ -46,13 +46,13 @@ function Console({ stage, next, toast, o, b, parties, refresh }: { stage: Stage;
   if (stage === "tonight") return (
     <div className="ob lp-signin">
       <div className="lp-card wide">
-        <span className="eyebrow">{PARTNER ? "Dock Pizza · partner of " + BRAND.venue : BRAND.venue}</span>
+        <span className="eyebrow">{PARTNER ? "Dock Street Pizza · partner of " + BRAND.venue : BRAND.venue}</span>
         <h2>Tonight: {EVENT === "concert" ? "Lumen Rivers: The Tidelines Tour" : `${BRAND.home.name} vs ${BRAND.away.name}`}</h2>
-        {PARTNER ? <p className="ob-sub">Your offer for fans tonight: a slice after the game, unlocked with points. You'll see who comes through your door, live.</p>
+        {PARTNER ? <p className="ob-sub">Your perk for fans tonight: 20% off after the event, unlocked with points. You'll see who comes through your door, live.</p>
           : <div className="sx-setup-grid">
             <div className="cw-check"><span className="cw-tick">✓</span><div><b>3,000 fans on Agape</b><small>Expected tonight, from ticket holders</small></div></div>
             <div className="cw-check"><span className="cw-tick">✓</span><div><b>40 runners on shift</b><small>Claimed through Agape Crew</small></div></div>
-            <div className="cw-check"><span className="cw-tick">✓</span><div><b>9 stands open</b><small>Every menu confirmed</small></div></div>
+            <div className="cw-check"><span className="cw-tick">✓</span><div><b>8 stands open</b><small>Every menu confirmed</small></div></div>
             <div className="cw-check"><span className="cw-tick">✓</span><div><b>Last call {EVENT === "concert" ? "before the finale" : "at the 4th quarter"}</b><small>Set for this event</small></div></div>
           </div>}
         <button className="btn ob-primary" onClick={() => next("app")}>{PARTNER ? "Open my dashboard" : "Open tonight's console"}</button>
@@ -69,15 +69,15 @@ function Console({ stage, next, toast, o, b, parties, refresh }: { stage: Stage;
       <div className="lp-main">
         {tab === "live" && !PARTNER && o && <OpsLens o={o} x={{ toast, refresh }} />}
         {tab === "live" && PARTNER && b && parties && <BusinessLens b={b} businesses={parties.businesses.filter((x: any) => x.id === BIZ)} pick={() => {}} toast={toast} refresh={refresh} />}
-        {tab === "setup" && <SetupLens toast={toast} />}
+        {tab === "setup" && <SetupLens toast={toast} inApp />}
         {tab === "team" && <div className="sx-report settings-list"><h2>Team</h2>
-          {[["Alex Rivera", "Operations manager · admin"], ["Sam Okafor", "Food service director"], ["Priya Shah", "Finance · reports and payouts"], ["Stand managers", "9 stands, one manager each"]].map(([a, r]) =>
-            <button key={a} className="set-row" onClick={() => toast(`${a}: ${r}.`)}><span className="me-av">{a[0]}</span><span className="grow"><b>{a}</b><small>{r}</small></span><Icon name="chev" size={18} /></button>)}
-          <button className="btn ghost" onClick={() => toast("Invitation sent.")}>Invite someone</button></div>}
+          {[["Alex Rivera", "Operations manager · admin"], ["Sam Okafor", "Food service director"], ["Dana Brooks", "Finance · reports and payouts"], ["Stand managers", "8 stands, one manager each"]].map(([a, r]) =>
+            <div key={a} className="set-row static"><span className="me-av">{a[0]}</span><span className="grow"><b>{a}</b><small>{r}</small></span></div>)}
+          <Invite toast={toast} /></div>}
         {tab === "settings" && <div className="sx-report settings-list"><h2>{PARTNER ? "Your business" : "Your venue"}</h2>
-          {(PARTNER ? [["Profile", "Dock Pizza, 4 min walk from the arena"], ["Billing", `Paid per redemption · ${money(300)} each`], ["Team", "2 people"], ["Help", "Talk to Agape"]]
-            : [["Venue profile", `${BRAND.venue} · 18,000 seats`], ["Point of sale and ticketing", "Connected"], ["Payouts", "Weekly, itemized"], ["Agreement", "Agape's share and fees, as negotiated"], ["Help", "Your Agape account manager"]]).map(([a, r]) =>
-            <button key={a} className="set-row" onClick={() => toast(`${a}: ${r}.`)}><span className="grow"><b>{a}</b><small>{r}</small></span><Icon name="chev" size={18} /></button>)}</div>}
+          {(PARTNER ? [["Profile", "Dock Street Pizza, 4 min walk from the arena"], ["Billing", `Paid per redemption · ${money(300)} each`], ["Team", "2 people"], ["Help", "Talk to Agape"]]
+            : [["Venue profile", `${BRAND.venue} · 18,200 seats`], ["Point of sale and ticketing", "Connected"], ["Payouts", "Weekly, itemized"], ["Agreement", "Agape's share and fees, as negotiated"], ["Help", "Your Agape account manager"]]).map(([a, r]) =>
+            <div key={a} className="set-row static"><span className="grow"><b>{a}</b><small>{r}</small></span></div>)}</div>}
       </div>
     </div>
   );
@@ -85,13 +85,13 @@ function Console({ stage, next, toast, o, b, parties, refresh }: { stage: Stage;
 
 function beat(stage: Stage, o: OpsView | null): Beat {
   if (PARTNER) {
-    if (stage !== "app") return { id: "p0", title: "A pizzeria four minutes from the arena", body: <>Dock Pizza partners with {BRAND.venue}. Fans unlock its offer with the points they earn ordering, and walk over after the game.</> };
-    return { id: "p1", title: "Results, as they happen", body: <>Every unlock and every redemption shows up here with what it brought in. Partners pay for results, not for impressions.</> };
+    if (stage !== "app") return { id: "p0", title: "A pizzeria four minutes from the arena", body: <>Dock Street Pizza partners with {BRAND.venue}. You own it. Fans unlock your perk with the points they earn ordering, and walk over after the event.</> };
+    return { id: "p1", title: "Results, as they happen", body: <>Every unlock and every code used at your counter shows up here. Partners pay for results, not for impressions.</> };
   }
-  if (stage !== "app") return { id: "v0", title: `Operations at ${BRAND.venue}`, body: <>The venue runs its night on Agape: every stand, every runner and every dollar, on one screen. Tonight is set up before the doors open.</> };
+  if (stage !== "app") return { id: "v0", title: `Operations at ${BRAND.venue}`, body: <>You run operations here. The whole night runs on Agape: every stand, every runner and every dollar, on one screen. Tonight was set up before the doors opened.</> };
   if (!o) return { id: "x", title: "", body: null };
-  if ((o.problems?.length ?? 0) > 0) return { id: "v2", title: "A fan reported a problem", body: <>Problems land here with who's at fault. One tap refunds the fan, and the party at fault covers it.</> };
-  return { id: "v1", title: "The whole night, live", body: <>Orders, seat waits and runners, the floor as it happens, and further down, every dollar to the cent. Switch to Events to set up the next night: teams, menu, terms and what fans get.</> };
+  if ((o.problems?.length ?? 0) > 0) return { id: "v2", title: "A fan reported a problem", body: <>Problems land here with their likely cause. One tap refunds the fan, and the refund is charged to whoever caused it, as your agreement sets out.</> };
+  return { id: "v1", title: "The whole night, as it happens", body: <>Orders, seat waits and runners, the floor as it happens, and further down, every dollar to the cent. Switch to Events to set up the next night: teams, menu, terms and what fans get.</> };
 }
 
 function App() {
