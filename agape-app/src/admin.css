@@ -265,3 +265,18 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
 .ox-code pre { margin: 0; font-family: var(--mono); font-size: 12.5px; white-space: pre; }
 .ox-code .ox-btn { position: absolute; right: 10px; top: 10px; }
 @media (max-width: 640px) { .ox-checklist li { grid-template-columns: 1fr; gap: 2px; } }
+
+.ox-badge.soft { background: var(--sunk); color: var(--ink); border: 1px solid var(--line); }
+.ox-kind { font-style: normal; font-size: 11px; font-weight: 700; color: var(--brand); background: var(--brand-soft); border-radius: 6px; padding: 1px 6px; margin-right: 6px; }
+.ox-channels { display: grid; grid-template-columns: 260px minmax(0, 1fr); gap: 16px; align-items: start; }
+.ox-chanlist { display: flex; flex-direction: column; gap: 2px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 6px; position: sticky; top: 76px; max-height: calc(100vh - 100px); overflow-y: auto; }
+.ox-chanlist button { display: flex; justify-content: space-between; align-items: center; gap: 8px; text-align: left; border: 0; background: none; border-radius: 9px; padding: 9px 10px; cursor: pointer; font-weight: 600; }
+.ox-chanlist button:hover { background: var(--sunk); }
+.ox-chanlist button.on { background: var(--brand-soft); }
+.ox-chanlist button.muted span { opacity: .6; }
+.ox-chanlist small { font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 190px; }
+.ox-chanhead { margin-bottom: 12px; }
+.ox-chanhead h2 { margin: 0; }
+.ox-checkline { display: flex; gap: 8px; align-items: center; font-weight: 600; font-size: 14px; cursor: pointer; }
+.ox-checkline input { accent-color: var(--brand); width: 18px; height: 18px; }
+@media (max-width: 760px) { .ox-channels { grid-template-columns: 1fr; } .ox-chanlist { position: static; max-height: none; flex-direction: row; overflow-x: auto; } .ox-chanlist button { flex: none; } }

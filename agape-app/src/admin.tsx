@@ -205,7 +205,7 @@ function Accept({ code, enter, toSignin }: { code: string; enter: (t: string, m:
 
 // ---------------- signed in ----------------
 
-type Tab = "mail" | "inbox" | "merchants" | "team" | "leads" | "accounts" | "activity" | "account";
+type Tab = "mail" | "channels" | "inbox" | "merchants" | "team" | "leads" | "accounts" | "activity" | "account";
 
 function Shell({ me, out }: { me: Me; out: () => void }) {
   const [tab, setTab] = useState<Tab>(() => (location.hash.slice(1) as Tab) || "merchants");
@@ -213,16 +213,27 @@ function Shell({ me, out }: { me: Me; out: () => void }) {
   useEffect(() => { history.replaceState(null, "", "#" + tab); }, [tab]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 3200); return () => clearTimeout(t); }, [toast]);
   const [unread, setUnread] = useState(0);
-  useEffect(() => { const f = () => api("me").then(r => { if (r.ok) setUnread(r.unread ?? 0); }); f(); const t = setInterval(f, 30000); return () => clearInterval(t); }, [tab]);
-  const tabs: [Tab, string][] = [["inbox", "Messages"], ...(me.perms.includes("merchants_view") ? [["merchants", "Merchants"]] as [Tab, string][] : []), ["team", "Team"], ...(me.perms.includes("leads") ? [["leads", "Leads"]] as [Tab, string][] : []), ...(me.perms.includes("accounts") ? [["accounts", "App accounts"]] as [Tab, string][] : []), ["activity", "Activity"], ...(me.role === "host" ? [["mail", "Email setup"]] as [Tab, string][] : []), ["account", "Your account"]];
+  const [pings, setPings] = useState(0);
+  const counts = useMemo(() => ({ last: -1 }), []);
+  const refresh = () => api("me").then(r => {
+    if (!r.ok) return;
+    setUnread(r.unread ?? 0); setPings(r.pings ?? 0);
+    const total = (r.unread ?? 0) + (r.pings ?? 0);
+    if (counts.last >= 0 && total > counts.last) setToast((r.unread ?? 0) > 0 && total - counts.last <= (r.unread ?? 0) ? "New message for you" : "New activity in your channels");
+    counts.last = total;
+    document.title = total ? `(${total}) Agape Admin` : "Agape Admin";
+  });
+  useEffect(() => { refresh(); const t = setInterval(refresh, 20000); return () => clearInterval(t); }, []);
+  const tabs: [Tab, string][] = [["inbox", "Messages"], ...(me.oversees ? [["channels", "Channels"]] as [Tab, string][] : []), ...(me.perms.includes("merchants_view") ? [["merchants", "Merchants"]] as [Tab, string][] : []), ["team", "Team"], ...(me.perms.includes("leads") ? [["leads", "Leads"]] as [Tab, string][] : []), ...(me.perms.includes("accounts") ? [["accounts", "App accounts"]] as [Tab, string][] : []), ["activity", "Activity"], ...(me.role === "host" ? [["mail", "Email setup"]] as [Tab, string][] : []), ["account", "Your account"]];
   return <div className="ox-app">
     <header className="ox-top">
       <Mark />
-      <nav className="ox-nav" aria-label="Sections">{tabs.map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => setTab(k)}>{l}{k === "inbox" && unread > 0 && <i className="ox-badge" aria-label={`${unread} unread`}>{unread}</i>}</button>)}</nav>
+      <nav className="ox-nav" aria-label="Sections">{tabs.map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => setTab(k)}>{l}{k === "inbox" && unread > 0 && <i className="ox-badge" aria-label={`${unread} unread`}>{unread}</i>}{k === "channels" && pings > 0 && <i className="ox-badge soft" aria-label={`${pings} new`}>{pings}</i>}</button>)}</nav>
       <div className="ox-who"><span>{me.name}<small>{me.role_name}</small></span><button className="ox-btn ghost sm" onClick={out}>Sign out</button></div>
     </header>
     <main className="ox-main">
-      {tab === "inbox" && <Inbox me={me} toast={setToast} seen={() => setUnread(0)} />}
+      {tab === "inbox" && <Inbox me={me} toast={setToast} seen={refresh} />}
+      {tab === "channels" && <Channels me={me} seen={refresh} />}
       {tab === "merchants" && <Merchants me={me} toast={setToast} />}
       {tab === "team" && <Team me={me} toast={setToast} />}
       {tab === "leads" && <Leads />}
@@ -397,7 +408,7 @@ function Sheet({ m, back, close }: { m: Merchant; back: () => void; close: () =>
 
 // ---------------- team, leads, activity, account ----------------
 
-type Person = { id: string; email: string; name: string; role: string; role_name: string; at: number; off: boolean; boss?: string | null; title?: string; mine: boolean };
+type Person = { mailbox?: string; id: string; email: string; name: string; role: string; role_name: string; at: number; off: boolean; boss?: string | null; title?: string; mine: boolean };
 type GroupV = { id: string; name: string; about: string; members: string[]; member_names: string[]; boss?: string | null; mine: boolean };
 type RoleV = { id: string; name: string; about: string; perms: string[]; template: string; holders: number; grantable: boolean; editable: boolean };
 type TemplateV = { id: string; name: string; about: string; perms: string[]; editable: boolean };
@@ -597,47 +608,87 @@ function Roles({ t, load, toast }: { t: TeamView; load: () => void; toast: (s: s
 }
 
 type Msg = { id: string; at: number; from: string; from_name: string; to: string[]; to_names: string[]; subject: string; body: string; kind: string; mine: boolean; sent: boolean; unread: boolean;
-  ext_from: string; ext_to: string[]; status: string[]; attachments: string[] };
+  ext_from: string; ext_to: string[]; status: string[]; attachments: string[]; channels: string[] };
 type Draft = { to: string[]; subject: string; body: string };
 
-/** Every message, email and notice: yours, and, below you, everything your people sent and received. */
-function Inbox({ me, toast, seen }: { me: Me; toast: (s: string) => void; seen: () => void }) {
+function useNotes() {
   const [notes, setNotes] = useState<Msg[] | null>(null);
-  const [view, setView] = useState<"mine" | "team">("mine");
+  const [muted, setMuted] = useState<string[]>([]);
+  const load = async () => { const r = await api("inbox"); if (r.ok) { setNotes(r.notes); setMuted(r.muted ?? []); } };
+  useEffect(() => { load(); const t = setInterval(load, 20000); return () => clearInterval(t); }, []);
+  return { notes, setNotes, muted, setMuted, load };
+}
+
+/** A list of messages. Opening one marks it read for you (and only you). */
+function MsgList({ notes, setNotes, seen, reply, empty, showWho }: { notes: Msg[]; setNotes: (f: (n: Msg[] | null) => Msg[] | null) => void; seen: () => void; reply?: (n: Msg) => void; empty: string; showWho: boolean }) {
   const [open, setOpen] = useState<string | null>(null);
+  const toggle = (n: Msg) => {
+    setOpen(open === n.id ? null : n.id);
+    if (n.unread) { setNotes(all => all && all.map(x => x.id === n.id ? { ...x, unread: false } : x)); api("read", { ids: [n.id] }).then(seen); }
+  };
+  const who = (n: Msg) => n.kind === "lead" || n.kind === "joined" ? "Agape" : n.sent ? `To ${n.to_names.join(", ")}` : n.from_name;
+  if (!notes.length) return <p className="ox-empty">{empty}</p>;
+  return <ul className="ox-inbox">{notes.map(n => <li key={n.id} className={(n.unread ? "unread " : "") + (open === n.id ? "open" : "")}>
+    <button className="ox-msg" onClick={() => toggle(n)} aria-expanded={open === n.id}>
+      <span className="ox-from">{showWho ? n.from_name : who(n)}{showWho && <small>to {n.to_names.join(", ") || "—"}</small>}</span>
+      <span className="ox-subj">{n.kind === "email" && n.ext_from && <i className="ox-kind">Email</i>}{n.status.some(x => x.includes("not delivered")) && <i className="ox-flag">Not delivered</i>}<b>{n.subject}</b> <span className="ox-muted">{n.body.slice(0, 120)}</span></span>
+      <time>{when(n.at)}</time>
+    </button>
+    {open === n.id && <div className="ox-body">
+      <p className="ox-meta">From {n.from_name} to {n.to_names.join(", ") || "—"} · {when(n.at)}</p>
+      <p>{n.body}</p>
+      {n.attachments.length > 0 && <p className="ox-note">Attachments (names only; Agape doesn't keep the files yet): {n.attachments.join(", ")}</p>}
+      {n.status.length > 0 && <ul className="ox-status">{n.status.map((x, i) => <li key={i} className={x.includes("not delivered") ? "bad" : "good"}>{x}</li>)}</ul>}
+      {reply && n.mine && n.kind !== "lead" && n.kind !== "joined" && !n.sent && <button className="ox-btn sm" onClick={() => reply(n)}>Reply</button>}
+    </div>}
+  </li>)}</ul>;
+}
+
+/** Your own mailbox: email to your address, messages from your team, and notices for you. */
+function Inbox({ me, toast, seen }: { me: Me; toast: (s: string) => void; seen: () => void }) {
+  const { notes, setNotes, load } = useNotes();
   const [draft, setDraft] = useState<Draft | null>(null);
   const [contacts, setContacts] = useState<{ id: string; name: string; title?: string }[]>([]);
-  const load = async () => { const r = await api("inbox"); if (r.ok) setNotes(r.notes); };
-  useEffect(() => { load(); api("team").then(r => r.ok && setContacts([...r.contacts, ...r.groups.map((g: any) => ({ id: g.id, name: g.name, title: "everyone in the group" }))])); }, []);
-  useEffect(() => {
-    const ids = (notes ?? []).filter(n => n.unread).map(n => n.id);
-    if (ids.length) api("read", { ids }).then(seen); else seen();
-  }, [notes]);
-  const oversee = me.oversees;
-  const shown = (notes ?? []).filter(n => view === "mine" ? n.mine : !n.mine);
+  useEffect(() => { api("team").then(r => r.ok && setContacts([...r.contacts, ...r.groups.map((g: any) => ({ id: g.id, name: g.name, title: "everyone in the group" }))])); }, []);
   const reply = (n: Msg) => setDraft({ to: [n.ext_from ? n.ext_from.replace(/.*</, "").replace(/>.*/, "") : n.from].filter(Boolean), subject: /^re:/i.test(n.subject) ? n.subject : "Re: " + n.subject, body: `\n\nOn ${when(n.at)}, ${n.from_name} wrote:\n` + n.body.trimEnd().split("\n").map(l => "> " + l).join("\n") });
-  const who = (n: Msg) => n.kind === "lead" || n.kind === "joined" ? "Agape" : n.sent ? `To ${n.to_names.join(", ")}` : n.from_name;
+  const mine = (notes ?? []).filter(n => n.mine);
   return <>
-    <Head title="Messages" sub={<>{me.mailbox && <>Your address is <b>{me.mailbox}@{me.domain}</b>. </>}{me.role === "host" ? "You see every email, message and notice at Agape." : oversee ? "Yours, and everything sent or received by the people below you. People above you see yours." : "Yours. The people you report to can see them too."}</>}>
+    <Head title="Messages" sub={<>{me.mailbox && <>Your address is <b>{me.mailbox}@{me.domain}</b>. </>}Email to it, messages from your team and notices for you.{me.boss ? " The people above you can see these too." : ""}</>}>
       <button className="ox-btn primary" onClick={() => setDraft(d => d ? null : { to: [], subject: "", body: "" })}>{draft ? "Close" : "New email"}</button>
     </Head>
     {draft && <Compose me={me} d={draft} contacts={contacts} done={(m) => { if (m) toast(m); setDraft(null); load(); }} />}
-    {oversee && <div className="ox-seg" role="group" aria-label="Whose messages"><button className={view === "mine" ? "on" : ""} aria-pressed={view === "mine"} onClick={() => setView("mine")}>Yours</button><button className={view === "team" ? "on" : ""} aria-pressed={view === "team"} onClick={() => setView("team")}>{me.role === "host" ? "Everyone else's" : "Your team's"}</button></div>}
-    {notes === null ? <p className="ox-empty">Loading…</p> : !shown.length ? <p className="ox-empty">{view === "mine" ? "Nothing yet. Email to your address, messages from your team, and notices like new leads all land here." : "Nothing from your team yet."}</p>
-      : <ul className="ox-inbox">{shown.map(n => <li key={n.id} className={(n.unread ? "unread " : "") + (open === n.id ? "open" : "")}>
-        <button className="ox-msg" onClick={() => setOpen(open === n.id ? null : n.id)} aria-expanded={open === n.id}>
-          <span className="ox-from">{who(n)}{!n.mine && <small>{n.from_name} → {n.to_names.join(", ")}</small>}</span>
-          <span className="ox-subj">{n.status.some(x => x.includes("not delivered")) && <i className="ox-flag">Not delivered</i>}<b>{n.subject}</b> <span className="ox-muted">{n.body.slice(0, 120)}</span></span>
-          <time>{when(n.at)}</time>
-        </button>
-        {open === n.id && <div className="ox-body">
-          <p className="ox-meta">From {n.from_name} to {n.to_names.join(", ") || "—"} · {when(n.at)}</p>
-          <p>{n.body}</p>
-          {n.attachments.length > 0 && <p className="ox-note">Attachments (names only; Agape doesn't keep the files yet): {n.attachments.join(", ")}</p>}
-          {n.status.length > 0 && <ul className="ox-status">{n.status.map((x, i) => <li key={i} className={x.includes("not delivered") ? "bad" : "good"}>{x}</li>)}</ul>}
-          {n.mine && n.kind !== "lead" && n.kind !== "joined" && !n.sent && <button className="ox-btn sm" onClick={() => reply(n)}>Reply</button>}
-        </div>}
-      </li>)}</ul>}
+    {notes === null ? <p className="ox-empty">Loading…</p> : <MsgList notes={mine} setNotes={setNotes} seen={seen} reply={reply} showWho={false} empty="Nothing yet. Email to your address, messages from your team, and notices like new leads all land here." />}
+  </>;
+}
+
+/** One channel per person below you: everything they send and receive. Nothing here can be deleted. */
+function Channels({ me, seen }: { me: Me; seen: () => void }) {
+  const { notes, setNotes, muted, setMuted } = useNotes();
+  const [people, setPeople] = useState<Person[]>([]);
+  const [pick, setPick] = useState<string>("");
+  useEffect(() => { api("team").then(r => r.ok && setPeople(r.users.filter((u: Person) => u.id !== me.id && u.mine))); }, []);
+  const others = (notes ?? []).filter(n => !n.mine);
+  const of = (id: string) => others.filter(n => (n.channels as any as string[] ?? []).includes(id));
+  const unread = (id: string) => of(id).filter(n => n.unread).length;
+  const chans = people.map(p => ({ p, n: of(p.id).length, u: unread(p.id) })).sort((a, b) => (b.u - a.u) || (b.n - a.n) || a.p.name.localeCompare(b.p.name));
+  const shown = pick ? of(pick) : others;
+  const mute = async (id: string, on: boolean) => { setMuted(m => on ? [...m, id] : m.filter(x => x !== id)); await api("mute", { id, on }); seen(); };
+  const cur = people.find(p => p.id === pick);
+  return <>
+    <Head title="Channels" sub={me.role === "host" ? "One channel for each person at Agape. Everything they send and receive lands here as well as in their own Messages, and new activity pings you. Nothing can be deleted." : "One channel for each person below you. Everything they send and receive lands here as well as in their own Messages, and new activity pings you."} />
+    <div className="ox-channels">
+      <nav className="ox-chanlist" aria-label="Channels">
+        <button className={!pick ? "on" : ""} onClick={() => setPick("")}><span>Everyone</span>{others.filter(n => n.unread).length > 0 && <i className="ox-badge soft">{others.filter(n => n.unread).length}</i>}</button>
+        {chans.map(({ p, u, n }) => <button key={p.id} className={(pick === p.id ? "on " : "") + (muted.includes(p.id) ? "muted" : "")} onClick={() => setPick(p.id)}>
+          <span>{p.name}<small>{p.mailbox ? `${p.mailbox}@${me.domain}` : p.role_name} · {n}</small></span>{u > 0 && <i className={"ox-badge" + (muted.includes(p.id) ? " soft" : "")}>{u}</i>}</button>)}
+        {!people.length && <p className="ox-muted">Nobody below you yet.</p>}
+      </nav>
+      <div className="ox-chanbody">
+        {cur && <div className="ox-row between ox-chanhead"><div><h2>{cur.name}</h2><small>{[cur.title, cur.role_name, cur.mailbox && `${cur.mailbox}@${me.domain}`].filter(Boolean).join(" · ")}</small></div>
+          <label className="ox-checkline"><input type="checkbox" checked={muted.includes(cur.id)} onChange={e => mute(cur.id, e.target.checked)} /> Mute pings</label></div>}
+        {notes === null ? <p className="ox-empty">Loading…</p> : <MsgList notes={shown} setNotes={setNotes} seen={seen} showWho empty={cur ? `Nothing to or from ${cur.name} yet.` : "Nothing from anyone below you yet."} />}
+      </div>
+    </div>
   </>;
 }
 

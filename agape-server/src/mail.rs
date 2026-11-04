@@ -19,6 +19,9 @@ use std::time::Duration;
 
 pub const SELECTOR: &str = "agape1";
 
+/// The receiver said no for good (a 5xx answer, or no such address); anything else is tried again.
+pub fn permanent(e: &str) -> bool { e.contains("refused it for good") || e.contains("isn't an email address") }
+
 pub struct Mail { pub domain: String, pub host: String, key_pem: String, pub public_b64: String, pub secret: String }
 
 fn private_file(path: &Path, contents: &str) {
@@ -90,7 +93,7 @@ impl Mail {
                 .hello_name(ClientId::Domain(self.host.clone())).tls(Tls::Opportunistic(tls)).timeout(Some(Duration::from_secs(25))).build();
             match t.send(msg.clone()).await {
                 Ok(r) => return Ok(format!("Accepted by {host}: {}", r.message().collect::<Vec<_>>().join(" "))),
-                Err(e) => { last = format!("{host} refused it: {e}"); if e.is_permanent() { return Err(last); } }
+                Err(e) => { if e.is_permanent() { return Err(format!("{host} refused it for good: {e}")); } last = format!("{host} couldn't take it yet: {e}"); }
             }
         }
         Err(last)
@@ -153,16 +156,28 @@ pub fn parse(raw: &[u8], envelope_to: &str, envelope_from: &str) -> Incoming {
 /// The Cloudflare Worker that hands each incoming message to Agape. Pasted once into Cloudflare.
 pub fn worker_code(secret: &str, url: &str) -> String {
     format!(r#"// Agape mail: Cloudflare hands every message for @agapetoyourseat.com to this Worker,
-// which passes it to Agape. If Agape can't take it, the sender is told it bounced.
+// which passes it to Agape. So nothing is ever lost: if Agape can't take it, it goes to
+// BACKUP (a verified address in Email Routing) if one is set, and otherwise bounces back to
+// the sender, who is told to try again.
+const BACKUP = ""; // e.g. "you@gmail.com" — add it under Email Routing → Destination addresses first
 export default {{
   async email(message, env, ctx) {{
     const raw = await new Response(message.raw).arrayBuffer();
-    const r = await fetch("{url}", {{
-      method: "POST",
-      headers: {{ "x-agape-mail-secret": "{secret}", "x-envelope-to": message.to, "x-envelope-from": message.from, "content-type": "message/rfc822" }},
-      body: raw,
-    }});
-    if (!r.ok) message.setReject("Agape couldn't accept this message right now. Please try again later.");
+    let ok = false;
+    for (let i = 0; i < 3 && !ok; i++) {{
+      try {{
+        const r = await fetch("{url}", {{
+          method: "POST",
+          headers: {{ "x-agape-mail-secret": "{secret}", "x-envelope-to": message.to, "x-envelope-from": message.from, "content-type": "message/rfc822" }},
+          body: raw,
+        }});
+        ok = r.ok;
+      }} catch (e) {{}}
+      if (!ok) await new Promise(res => setTimeout(res, 2000 * (i + 1)));
+    }}
+    if (ok) return;
+    if (BACKUP) {{ await message.forward(BACKUP); return; }}
+    message.setReject("Agape couldn't accept this message right now. Please try again later.");
   }},
 }};
 "#)

@@ -339,6 +339,7 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/group/delete", post(office_group_delete))
         .route("/api/office/send", post(office_send))
         .route("/api/office/read", post(office_read))
+        .route("/api/office/mute", post(office_mute))
         .layer(axum::extract::DefaultBodyLimit::max(3_500_000))
         .with_state(app);
     match static_dir { Some(d) => api.fallback_service(tower_http::services::ServeDir::new(d)), None => api }
@@ -451,7 +452,7 @@ async fn office_signin(State(app): State<S>, Json(b): Json<Value>) -> Response {
     signed(&app, r, StatusCode::UNAUTHORIZED)
 }
 async fn office_signout(State(app): State<S>, h: HeaderMap) -> Response { app.office.lock().unwrap().sign_out(&bearer(&h)); Json(json!({ "ok": true })).into_response() }
-async fn office_me(State(app): State<S>, h: HeaderMap) -> Response { match staffer(&app, &h) { Ok(u) => { let o = app.office.lock().unwrap(); Json(json!({ "ok": true, "me": person_in(&o, &u), "unread": o.unread(&u), "domain": app.mail.domain })).into_response() } Err(r) => r } }
+async fn office_me(State(app): State<S>, h: HeaderMap) -> Response { match staffer(&app, &h) { Ok(u) => { let o = app.office.lock().unwrap(); let (mine, pings) = o.unread(&u); Json(json!({ "ok": true, "me": person_in(&o, &u), "unread": mine, "pings": pings, "domain": app.mail.domain })).into_response() } Err(r) => r } }
 async fn office_password(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
     let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
     done(app.office.lock().unwrap().change_password(&u, &s(&b, "old"), &s(&b, "new")))
@@ -585,14 +586,18 @@ async fn office_email(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) 
         match o.recipients(&strs(&b, "to"), &app.mail.domain) { Ok((i, x)) => (i, x, u.mailbox.clone()), Err(e) => return err(StatusCode::BAD_REQUEST, &e) }
     };
     if mailbox.is_empty() { return err(StatusCode::BAD_REQUEST, "You don't have an address yet. Choose one under Your account."); }
-    let mut status = vec![];
+    let (mut status, mut retry) = (vec![], vec![]);
     let mut failed = 0;
     if !outside.is_empty() {
         for (to, r) in app.mail.send(&u.name, &mailbox, &outside, &subject, &body, None).await {
-            match r { Ok(m) => status.push(format!("{to}: delivered ({m})")), Err(e) => { failed += 1; status.push(format!("{to}: not delivered. {e}")) } }
+            match r {
+                Ok(m) => status.push(format!("{to}: delivered ({m})")),
+                Err(e) if mail::permanent(&e) => { failed += 1; status.push(format!("{to}: not delivered. {e}")) }
+                Err(e) => { status.push(format!("{to}: not delivered yet; Agape will keep trying for two days. {e}")); retry.push((to, 0u32, admin::now() + 600)); }
+            }
         }
     }
-    app.office.lock().unwrap().record_sent(&u, inside, outside, &subject, &body, status.clone());
+    app.office.lock().unwrap().record_sent(&u, inside, outside, &subject, &body, status.clone(), retry);
     Json(json!({ "ok": true, "failed": failed, "status": status })).into_response()
 }
 
@@ -644,3 +649,19 @@ async fn mail_inbound(State(app): State<S>, h: HeaderMap, body: axum::body::Byte
 /// Whether the server can send mail, and which public DNS records are in place. Nothing private:
 /// all of it can be read from public DNS by anyone.
 async fn mail_health(State(app): State<S>) -> Response { Json(app.mail.diagnose().await).into_response() }
+
+async fn office_mute(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    app.office.lock().unwrap().mute(&u, &s(&b, "id"), b["on"].as_bool().unwrap_or(false));
+    Json(json!({ "ok": true })).into_response()
+}
+
+/// Try again any email a receiving server couldn't take yet. Runs every couple of minutes.
+pub async fn retry_mail(app: &App) {
+    let due = app.office.lock().unwrap().due_retries();
+    for (note, name, mailbox, to, subject, body, _) in due {
+        let r = app.mail.send(&name, &mailbox, &[to.clone()], &subject, &body, None).await.pop().map(|x| x.1).unwrap_or(Err("Nothing happened".into()));
+        let perm = r.as_ref().err().map_or(false, |e| mail::permanent(e));
+        app.office.lock().unwrap().retried(&note, &to, r, perm);
+    }
+}

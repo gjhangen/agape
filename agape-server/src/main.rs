@@ -11,6 +11,8 @@ async fn main() {
     // a finished night makes way for the next, so the venue is always open
     let roller = app.clone();
     tokio::spawn(async move { loop { tokio::time::sleep(std::time::Duration::from_secs(20)).await; roll_finished(&roller).await; } });
+    let mailer = app.clone();
+    tokio::spawn(async move { loop { tokio::time::sleep(std::time::Duration::from_secs(120)).await; retry_mail(&mailer).await; } });
     let port = env("PORT").unwrap_or_else(|| "8080".into());
     let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{port}")).await.unwrap();
     println!("agape server on :{port} · data in {} · clock {speed} ticks/s", data.display());

@@ -55,6 +55,8 @@ pub struct User { pub id: String, pub email: String, pub name: String, hash: Str
     #[serde(default)] pub boss: Option<String>, #[serde(default)] pub title: String,
     /// Their address at Agape's domain, before the @ ("gabriel" for gabriel@agapetoyourseat.com).
     #[serde(default)] pub mailbox: String,
+    /// Channels (people below them) whose pings they've muted. Muting never hides anything.
+    #[serde(default)] pub muted: Vec<String>,
     /// From before roles existed ("owner", "admin", ...); read once and turned into a role.
     #[serde(default, rename = "level", skip_serializing)] legacy: Option<String> }
 
@@ -76,7 +78,9 @@ pub struct Entry { pub at: u64, pub who: String, pub what: String, #[serde(defau
 #[derive(Clone, Serialize, Deserialize)]
 pub struct Note { pub id: String, pub at: u64, pub from: String, pub to: Vec<String>, pub subject: String, pub body: String, #[serde(default)] pub kind: String, #[serde(default)] pub read: Vec<String>,
     /// Email only: who outside Agape sent it, or who outside Agape it went to, and what happened.
-    #[serde(default)] pub ext_from: String, #[serde(default)] pub ext_to: Vec<String>, #[serde(default)] pub status: Vec<String>, #[serde(default)] pub attachments: Vec<String> }
+    #[serde(default)] pub ext_from: String, #[serde(default)] pub ext_to: Vec<String>, #[serde(default)] pub status: Vec<String>, #[serde(default)] pub attachments: Vec<String>,
+    /// Addresses a temporary failure kept from getting it, with tries so far and when to try next.
+    #[serde(default)] pub retry: Vec<(String, u32, u64)> }
 
 #[derive(Default, Serialize, Deserialize)]
 struct State {
@@ -176,12 +180,26 @@ impl Admin {
         for i in self.s.invites.iter_mut() { if i.role.is_empty() { i.role = map(i.legacy.as_deref().unwrap_or("member")); } }
     }
 
+    /// Written whole, flushed to disk, then swapped in, so a crash never leaves half a file. Once a
+    /// day the previous version is also kept as a dated copy (the last 60 days), so nothing is lost
+    /// even to a bad change.
     fn save(&self) {
         let tmp = self.path.with_extension("json.tmp");
-        if std::fs::write(&tmp, serde_json::to_vec_pretty(&self.s).unwrap()).is_ok() {
-            #[cfg(unix)] { use std::os::unix::fs::PermissionsExt; let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600)); }
-            let _ = std::fs::rename(&tmp, &self.path);
+        let ok = std::fs::File::create(&tmp).and_then(|mut f| { use std::io::Write; f.write_all(&serde_json::to_vec_pretty(&self.s).unwrap())?; f.sync_all() }).is_ok();
+        if !ok { eprintln!("admin: couldn't write {}", tmp.display()); return; }
+        #[cfg(unix)] { use std::os::unix::fs::PermissionsExt; let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(0o600)); }
+        if let Some(dir) = self.path.parent() {
+            let day = now() / 86400;
+            let keep = dir.join("admin-backups");
+            let snap = keep.join(format!("admin-day{day}.json"));
+            if self.path.exists() && !snap.exists() {
+                let _ = std::fs::create_dir_all(&keep);
+                let _ = std::fs::copy(&self.path, &snap);
+                if let Ok(rd) = std::fs::read_dir(&keep) { for e in rd.flatten() { let n = e.file_name().to_string_lossy().to_string();
+                    if let Some(d) = n.strip_prefix("admin-day").and_then(|x| x.strip_suffix(".json")).and_then(|x| x.parse::<u64>().ok()) { if d + 60 < day { let _ = std::fs::remove_file(e.path()); } } } }
+            }
         }
+        let _ = std::fs::rename(&tmp, &self.path);
     }
 
     fn note(&mut self, who: &User, what: String) {
@@ -198,7 +216,7 @@ impl Admin {
         if name.is_empty() { return Err("Add your name".into()); }
         good_pw(pw)?;
         if self.s.users.iter().any(|u| u.email == email) { return Err("There's already an account with that email".into()); }
-        let u = User { id: format!("a{}", self.s.users.len() + 1), email, name, hash: hash_pw(pw)?, role: role.into(), at: now(), off: false, boss: None, title: String::new(), mailbox: String::new(), legacy: None };
+        let u = User { id: format!("a{}", self.s.users.len() + 1), email, name, hash: hash_pw(pw)?, role: role.into(), at: now(), off: false, boss: None, title: String::new(), mailbox: String::new(), muted: vec![], legacy: None };
         self.s.users.push(u.clone());
         self.give_mailbox(&u.id);
         let u = self.s.users.iter().find(|x| x.id == u.id).cloned().unwrap();
@@ -520,7 +538,7 @@ impl Admin {
         let mut ids: Vec<String> = vec![];
         for t in to { if !t.is_empty() && !ids.iter().any(|x| x == t) && self.s.users.iter().any(|u| u.id == *t) { ids.push(t.to_string()); } }
         if ids.is_empty() { return; }
-        self.s.notes.push(Note { id: format!("n{}", token(5)), at: now(), from: String::new(), to: ids, subject: subject.into(), body: body.into(), kind: kind.into(), read: vec![], ext_from: String::new(), ext_to: vec![], status: vec![], attachments: vec![] });
+        self.s.notes.push(Note { id: format!("n{}", token(5)), at: now(), from: String::new(), to: ids, subject: subject.into(), body: body.into(), kind: kind.into(), read: vec![], ext_from: String::new(), ext_to: vec![], status: vec![], attachments: vec![], retry: vec![] });
         if self.s.notes.len() > 20000 { self.s.notes.drain(0..2000); }
     }
     /// Tell everyone whose role has a permission (and the host).
@@ -539,26 +557,54 @@ impl Admin {
         let mut ids: Vec<String> = vec![];
         for t in to { for p in self.people_in(t) { if p != by.id && self.s.users.iter().any(|u| u.id == p && !u.off) && !ids.contains(&p) { ids.push(p); } } }
         if ids.is_empty() { return Err("Choose who it's for".into()); }
-        self.s.notes.push(Note { id: format!("n{}", token(5)), at: now(), from: by.id.clone(), to: ids, subject: if subject.is_empty() { "(no subject)".into() } else { subject }, body, kind: "message".into(), read: vec![by.id.clone()], ext_from: String::new(), ext_to: vec![], status: vec![], attachments: vec![] });
+        self.s.notes.push(Note { id: format!("n{}", token(5)), at: now(), from: by.id.clone(), to: ids, subject: if subject.is_empty() { "(no subject)".into() } else { subject }, body, kind: "message".into(), read: vec![by.id.clone()], ext_from: String::new(), ext_to: vec![], status: vec![], attachments: vec![], retry: vec![] });
         self.save();
         Ok(())
     }
 
     /// Every communication the viewer may see, newest first, marked by how they see it.
+    /// The people below the viewer a note belongs to: its channels.
+    fn channels_of(&self, n: &Note, below: &[String]) -> Vec<String> {
+        let mut c: Vec<String> = vec![];
+        for p in std::iter::once(&n.from).chain(n.to.iter()) { if below.contains(p) && !c.contains(p) { c.push(p.clone()); } }
+        c
+    }
+
+    /// Everything the viewer may see, newest first. Their own mail is "mine"; the rest sits in the
+    /// channels of the people below them it belongs to, and is unread until the viewer opens it.
     pub fn inbox(&self, viewer: &User) -> Value {
-        let list: Vec<Value> = self.s.notes.iter().rev().filter(|n| self.sees(viewer, &n.from, &n.to)).take(500).map(|n| {
+        let (below, _) = self.down(&viewer.id);
+        let below: Vec<String> = if viewer.role == HOST { self.s.users.iter().filter(|u| u.id != viewer.id).map(|u| u.id.clone()).collect() } else { below };
+        let list: Vec<Value> = self.s.notes.iter().rev().filter(|n| self.sees(viewer, &n.from, &n.to)).take(2000).map(|n| {
             let mine = n.from == viewer.id || n.to.contains(&viewer.id);
             json!({ "id": n.id, "at": n.at, "from": n.from, "from_name": if !n.ext_from.is_empty() { n.ext_from.clone() } else { self.node_name(&n.from) }, "to": n.to,
                     "to_names": n.to.iter().map(|t| self.node_name(t)).chain(if n.from.is_empty() { vec![] } else { n.ext_to.clone() }).collect::<Vec<_>>(), "ext_from": n.ext_from, "ext_to": n.ext_to, "status": n.status, "attachments": n.attachments,
-                    "subject": n.subject, "body": n.body, "kind": n.kind, "mine": mine, "sent": n.from == viewer.id, "unread": n.to.contains(&viewer.id) && !n.read.contains(&viewer.id) })
+                    "subject": n.subject, "body": n.body, "kind": n.kind, "mine": mine, "sent": n.from == viewer.id, "channels": self.channels_of(n, &below),
+                    "unread": n.from != viewer.id && !n.read.contains(&viewer.id) })
         }).collect();
-        json!({ "notes": list })
+        json!({ "notes": list, "muted": viewer.muted })
     }
+    /// Opening something marks it read for the viewer only; everyone else's unread stays as it was.
     pub fn mark_read(&mut self, viewer: &User, ids: &[String]) {
-        for n in self.s.notes.iter_mut().filter(|n| ids.contains(&n.id) && n.to.contains(&viewer.id)) { if !n.read.contains(&viewer.id) { n.read.push(viewer.id.clone()); } }
+        let ok: Vec<String> = self.s.notes.iter().filter(|n| ids.contains(&n.id) && self.sees(viewer, &n.from, &n.to)).map(|n| n.id.clone()).collect();
+        for n in self.s.notes.iter_mut().filter(|n| ok.contains(&n.id)) { if !n.read.contains(&viewer.id) { n.read.push(viewer.id.clone()); } }
         self.save();
     }
-    pub fn unread(&self, viewer: &User) -> usize { self.s.notes.iter().filter(|n| n.to.contains(&viewer.id) && !n.read.contains(&viewer.id)).count() }
+    /// Unread in their own mailbox, and pings from the channels below them they haven't muted.
+    pub fn unread(&self, viewer: &User) -> (usize, usize) {
+        let (below, _) = self.down(&viewer.id);
+        let below: Vec<String> = if viewer.role == HOST { self.s.users.iter().filter(|u| u.id != viewer.id).map(|u| u.id.clone()).collect() } else { below };
+        let (mut mine, mut pings) = (0, 0);
+        for n in self.s.notes.iter().filter(|n| n.from != viewer.id && !n.read.contains(&viewer.id)) {
+            if n.to.contains(&viewer.id) { mine += 1; continue; }
+            if self.channels_of(n, &below).iter().any(|c| !viewer.muted.contains(c)) && self.sees(viewer, &n.from, &n.to) { pings += 1; }
+        }
+        (mine, pings)
+    }
+    pub fn mute(&mut self, viewer: &User, channel: &str, on: bool) {
+        if let Some(u) = self.s.users.iter_mut().find(|u| u.id == viewer.id) { u.muted.retain(|c| c != channel); if on { u.muted.push(channel.to_string()); } }
+        self.save();
+    }
 
     // ---------------- email ----------------
 
@@ -605,9 +651,9 @@ impl Admin {
     }
 
     /// Keep an email someone at Agape sent (to people inside, outside, or both).
-    pub fn record_sent(&mut self, by: &User, inside: Vec<String>, outside: Vec<String>, subject: &str, body: &str, status: Vec<String>) {
+    pub fn record_sent(&mut self, by: &User, inside: Vec<String>, outside: Vec<String>, subject: &str, body: &str, status: Vec<String>, retry: Vec<(String, u32, u64)>) {
         let inside: Vec<String> = inside.into_iter().filter(|x| x != &by.id).collect();
-        self.s.notes.push(Note { id: format!("n{}", token(5)), at: now(), from: by.id.clone(), to: inside, subject: subject.into(), body: body.into(), kind: "email".into(), read: vec![by.id.clone()], ext_from: String::new(), ext_to: outside, status, attachments: vec![] });
+        self.s.notes.push(Note { id: format!("n{}", token(5)), at: now(), from: by.id.clone(), to: inside, subject: subject.into(), body: body.into(), kind: "email".into(), read: vec![by.id.clone()], ext_from: String::new(), ext_to: outside, status, attachments: vec![], retry });
         self.save();
     }
 
@@ -619,10 +665,28 @@ impl Admin {
         if ids.is_empty() { if let Some(h) = self.s.users.iter().find(|u| u.role == HOST && !u.off) { ids.push(h.id.clone()); } }
         let n = ids.len();
         let from_full = if from_name.trim().is_empty() { from.to_string() } else { format!("{} <{}>", from_name.trim(), from) };
-        self.s.notes.push(Note { id: format!("n{}", token(5)), at: now(), from: String::new(), to: ids, subject: if subject.trim().is_empty() { "(no subject)".into() } else { subject.into() }, body: body.into(), kind: "email".into(), read: vec![], ext_from: from_full, ext_to: to.to_vec(), status: vec![], attachments });
+        self.s.notes.push(Note { id: format!("n{}", token(5)), at: now(), from: String::new(), to: ids, subject: if subject.trim().is_empty() { "(no subject)".into() } else { subject.into() }, body: body.into(), kind: "email".into(), read: vec![], ext_from: from_full, ext_to: to.to_vec(), status: vec![], attachments, retry: vec![] });
         if self.s.notes.len() > 20000 { self.s.notes.drain(0..2000); }
         self.save();
         n
+    }
+
+    /// Sent emails with addresses due another try: (note id, sender name, sender address, to, subject, body, tries).
+    pub fn due_retries(&self) -> Vec<(String, String, String, String, String, String, u32)> {
+        let n = now();
+        self.s.notes.iter().flat_map(|m| m.retry.iter().filter(|r| r.2 <= n).filter_map(move |r| self.mailbox_of(&m.from).map(|(name, mb)| (m.id.clone(), name, mb, r.0.clone(), m.subject.clone(), m.body.clone(), r.1)))).collect()
+    }
+    /// Record how a retry went. Gives up after about two days, and says so where the sender sees it.
+    pub fn retried(&mut self, note: &str, to: &str, result: Result<String, String>, permanent: bool) {
+        let Some(m) = self.s.notes.iter_mut().find(|m| m.id == note) else { return };
+        let Some(i) = m.retry.iter().position(|r| r.0 == to) else { return };
+        let tries = m.retry[i].1 + 1;
+        match result {
+            Ok(x) => { m.retry.remove(i); m.status.push(format!("{to}: delivered on try {} ({x})", tries + 1)); }
+            Err(e) if permanent || tries >= 12 => { m.retry.remove(i); m.status.push(format!("{to}: not delivered. Gave up after {} tries. {e}", tries + 1)); m.read.clear(); }
+            Err(_) => { m.retry[i].1 = tries; m.retry[i].2 = now() + 600 * (1u64 << tries.min(8)).min(36); }
+        }
+        self.save();
     }
 
     pub fn merchants(&self) -> &Vec<Merchant> { &self.s.merchants }
@@ -799,6 +863,40 @@ mod tests {
         assert!(a.team(&host)["roles"].as_array().unwrap().iter().any(|r| r["id"] == "r-member" && r["perms"].as_array().unwrap().is_empty()));
     }
 }
+#[cfg(test)]
+mod channel_tests {
+    use super::*;
+    #[test]
+    fn mail_to_someone_below_pings_everyone_above_until_they_read_it() {
+        let d = tempfile::tempdir().unwrap();
+        let mut a = Admin::open(d.path().to_path_buf());
+        let code = std::fs::read_to_string(d.path().join("admin-setup-code")).unwrap();
+        let (_, host) = a.setup(&code, "g@x.com", "Gabriel", "longenough1").unwrap();
+        let c = a.invite(&host, "p@x.com", "Phillip Ames", "r-admin", "", "").unwrap();
+        let (_, phil) = a.accept(&c, "", "longenough1").unwrap();
+        assert_eq!(phil.mailbox, "phillip");
+        let base = a.unread(&host);
+        a.receive("sam@venue.example", "Sam", &["phillip@agapetoyourseat.com".into()], "Pilot", "March?", vec![], "agapetoyourseat.com");
+        let phil = a.s.users.iter().find(|u| u.id == phil.id).cloned().unwrap();
+        assert_eq!(a.unread(&phil).0, 1, "it goes straight to Phillip");
+        assert_eq!(a.unread(&host).1, base.1 + 1, "and pings the host in Phillip's channel");
+        let id = a.inbox(&host)["notes"][0]["id"].as_str().unwrap().to_string();
+        a.mark_read(&host, &[id]);
+        assert_eq!(a.unread(&host).1, base.1);
+        assert_eq!(a.unread(&phil).0, 1, "the host reading it doesn't mark it read for Phillip");
+        // mail to an address nobody has still reaches the host
+        a.receive("x@y.example", "", &["nobody@agapetoyourseat.com".into()], "Hi", "?", vec![], "agapetoyourseat.com");
+        let host = a.s.users.iter().find(|u| u.id == host.id).cloned().unwrap();
+        assert!(a.unread(&host).0 >= 1);
+        // muting stops the pings, not the mail
+        a.receive("sam@venue.example", "Sam", &["phillip@agapetoyourseat.com".into()], "Again", "?", vec![], "agapetoyourseat.com");
+        a.mute(&host, &phil.id, true);
+        let host = a.s.users.iter().find(|u| u.id == host.id).cloned().unwrap();
+        assert_eq!(a.unread(&host).1, base.1);
+        assert!(a.inbox(&host)["notes"].as_array().unwrap().iter().any(|n| n["subject"] == "Again"));
+    }
+}
+
 #[cfg(test)]
 mod migrate_tests {
     use super::*;
