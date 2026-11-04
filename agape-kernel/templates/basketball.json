@@ -336,7 +336,7 @@
         "measure": "away_points"
        }
       ],
-      "locks_ms": 240000,
+      "locks_ms": 60000,
       "points": 50
      }
     }

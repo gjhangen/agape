@@ -5,7 +5,7 @@
 import { React, useEffect, useState } from "./r";
 import { actWith, Deal, DealCard, Rates, Say, Thread } from "./deals";
 import { kernel } from "./kernel";
-import { concourse, feature, Opt, W, countdown, money, venueTime, SignalRow, momentText, LedgerLine } from "./parts";
+import { payReady, concourse, feature, Opt, W, countdown, money, venueTime, SignalRow, momentText, LedgerLine } from "./parts";
 import { R, SECS, wedge } from "./geo";
 import { CardArt } from "./cardart";
 
@@ -88,7 +88,16 @@ export function Page({ id, close, back, open, toast, now, depth, acts }: { id: s
   );
 }
 
-function Followers({ n }: { n: number }) { return <small>{n.toLocaleString()} follower{n === 1 ? "" : "s"} on Agape</small>; }
+function Followers({ n }: { n: number }) { return feature("chat") ? <small>{n.toLocaleString()} follower{n === 1 ? "" : "s"} on Agape</small> : null; }
+
+/** Buying a card takes a second tap, and says so when you can't afford it. */
+function BuyCard({ l, act, have }: { l: any; act: (a: any, ok: string) => void; have: number | null }) {
+  const [sure, setSure] = useState(false);
+  const short = have != null && have < l.price;
+  if (short) return <span className="sub">{(l.price - have).toLocaleString()} more pts</span>;
+  return sure ? <button className="btn primary sm" onClick={() => { setSure(false); act({ do: "buy", listing: l.id }, "Bought. It's in your collection."); }}>Pay {l.price.toLocaleString()} pts</button>
+    : <button className="btn ghost sm" onClick={() => setSure(true)}>Buy</button>;
+}
 
 function MemberPage({ p, open, now, toast, refresh }: { p: any; open: OpenPage; now: number; toast: (s: string) => void; refresh: () => void }) {
   const act = actWith(toast, refresh);
@@ -168,7 +177,7 @@ function CardPage({ p, open, toast, refresh, now }: { p: any; open: OpenPage; to
         {p.listings.length === 0 && <p className="empty">Nobody's selling this one right now.</p>}
         <ul className="listings">{p.listings.filter((l: any) => !l.yours).map((l: any) => (
           <li key={l.id}><button className="link-inline" onClick={() => open(l.seller)}>{l.seller_name}</button><span className="grow" /><b className="num">{pts(l.price)}</b>
-            <button className="btn primary sm" onClick={() => act({ do: "buy", listing: l.id }, "Bought. It's in your collection.")}>Buy</button></li>))}</ul>
+            <BuyCard l={l} act={act} have={p.balance ?? null} /></li>))}</ul>
       </section>
       <p className="fineprint">Cards are for fun. They trade only for points, points can't be bought or cashed out, and nobody can promise what a card will be worth.</p>
       {p.sales.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Recent sales</h3><ul className="listings">{p.sales.map((s: any, i: number) => <li key={i}><span>{s.buyer}</span><span className="grow" /><span className="num">{pts(s.price)}</span><time className="num sub">{venueTime(s.t)}</time></li>)}</ul></section>}
@@ -245,6 +254,7 @@ function EventPage({ p, open, toast, refresh }: { p: any; open: OpenPage; toast:
   const s = p.sections.find((x: any) => x.id === sec);
   const q = sec ? kernel.act({ do: "ticket_quote", event: p.id, section: sec, qty }) : null;
   const buy = () => {
+    if (!payReady(toast)) return;
     const r = kernel.act({ do: "tickets", event: p.id, section: sec, qty });
     if (!r.ok) { toast(r.error === "SoldOut" ? "Those seats just went. Pick again." : r.error); refresh(); return; }
     toast(`You're going. Seats ${r.id} in ${sec === "sFL" ? "courtside" : "section " + sec!.slice(1)}. They're in Me.`); setSec(null); setSure(false); refresh();
@@ -345,7 +355,7 @@ function BusinessPage({ p, open, toast, refresh, acts, now }: { p: any; open: Op
       {h?.service?.kind === "parking" && <section className="pg-sec"><h3 className="eyebrow">{h.name}</h3>
         <p className="note">{h.blurb}</p>
         {h.service.yours ? <span className="tag good">Exit paid. Your code is in Me.</span> :
-          <button className="btn primary block" onClick={() => act({ do: "parking", lot: h.id }, "Paid. Skip the kiosk and show the code in Me at the gate.")}>Pay {money(h.service.price)} now and skip the exit kiosk</button>}</section>}
+          <button className="btn primary block" onClick={() => payReady(toast) && act({ do: "parking", lot: h.id }, "Paid. Skip the kiosk and show the code in Me at the gate.")}>Pay {money(h.service.price)} now and skip the exit kiosk</button>}</section>}
       {p.drivers.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Drivers tonight</h3>
         <ul className="roster">{p.drivers.map((d: any) => <li key={d.id}><button className="roster-row" onClick={() => open(d.id)}><span className="rn">★</span><span className="grow"><b>{d.name}</b><small>{d.rating.toFixed(2)} · {d.vehicle}</small></span><span className={"tag " + (d.busy ? "" : "good")}>{d.busy ? "On a ride" : "Free"}</span></button></li>)}</ul></section>}
     </>

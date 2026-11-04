@@ -56,7 +56,9 @@ impl Night {
         let b = breakdown(q, &self.terms).ok();
         let items: Vec<Value> = q.lines.iter().map(|l| json!({ "thing": l.thing, "name": self.world.thing(&l.thing).map(|t| t.name.clone()), "qty": l.qty, "price": l.unit_price })).collect();
         let stand = self.world.def.stands.iter().find(|s| s.id == q.stand).map(|s| s.name.clone());
-        json!({ "id": id, "stage": stage_name(&o.c.stage), "items": items, "stand": stand, "stand_id": q.stand, "delivery": q.delivery,
+        // In the on-device demo, the simulated fan "shows" the runner their PIN. The server never sends it to a runner.
+        let demo_pin = if cfg!(feature = "vault") || q.fan == crate::sim::YOU { None } else { Some(self.pin_of(id)) };
+        json!({ "id": id, "demo_pin": demo_pin, "stage": stage_name(&o.c.stage), "items": items, "stand": stand, "stand_id": q.stand, "delivery": q.delivery,
                 "runner": q.runner, "eta": o.eta, "placed": o.accepted_at, "spot": self.spots.get(&q.fan),
                 "check_id": q.lines.iter().any(|l| self.world.thing(&l.thing).map_or(false, |t| t.constraints.iter().any(|c| matches!(c, crate::world::Constraint::MinAge(_))))), "delivered": o.delivered_at, "source": o.source, "seat": o.seat,
                 "charge": b.as_ref().map(|b| b.charge), "breakdown": b.map(|b| json!({ "subtotal": b.subtotal, "discount": b.discount, "tax": b.tax, "fee": b.fee, "tip": b.tip })),

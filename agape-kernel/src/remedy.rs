@@ -85,12 +85,12 @@ fn rule(words: &str, fault: &str, covers: Vec<Cover>, photo: bool, auto: bool) -
 
 impl Default for Policy {
     fn default() -> Self {
-        use Source::{Agape, Fault, Runner, Stand}; use Part::{Fee, Items, Tip};
+        use Source::{Fault, Runner, Stand}; use Part::{Fee, Items, Tip};
         let mut rules = BTreeMap::new();
         // nothing reached the fan: everything back, the tip from the runner who didn't deliver it
-        rules.insert("never_arrived".into(), rule("It never arrived", "agape", vec![c(Items, Agape), c(Part::Tax, Source::Tax), c(Fee, Agape), c(Tip, Runner)], false, true));
+        rules.insert("never_arrived".into(), rule("It never arrived", "agape", vec![c(Items, Fault), c(Part::Tax, Source::Tax), c(Fee, Fault), c(Tip, Runner)], false, true));
         // ruined on the way: Agape stands behind its delivery; the runner keeps the tip
-        rules.insert("damaged".into(), rule("Spilled or ruined on the way", "agape", vec![c(Items, Agape), c(Part::Tax, Source::Tax), c(Fee, Agape)], true, true));
+        rules.insert("damaged".into(), rule("Spilled or ruined on the way", "agape", vec![c(Items, Fault), c(Part::Tax, Source::Tax), c(Fee, Fault)], true, true));
         // the wrong thing, or something missing: whoever is found at fault, the stand unless shown otherwise
         rules.insert("wrong_item".into(), rule("Wrong item", "stand", vec![c(Items, Fault), c(Part::Tax, Source::Tax), c(Fee, Fault)], true, true));
         rules.insert("missing_item".into(), rule("Something was missing", "stand", vec![c(Items, Fault), c(Part::Tax, Source::Tax)], true, true));
@@ -123,7 +123,13 @@ impl Policy {
                 if total > 10_000 || r.covers.iter().any(|x| x.bps < 0) { return Err(format!("{k}: more than all of {p:?} is returned")); }
             }
         }
+        for (k, r) in &self.rules { if r.covers.iter().all(|c| c.bps == 0) { return Err(format!("{}: nothing would come back to the fan", r.words.clone() + if k.is_empty() { "" } else { "" })); } }
         if self.tip_bps < 0 || self.tip_min < 0 { return Err("Tips can't be negative".into()); }
+        if self.tip_bps > 5000 { return Err("The tip shown first can't be more than 50% of the items".into()); }
+        if self.handoff_radius_m < 5 { return Err("The handoff distance needs to be at least 5 m; phones aren't more precise than that".into()); }
+        if self.proof_after_orders < 1 { return Err("Proof can start after one order at the earliest".into()); }
+        if self.photo_at_bps <= 0 || self.pin_at_bps <= 0 || self.photo_at_bps > 10_000 || self.pin_at_bps > 10_000 { return Err("Claim rates for proof must be between 1% and 100%".into()); }
+        if self.photo_at_bps > self.pin_at_bps { return Err("A photo should be asked for at a lower claim rate than a PIN".into()); }
         Ok(())
     }
 }

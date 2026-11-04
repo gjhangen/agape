@@ -150,14 +150,14 @@ export function SetupLens({ toast, inApp }: { toast: (s: string) => void; inApp?
             <Field label="Address" value={w.address ?? ""} set={v => edit(d => { d.address = v; })} wide />
             <Field label="Capacity" type="number" value={w.capacity ?? 0} set={v => edit(d => { d.capacity = num(v); })} />
             <Field label="Fans using Agape tonight" type="number" value={w.pilot?.fans ?? 3000} set={v => edit(d => { d.pilot = { ...(d.pilot ?? {}), fans: Math.max(100, Math.min(20000, num(v))) }; })} />
-            <Field label="Runners on shift" type="number" value={w.pilot?.runners ?? 40} set={v => edit(d => { d.pilot = { ...(d.pilot ?? {}), runners: Math.max(1, Math.min(300, num(v))) }; })} />
+            {!inApp && <Field label="Runners on shift" type="number" value={w.pilot?.runners ?? 40} set={v => edit(d => { d.pilot = { ...(d.pilot ?? {}), runners: Math.max(1, Math.min(300, num(v))) }; })} />}
             <Field label="Levels" type="number" value={w.levels} set={v => edit(d => { d.levels = num(v); })} />
             <Field label="Sections a level" type="number" value={w.sections_per_level} set={v => edit(d => { d.sections_per_level = num(v); })} />
           </div>
           <div className="block-head"><h2>Terms</h2><span className="sub">Set per event and negotiated per deal</span></div>
           <div className="sf-grid">
             {inApp ? <p className="pay-explain wide">Agape's share, card processing and interchange are as set in your agreement with Agape.</p> : <Field label="Agape's share of sales %" type="number" step="0.5" value={w.terms.platform_share_bps / 100} set={v => edit(d => { d.terms.platform_share_bps = Math.round(num(v) * 100); })} />}
-            <Field label="Delivery fee $" type="number" step="0.01" value={dollars(w.terms.delivery_fee)} set={v => edit(d => { d.terms.delivery_fee = cents(v); })} />
+            {!inApp && <Field label="Delivery fee $" type="number" step="0.01" value={dollars(w.terms.delivery_fee)} set={v => edit(d => { d.terms.delivery_fee = cents(v); })} />}
             {!inApp && <><Field label="Card processing %" type="number" step="0.1" value={w.terms.proc_bps / 100} set={v => edit(d => { d.terms.proc_bps = Math.round(num(v) * 100); })} />
             <Field label="plus per charge $" type="number" step="0.01" value={dollars(w.terms.proc_fixed)} set={v => edit(d => { d.terms.proc_fixed = cents(v); })} />
             <Field label="Interchange we pay %" type="number" step="0.05" value={(w.terms.interchange_bps ?? 200) / 100} set={v => edit(d => { d.terms.interchange_bps = Math.round(num(v) * 100); })} />
@@ -228,8 +228,8 @@ export function SetupLens({ toast, inApp }: { toast: (s: string) => void; inApp?
             <button className="btn primary big" disabled={blocking.length > 0 || running} onClick={run}>{running ? "Running a night…" : "Preview a night"}</button>
             {!inApp && <button className="btn ghost big" disabled={blocking.length > 0} onClick={open}>Open it here</button>}
             {!inApp && <button className="btn ghost big" disabled={blocking.length > 0 || sharing} onClick={share}>{sharing ? "Saving…" : "Share as a link"}</button>}
-            <details className="tpl-json"><summary className="btn ghost big">See the template</summary>
-              <textarea readOnly value={JSON.stringify(w, null, 2)} onFocus={e => e.currentTarget.select()} aria-label="The template as JSON" rows={14} /></details>
+            {!inApp && <details className="tpl-json"><summary className="btn ghost big">See the template</summary>
+              <textarea readOnly value={JSON.stringify(w, null, 2)} onFocus={e => e.currentTarget.select()} aria-label="The template as JSON" rows={14} /></details>}
           </div>
           {link && <div className="share-link" role="status"><span>Anyone with this link opens the simulator as this venue, with your teams, menu and settings:</span>
             <div className="row gap"><input readOnly value={link} onFocus={e => e.currentTarget.select()} aria-label="Link to this version" /><button className="btn primary" onClick={() => { navigator.clipboard?.writeText(link).then(() => toast("Link copied."), () => toast("Select the link and copy it.")); }}>Copy</button></div></div>}
@@ -240,7 +240,7 @@ export function SetupLens({ toast, inApp }: { toast: (s: string) => void; inApp?
               <MeasureTile label="Late" value={r.late} sub={`${r.cannot_fulfil} the stand couldn't make`} tone={r.late > r.orders * 0.1 ? "warn" : "good"} />
               <MeasureTile label="Runners earn" value={`${money(r.runner_hourly)}/h`} sub={r.trips_taken ? `pay and tips · ${Math.round(100 * r.taken_first / r.trips_taken)}% of trips taken on the first offer · ${money(r.trip_pay_avg)} a trip before tips` : "pay and tips"} tone={r.runner_hourly < 2000 ? "warn" : "good"} />
             </div>
-            <MoneyFlows f={r.flows ?? {}} />
+            <MoneyFlows f={r.flows ?? {}} venue={inApp} />
             <p className="provenance">Agape keeps {(w.terms.platform_share_bps / 100).toFixed(1)}% of each sale and the {money(w.terms.delivery_fee)} delivery fee, and pays runners {w.terms.pay_mode === "fixed" ? `${money(w.terms.runner_pay)} a delivery` : w.terms.pay_mode === "hourly" ? `${money(w.terms.hourly_wage ?? 1800)} an hour` : "by trip offers"} out of it; runners keep every tip. Agape also processes the cards: sellers pay {(w.terms.proc_bps / 100).toFixed(1)}% + {money(w.terms.proc_fixed)}, and Agape pays the card networks' interchange out of that. A preview of this setup, not a forecast. Every unit {r.conserved ? "balanced to zero" : "did NOT balance"}. Busiest stands: {r.stands.slice(0, 3).map((s: any) => `${s.name} ${money(s.revenue)}`).join(", ")}.</p>
           </div>}
         </section>

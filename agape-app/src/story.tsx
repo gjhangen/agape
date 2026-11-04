@@ -50,7 +50,7 @@ function Onboarding({ stage, next, seatChosen, onLocated }: { stage: Stage; next
       <label className="sf wide"><span>Your name</span><input value={name} onChange={e => setName(e.target.value)} placeholder="Jordan Lee" autoComplete="name" /></label>
       <label className="sf wide"><span>Email</span><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></label>
       <label className="sf wide"><span>Password</span><input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="8 or more characters" autoComplete="new-password" /></label>
-      {tried && <small className="ob-warn">{!name.trim() ? "Add your name." : !/.+@.+\..+/.test(email) ? "Add your email." : "Choose a password of 8 or more characters."}</small>}
+      {tried && <small className="ob-warn">{!name.trim() ? "Add your name." : !email.trim() ? "Add your email." : !/.+@.+\..+/.test(email) ? "That email doesn't look right." : "Choose a password of 8 or more characters."}</small>}
       <button className="btn ob-primary">Continue</button>
       <small className="ob-fine">By continuing you agree to Agape's terms and privacy policy.</small>
     </form>
@@ -71,12 +71,12 @@ function Onboarding({ stage, next, seatChosen, onLocated }: { stage: Stage; next
       <h2>Two quick things</h2>
       <div className="ob-perm"><span className="ob-pi">📍</span><div><b>Know when you're at an event</b><small>Agape uses your location only while it's open, to find the venue you're in.</small></div></div>
       <div className="ob-perm"><span className="ob-pi"><Icon name="bell" /></span><div><b>Tell you when it's here</b><small>A heads-up when your order is on its way and when it reaches you.</small></div></div>
-      <div className="ob-acts"><button className="btn ob-primary" onClick={() => { setLocated(true); onLocated(true); next("venue"); }}>Allow</button><button className="link-inline" onClick={() => { setLocated(false); onLocated(false); next("venue"); }}>Not now</button></div>
+      <div className="ob-acts"><button className="btn ob-primary" onClick={() => { setLocated(true); onLocated(true); next("venue"); }}>Allow</button><button className="link-inline" onClick={() => { setLocated(false); onLocated(false); try { const o = JSON.parse(localStorage.getItem("agape.prefs") || "{}"); o.loc = false; o["n-orders"] = false; localStorage.setItem("agape.prefs", JSON.stringify(o)); } catch { /* fine */ } next("venue"); }}>Not now</button></div>
     </div>
   );
   if (stage === "venue") return (
     <div className="ob ob-venue">
-      <span className="eyebrow">{located ? "You're at" : "Events near you tonight"}</span>
+      <span className="eyebrow">{located ? "You're at" : "Events tonight"}</span>
       <h2>{BRAND.venue}</h2>
       {EVENT === "concert" ? <div className="ob-event"><div className="ob-teams"><i style={{ background: BRAND.home.color }} />Lumen Rivers: The Tidelines Tour</div><small>Tonight · with Northbound and Paper Kites Club · doors 6:45 PM</small></div>
         : <div className="ob-event"><div className="ob-teams"><i style={{ background: BRAND.home.color }} />{BRAND.home.name}<span>vs</span><i style={{ background: BRAND.away.color }} />{BRAND.away.name}</div><small>Tonight · tip-off 7:30 PM</small></div>}
@@ -133,7 +133,7 @@ function beatFor(stage: Stage, v: FanView | null, level: number, seen: Set<strin
 const NEXT: Record<number, { title: string; body: React.ReactNode }> = {
   1: { title: "Order to your seat, done completely", body: <>This is the launch app: ordering, done completely. Switch the level at the top to see what's built on it.</> },
   2: { title: "Open Deals", body: <>Deals holds this event's offers and sponsor perks, the points you earn on every order, and a better seat when one opens up. A deal shows only during the event it belongs to.</> },
-  3: { title: "Open Play", body: <>Make a call before it locks, follow the section battle, and collect moments as they happen. New calls open through the night, each locking when play starts.</> },
+  3: { title: "Open Play", body: <>Make a call before it locks, follow the section battle, and collect moments as they happen. A new call opens with each quarter and locks a minute in, so get your pick in fast.</> },
   4: { title: "Beyond the night", body: <>Deals now carries what happens after tonight: tickets to the next event and reselling yours, a ride home, prepaid parking and perks at places nearby.</> },
   5: { title: "Open People", body: <>Your section's chat, the crowd, and the people you follow. It's what brings fans back to Agape between events.</> },
 };
@@ -238,7 +238,7 @@ function Story() {
         <EventSwitch />
         </div>
         <div className="st-ctl">
-          <button className="btn h-btn" onClick={() => setPlaying(!playing)}>{playing ? "Pause" : "Play"}</button>
+          <button className="btn h-btn" onClick={() => setPlaying(!playing)}>{playing ? "Pause" : "Resume"}</button>
           <div className="seg h-seg" role="group" aria-label="Speed">{SPEEDS.map((s, i) => <button key={s.label} className={speed === i ? "on" : ""} onClick={() => setSpeed(i)}>{s.label}</button>)}</div>
           <button className={"btn h-btn" + (explain ? " lit" : "")} aria-pressed={explain} disabled={stage !== "app"} title={stage === "app" ? "Tap parts of the app to see what they are and why they're there" : "Available once you've taken your seat"} onClick={() => { setExplain(!explain); setNote(null); }}>{explain ? "Explaining" : "Explain"}</button>
           <button className="btn h-btn snd" aria-pressed={sound} onClick={() => setSound(!sound)}>{sound ? "Crowd on" : "Crowd off"}</button>

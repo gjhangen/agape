@@ -11,7 +11,7 @@ import { kernel, world } from "./kernel";
 import { wearColor } from "./themes";
 import { cart, useCart } from "./cart";
 import { ItemArt } from "./Art";
-import { concourse, feature, Icon, isConcert, Opt, TeamMark, W,
+import { payReady, concourse, feature, Icon, isConcert, Opt, TeamMark, W,
   BRAND, CommitmentCard, FeedItem, LedgerLine, MapView, Offer, OfferCard, Order, PlaceView, SignalRow,
   countdown, momentText, money, rel, runnerName, team, useSecond, venueTime, whyNot,
 } from "./parts";
@@ -147,7 +147,7 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
           <input id="find" type="search" placeholder="Search food, drinks, gear…" value={q} onChange={e => setQ(e.target.value)} aria-label="Find anything" />
         </div>}
         {v.halt && <div className="halt-banner" role="alert"><b>Service is paused</b><p>{v.halt.reason}</p><small>Nothing new can be ordered right now. Anything not yet being made was cancelled, and you weren't charged for it.</small></div>}
-        {q ? <Search q={q} {...ctx} /> : space === "get" ? <Get {...ctx} /> : space === "deals" ? <Deals {...ctx} /> : space === "play" ? <Play {...ctx} /> : space === "people" ? <People {...ctx} /> : <Me {...ctx} />}
+        {q.trim() ? <Search q={q.trim()} {...ctx} /> : space === "get" ? <Get {...ctx} /> : space === "deals" ? <Deals {...ctx} /> : space === "play" ? <Play {...ctx} /> : space === "people" ? <People {...ctx} /> : <Me {...ctx} />}
       </div>
       {tabs.length > 1 && <nav className={"space-bar icons" + (labels ? " labelled" : "")} aria-label="Spaces">
         {tabs.map(t => (
@@ -329,7 +329,7 @@ function Around({ v, refresh, toast, open, setSheet }: Ctx) {
           </div>
           {a.service?.kind === "ride" && (ride ? <span className="tag good">Booked {venueTime(ride.at)}</span> : <button className="btn sm primary" onClick={() => setSheet({ kind: "ride", zone: a.id })}>Book a ride</button>)}
           {a.service?.kind === "parking" && (a.service.yours ? <span className="tag good">Exit paid</span> :
-            <button className="btn sm primary" onClick={() => { if (confirm !== a.id) { setConfirm(a.id); return; } setConfirm(null); act({ do: "parking", lot: a.id }, "Paid. Show the code in Me at the gate."); }}>{confirm === a.id ? `Pay ${money(a.service.price)} now` : `Prepay exit · ${money(a.service.price)}`}</button>)}
+            <button className="btn sm primary" onClick={() => { if (confirm !== a.id) { setConfirm(a.id); return; } setConfirm(null); if (!payReady(toast)) return; act({ do: "parking", lot: a.id }, "Paid. Show the code in Me at the gate."); }}>{confirm === a.id ? `Pay ${money(a.service.price)} now` : `Prepay exit · ${money(a.service.price)}`}</button>)}
           {a.perk && (a.perk.yours ? <span className="tag good">Unlocked</span> : (
             <button className="btn sm primary perk" disabled={!a.perk.affordable || a.perk.left < 1} onClick={() => act({ do: "unlock", place: a.id }, "Unlocked. Show the code in Me at the counter.")}>
               <span>{a.perk.title}</span><b className="num">{a.perk.affordable ? `${a.perk.cost} pts · ${a.perk.left} left` : `${(a.perk.cost - v.me.balance).toLocaleString()} more pts to unlock`}</b>
@@ -366,7 +366,7 @@ function RideSheet({ v, refresh, setSheet, toast, zone, open }: Ctx & { zone: st
   const [at, setAt] = useState(Math.max(from, fin + 5 * 60000));
   const rq = kernel.act({ do: "ride_quote", at, provider: a.operator });
   const fare = rq.fare as number, free = rq.free as number;
-  const book = () => { const r = kernel.act({ do: "ride", zone, at }); if (!r.ok) { toast(r.error === "NoDriver" ? "Every driver is promised around then. Try another time." : r.error); refresh(); return; } toast(`Booked. A driver will be assigned 8 minutes before ${venueTime(at)}.`); setSheet(null); refresh(); };
+  const book = () => { if (!payReady(toast)) return; const r = kernel.act({ do: "ride", zone, at }); if (!r.ok) { toast(r.error === "NoDriver" ? "Every driver is promised around then. Try another time." : r.error); refresh(); return; } toast(`Booked. A driver will be assigned 8 minutes before ${venueTime(at)}.`); setSheet(null); refresh(); };
   return (
     <SheetFrame title="Book a ride" onClose={() => setSheet(null)}>
       <div className="build">
@@ -405,7 +405,7 @@ function Prediction({ v, refresh, toast }: Ctx) {
   const pick = (o: string) => { const r = kernel.act({ do: "predict", pick: o }); if (!r.ok) toast(r.error); refresh(); };
   if (p.result) {
     return <div className="predict done"><span className="eyebrow">{p.question}</span><b>{optLabel(p.result)}{p.result === "tie" || p.result === "none" ? "" : ", it was"}</b>
-      <small>{p.yours ? (p.won ? `You called it. +${p.points} points.` : "Not this time. The next question opens soon.") : `Answer the next one for ${p.points} points.`}</small></div>;
+      <small>{p.yours ? (p.won ? `You called it. +${p.points} points.` : (v.clock.phase === "postgame" ? "Not this time." : "Not this time. The next question opens soon.")) : v.clock.phase === "postgame" ? "That was the last call of the night." : `Answer the next one for ${p.points} points.`}</small></div>;
   }
   return (
     <div className="predict">
@@ -478,7 +478,7 @@ function LiveSheet(ctx: Ctx & { close: () => void }) {
           <h2>Around the league</h2>
           <ul className="league">{v.live.league.map(g => (
             <li key={g.id}><button className="league-row" onClick={() => open(g.id)}>
-              <span className="grow"><b>{g.home_name}</b> {g.home_score} · {g.away_score} <b>{g.away_name}</b></span><span className="tag">{g.status}</span></button></li>))}</ul>
+              <span className="grow"><b>{g.home_name}</b> {/^(Tip|Starts|Upcoming|Later|\d)/i.test(String(g.status)) && !g.home_score && !g.away_score ? "vs" : <>{g.home_score} · {g.away_score}</>} <b>{g.away_name}</b></span><span className="tag">{g.status}</span></button></li>))}</ul>
         </section>}
       </div>
     </div>
@@ -496,7 +496,7 @@ function Deals(ctx: Ctx) {
         <section className="block points-head">
           <span className="eyebrow">Your points</span>
           <b className="pts-big num">{v.me.balance.toLocaleString()}</b>
-          <small>Every dollar you spend here earns 10. Spend them on perks{feature("priority") ? " or to have an order go first" : ""}.</small>
+          <small>Every dollar of food, drinks and gear earns 10. Spend them on perks{feature("priority") ? " or to have an order go first" : ""}.</small>
         </section>
       )}
       {feature("offers") && (
@@ -523,8 +523,8 @@ function YourSeat({ v, toast, refresh, setting }: Ctx) {
       <div className="block-head"><h2>Your seat</h2><button className="link-inline small" onClick={() => setting("seat")}>Row and seat</button></div>
       <div className="seat-ticket"><Icon name="seat" /><div className="grow"><b>Section {sec(v.you.seat)}{spot ? `, ${spot}` : ""}</b><small>{W.matchup} · tonight</small></div></div>
       {feature("upgrades") && (v.moved ? <p className="sub">You moved here at {venueTime(v.moved.at)}. Everything you order now comes to this section.</p> :
-        (v.upgrades ?? []).slice(0, 3).map(u => <div key={u.id} className="upgrade-row"><div className="grow"><b>{u.title}</b><small>{isConcert() ? u.blurb.replace("Sideline", "Side view") : u.blurb}{u.left != null ? ` · ${u.left} left tonight` : ""}</small></div>
-          <button className="btn primary sm" disabled={!u.ok} onClick={() => { if (sure !== u.id) { setSure(u.id); return; } setSure(null); const r = kernel.act({ do: "upgrade", section: u.section }); toast(r.ok ? `Moved to section ${sec(u.section)}. Your orders follow you.` : r.error); refresh(); }}>{!u.ok ? (u.why_not ?? "Not now") : sure === u.id ? `Pay ${money(u.price)} and move` : `Move · ${money(u.price)}`}</button></div>))}
+        (v.upgrades ?? []).slice(0, 3).map(u => <div key={u.id} className="upgrade-row"><div className="grow"><b>{u.title}</b><small>{isConcert() ? u.blurb.replace("Sideline", "Side view") : u.blurb}{u.left != null ? ` · ${u.left} left` : ""}</small></div>
+          <button className="btn primary sm" disabled={!u.ok} onClick={() => { if (sure !== u.id) { setSure(u.id); return; } setSure(null); if (!payReady(toast)) return; const r = kernel.act({ do: "upgrade", section: u.section }); toast(r.ok ? `Moved to section ${sec(u.section)}. Your orders follow you.` : r.error); refresh(); }}>{!u.ok ? (u.why_not ?? "Not now") : sure === u.id ? `Pay ${money(u.price)} and move` : `Move · ${money(u.price)}`}</button></div>))}
     </section>
   );
 }
@@ -556,7 +556,7 @@ function Play(ctx: Ctx) {
   const got = m.badges.filter(b => b.earned).length;
   return (
     <>
-      {feature("predictions") && <section className="block"><div className="block-head"><h2>Call it</h2><span className="sub">{v.me.balance.toLocaleString()} pts</span></div>{v.live.prediction ? <Prediction {...ctx} /> : <p className="empty">The first call opens at tip-off: who takes the first quarter. Get it right for 50 points.</p>}</section>}
+      {feature("predictions") && <section className="block"><div className="block-head"><h2>Call it</h2><span className="sub">50 pts for each one you get right</span></div>{v.live.prediction ? <Prediction {...ctx} /> : <p className="empty">The first call opens at tip-off: who takes the first quarter. Get it right for 50 points.</p>}</section>}
       {feature("battle") && <Battle {...ctx} />}
       {feature("cards") && (
         <section className="block">
@@ -691,13 +691,13 @@ function Me({ v, refresh, toast, open, settings, setting }: Ctx) {
             <Resell t={t} toast={toast} refresh={refresh} />
           </div>)}
           {m.passes.map(p => <div key={p.place} className={"ticket pass" + (p.used ? " used" : "")} onClick={() => open(p.operator)}><div className="grow"><b>{p.name}</b><small>{p.title}</small></div>
-            <div className="code-wrap">{p.used ? <small>Used {venueTime(p.used)}</small> : <><span className="code num">{p.code}</span><small>show at the counter</small></>}</div></div>)}
+            <div className="code-wrap">{p.used ? <small>Used {venueTime(p.used)}</small> : <><span className="code num">{p.code}</span><small>{/exit|gate/i.test(p.title ?? "") ? "show at the gate" : "show at the counter"}</small></>}</div></div>)}
         </section>
       )}
       <section className="block wallet">
         <div className="block-head"><h2>Wallet</h2><button className="link-inline small" onClick={() => setting("payment")}>Payment</button></div>
         <div className="pair">
-          <div><span className="eyebrow">Charged tonight</span><b className="big num">{money(m.spent)}</b><small>{(() => { const n = m.receipts.filter(o => o.stage === "Settled").length; return `${n} receipt${n === 1 ? "" : "s"}`; })()}{onWay ? ` · ${money(onWay)} on the way, charged when it arrives` : ""}</small></div>
+          <div><span className="eyebrow">Spent tonight</span><b className="big num">{money(m.spent)}</b><small>{(() => { const n = m.receipts.filter(o => o.stage === "Settled").length; return `${n} order${n === 1 ? "" : "s"}${m.tickets.length || m.passes.length ? ", plus tickets and passes" : ""}`; })()}{onWay ? ` · ${money(onWay)} on the way, charged when it arrives` : ""}</small></div>
           {feature("points") ? <div><span className="eyebrow">Points</span><b className="big num">{m.balance.toLocaleString()}</b><small>{m.tier} status</small></div>
             : <div><span className="eyebrow">Paying with</span><b className="pay-name">{pref<string>("pay", "") || "Not set"}</b><small>{pref<string>("pay", "") ? "change in Payment" : "asked when you first order"}</small></div>}
         </div>
@@ -716,10 +716,10 @@ function Me({ v, refresh, toast, open, settings, setting }: Ctx) {
                 <LedgerLine label="Tax" amount={o.breakdown.tax} />
                 {o.breakdown.fee > 0 && <LedgerLine label="Delivery" amount={o.breakdown.fee} />}
                 {o.breakdown.tip > 0 && <LedgerLine label="Tip" amount={o.breakdown.tip} />}
-                <LedgerLine label={o.stage === "Settled" ? "Charged" : "Not charged"} amount={o.stage === "Settled" ? o.charge : 0} strong />
+                {o.stage === "Settled" && (o.credit_used ?? 0) > 0 && <><LedgerLine label="Total" amount={o.charge} /><LedgerLine label="Paid with Agape credit" amount={-(o.credit_used ?? 0)} /></>}
+                <LedgerLine label={o.stage === "Settled" ? "Charged to your card" : "Not charged"} amount={o.stage === "Settled" ? (o.charge ?? 0) - (o.credit_used ?? 0) : 0} strong />
                 {o.stage === "Settled" && o.late && o.late_credit ? <LedgerLine label="Agape credit for being late" amount={-o.late_credit} /> : null}
                 {o.problem?.state.state === "remedied" && <LedgerLine label={`${o.problem.state.form === "refund" ? "Refunded to your card" : "Agape credit"} · ${o.problem.words.toLowerCase()}`} amount={-(o.problem.state.amount ?? 0)} />}
-                {(o.credit_used ?? 0) > 0 && <LedgerLine label="Paid with Agape credit" amount={-(o.credit_used ?? 0)} />}
                 {o.problem?.state.state === "open" && <small className="sub">Your report is with the venue. You'll hear back here.</small>}
                 {o.problem?.state.state === "declined" && <small className="sub">Report reviewed: {o.problem.state.why}</small>}
               </div>
@@ -848,11 +848,12 @@ function SettingsPage({ which, v, toast, refresh, go, close }: Ctx & { which: st
 
 function Search({ q, v, setSheet }: Ctx & { q: string }) {
   const n = q.trim().toLowerCase();
-  const words = (i: Item) => [i.name, i.stand, i.category, i.adult ? "beer alcohol booze" : "", i.category === "drink" ? "drinks" : "", i.category === "merch" ? "gear merch" : "", /tee|hoodie|jersey|shirt/i.test(i.name) ? "shirt" : "", /beanie|cap\b|hat\b/i.test(i.name) ? "hat" : "", i.category === "food" ? "eat snack" : "", i.category === "food" && /\bbean\b|knots|popcorn|nachos|pretzel|fries/i.test(i.name) ? "vegetarian veggie meatless" : ""];
+  const words = (i: Item) => [i.name, i.stand, i.category, i.adult ? "beer alcohol booze" : "", i.category === "drink" ? "drinks" : "", i.category === "merch" ? "gear merch" : "", /tee|hoodie|jersey|shirt/i.test(i.name) ? "shirt" : "", /beanie|cap\b|hat\b/i.test(i.name) ? "hat" : "", i.category === "food" ? "eat snack" : "", i.category === "food" && /\bbean\b|knots|popcorn|nachos|pretzel|fries/i.test(i.name) && !/chicken|beef|hot dog|cheeseburger|taco|brisket|wings|sausage/i.test(i.name) ? "vegetarian veggie meatless" : ""];
   const hits = v.items.filter(i => words(i).join(" ").toLowerCase().includes(n)).sort((a, b) => Number(b.available) - Number(a.available) || a.eta - b.eta);
   return (
     <section className="block">
-      <div className="block-head"><h2>{hits.length ? `${hits.length} match${hits.length === 1 ? "" : "es"}` : "Nothing by that name"}</h2><span className="sub">Soonest to your seat first</span></div>
+      <div className="block-head"><h2>{hits.length ? `${hits.length} match${hits.length === 1 ? "" : "es"}` : "Nothing by that name"}</h2>{hits.length > 0 && <span className="sub">Soonest to your seat first</span>}</div>
+      {!hits.length && <p className="empty">Try a kind of thing: burger, beer, vegetarian, gear.</p>}
       {hits.map(it => <ItemRow key={it.id} it={it} now={v.clock.t} onPick={() => setSheet({ kind: "item", item: it.id })} />)}
     </section>
   );
@@ -870,10 +871,14 @@ function useQuote(args: Record<string, unknown>, deps: unknown[]) {
 }
 
 /** Everything picked so far, one tap from checkout. */
+/** The check every card number passes (Luhn). */
+const luhn = (n: string) => n.split("").reverse().map(Number).reduce((a, d, i) => a + (i % 2 ? (d * 2 > 9 ? d * 2 - 9 : d * 2) : d), 0) % 10 === 0;
+
 /** Adding a card: the number, its expiry and its code. */
 function CardForm({ toast, done }: { toast: (t: string) => void; done: (label: string) => void }) {
   const [err, setErr] = useState(""); void toast;
-  return <form className="add-card" onSubmit={e => { e.preventDefault(); const fd = new FormData(e.currentTarget); const n = (fd.get("n") as string).replace(/\D/g, ""); if (n.length < 13) { setErr("Enter the full card number."); return; } if (!/^(0[1-9]|1[0-2])\s*\/?\s*\d{2}$/.test(String(fd.get("x")).trim())) { setErr("Enter the expiry as MM/YY."); return; } if (!/^\d{3,4}$/.test(String(fd.get("c")).trim())) { setErr("Enter the 3- or 4-digit security code."); return; } const label = `${({ "4": "Visa", "5": "Mastercard", "3": "Amex", "6": "Discover" } as Record<string, string>)[n[0]] ?? "Card"} •••• ${n.slice(-4)}`; setPref("cards", [...pref<string[]>("cards", []), label]); setPref("pay", label); done(label); }}>
+  return <form className="add-card" onSubmit={e => { e.preventDefault(); const fd = new FormData(e.currentTarget); const n = (fd.get("n") as string).replace(/\D/g, ""); if (n.length < 13 || !luhn(n)) { setErr(n.length < 13 ? "Enter the full card number." : "That card number isn't right. Check it and try again."); return; }
+    { const m = String(fd.get("x")).replace(/\s/g, "").match(/^(\d{2})\/?(\d{2})$/); if (m) { const end = new Date(2000 + Number(m[2]), Number(m[1]), 1); if (end <= new Date()) { setErr("That card has expired."); return; } } } if (!/^(0[1-9]|1[0-2])\s*\/?\s*\d{2}$/.test(String(fd.get("x")).trim())) { setErr("Enter the expiry as MM/YY."); return; } if (!/^\d{3,4}$/.test(String(fd.get("c")).trim())) { setErr("Enter the 3- or 4-digit security code."); return; } const label = `${({ "4": "Visa", "5": "Mastercard", "3": "Amex", "6": "Discover" } as Record<string, string>)[n[0]] ?? "Card"} •••• ${n.slice(-4)}`; setPref("cards", [...pref<string[]>("cards", []), label]); setPref("pay", label); done(label); }}>
     <label className="sf wide"><span>Card number</span><input name="n" inputMode="numeric" autoComplete="cc-number" placeholder="1234 5678 9012 3456" /></label>
     <div className="sf-grid"><label className="sf"><span>Expires</span><input name="x" inputMode="numeric" autoComplete="cc-exp" placeholder="MM/YY" /></label><label className="sf"><span>Security code</span><input name="c" inputMode="numeric" autoComplete="cc-csc" placeholder="123" /></label></div>
     {err && <small className="ob-warn" role="alert">{err}</small>}
@@ -906,6 +911,13 @@ function PayButton({ label, disabled, onPay, toast, adult, className = "btn prim
     </div>
   );
   return <button className={className} disabled={disabled} onClick={() => has && of21 ? onPay() : setAsk(true)}>{label}</button>;
+}
+
+/** Agape credit the fan holds goes first; the rest reaches the card when it arrives. */
+function CreditLine({ v, charge }: { v: FanView; charge: number }) {
+  const c = Math.min(v.me.credit ?? 0, charge ?? 0);
+  if (c <= 0) return null;
+  return <><LedgerLine label="Agape credit" amount={-c} /><LedgerLine label="To your card" amount={charge - c} strong /></>;
 }
 
 /** How close an order is to free delivery, when the venue has a threshold. */
@@ -966,7 +978,7 @@ function CartSheet({ v, refresh, setSheet, toast, go }: Ctx) {
           <LedgerLine label="Items" amount={q.items} /><LedgerLine label="Tax" amount={q.tax} />
           {q.fee > 0 && <LedgerLine label="Delivery" amount={q.fee} note="once for the cart" />}{delivery && q.fee === 0 && (v.me.delivery?.free_over ?? 0) > 0 && <LedgerLine label="Delivery" amount={0} note={`free over ${money(v.me.delivery!.free_over)}`} />}
           {delivery && <FreeHint v={v} items={q.items} />}{q.tip > 0 && <LedgerLine label="Tip" amount={q.tip} />}
-          <LedgerLine label="You pay" amount={q.charge} strong />
+          <LedgerLine label="You pay" amount={q.charge} strong /><CreditLine v={v} charge={q.charge} />
           <small className="pilot-note">{delivery ? `Charged when it reaches you. If it takes more than 30 minutes, you get ${money(300)} in Agape credit automatically.` : "Charged when it's ready to pick up."}</small>
         </div>}
         <button className="btn ghost sm" onClick={() => { cart.clear(); setSheet(null); }}>Empty the cart</button>
@@ -993,7 +1005,7 @@ function Tips({ tip, setTip, d }: { tip: number; setTip: (n: number) => void; d:
     <div className="tips">
       <span className="eyebrow">Tip your runner · all of it goes to them</span>
       <div className="seg fill" role="group" aria-label="Tip">
-        {[0, d, d + 100, d + 300].map(t => <button key={t} className={tip === t ? "on" : ""} onClick={() => setTip(t)}>{t ? money(t).replace(".00", "") : "None"}</button>)}
+        {[0, d, Math.ceil(d * 1.25 / 100) * 100, Math.ceil(d * 1.5 / 100) * 100].filter((t, i, a) => a.indexOf(t) === i).concat(![0, d, Math.ceil(d * 1.25 / 100) * 100, Math.ceil(d * 1.5 / 100) * 100].includes(tip) ? [tip] : []).map(t => <button key={t} className={tip === t ? "on" : ""} onClick={() => setTip(t)}>{t ? money(t).replace(".00", "") : "None"}</button>)}
       </div>
     </div>
   );
@@ -1073,7 +1085,7 @@ function ItemSheet({ v, refresh, setSheet, toast, go, id, at: preset }: Ctx & { 
           <LedgerLine label="Items" amount={quote.subtotal} /><LedgerLine label="Tax" amount={quote.tax} />
           {quote.fee > 0 && <LedgerLine label="Delivery" amount={quote.fee} />}{delivery && quote.fee === 0 && (v.me.delivery?.free_over ?? 0) > 0 && <LedgerLine label="Delivery" amount={0} note={`free over ${money(v.me.delivery!.free_over)}`} />}{quote.tip > 0 && <LedgerLine label="Tip" amount={quote.tip} />}
           {delivery && <FreeHint v={v} items={quote.subtotal - (quote.discount ?? 0)} />}
-          <LedgerLine label="You pay" amount={quote.charge} strong />
+          <LedgerLine label="You pay" amount={quote.charge} strong /><CreditLine v={v} charge={quote.charge} />
           <small className="pilot-note">{delivery ? "Charged when it reaches you." : "Charged when it's ready to pick up."}</small>
         </div>}
         <div className="sheet-actions">
@@ -1108,7 +1120,7 @@ function CheckoutSheet({ v, refresh, setSheet, toast, offer, claim }: Ctx & { of
           {quote.discount > 0 && <LedgerLine label="Deal" amount={-quote.discount} note={quote.payer ? `paid by ${BRAND.sponsors[quote.payer] ?? quote.payer}` : ""} />}
           <LedgerLine label="Tax" amount={quote.tax} /><LedgerLine label="Delivery" amount={quote.fee} />
           {quote.tip > 0 && <LedgerLine label="Tip" amount={quote.tip} />}
-          <LedgerLine label="You pay" amount={quote.charge} strong />
+          <LedgerLine label="You pay" amount={quote.charge} strong /><CreditLine v={v} charge={quote.charge} />
           <small className="pilot-note">Charged when it reaches you.</small>
         </div>}
         <PayButton toast={toast} disabled={!!v.halt} onPay={place} label={v.halt ? "Service is paused" : `Place order · ${money(quote?.charge)}`} />

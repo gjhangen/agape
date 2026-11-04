@@ -91,8 +91,8 @@ export function Rates({ rates, to, name, as, act, balance }: { rates: Rate[]; to
               <form className="rate-ask" onSubmit={e => { e.preventDefault(); if (act({ do: "deal", as, to, kind: r.kind, ask: note }, `Offer sent. ${amount(r.pay, r.price)} is held until ${first} delivers.`)) { setNote(""); setOpen(null); } }}>
                 <input value={note} onChange={e => setNote(e.target.value)} maxLength={200} aria-label="Add a note" placeholder={r.kind === "shoutout" ? "Who it's for, by name (optional)" : "Anything they should know (optional)"} />
                 <button className="btn primary wide" disabled={!r.affordable}>{r.affordable ? `Offer ${amount(r.pay, r.price)}` : r.pay === "points" ? `${(r.price - (balance ?? 0)).toLocaleString()} more pts needed` : "Not enough budget left"}</button>
-                {!r.affordable && r.pay === "points" && <small className="sub">Earn points by ordering, calling a quarter in Live, or buying tickets. Points from other fans count too.</small>}
-                <small className="sub">Held by Agape from now. Paid to {first} only when it's done; all of it back if they say no or you take it back first.</small>
+                {!r.affordable && r.pay === "points" && <small className="sub">Earn points by ordering, making calls in Play, or buying tickets.</small>}
+                <small className="sub">Held by Agape from now. It goes to {first} only when it's done; all of it back if they say no or you take it back first.</small>
               </form>
             )}
           </div>
@@ -185,6 +185,9 @@ export function PlayerLens({ p, players, pick, toast, refresh }: { p: any; playe
 
 // ---------------- a business ----------------
 
+/** How many codes the partner has checked successfully in this demo; the story moves on after the first. */
+export let redeemedHere = 0;
+
 export function BusinessLens({ b, businesses, pick, toast, refresh }: { b: any; businesses: any[]; pick: (id: string) => void; toast: (s: string) => void; refresh: () => void }) {
   const act = actWith(toast, refresh);
   const [code, setCode] = useState("");
@@ -195,7 +198,7 @@ export function BusinessLens({ b, businesses, pick, toast, refresh }: { b: any; 
     e.preventDefault();
     const r = kernel.act({ do: "redeem", as: b.id, place, code });
     setLast(r.ok ? { ok: true, text: `Good for ${r.id}. Marked used.` } : { ok: false, text: r.error });
-    if (r.ok) setCode("");
+    if (r.ok) { setCode(""); redeemedHere++; }
     refresh();
   };
   const needs = b.deals.filter((d: Deal) => d.next === "confirm" || d.next === "respond" || d.next === "deliver");
@@ -224,7 +227,7 @@ export function BusinessLens({ b, businesses, pick, toast, refresh }: { b: any; 
           <section key={x.place} className="block">
             <div className="block-head"><h2>{x.kind === "perk" ? "At the counter" : "At the gate"}</h2><span className="sub">{x.title ?? x.name}</span></div>
             <form className="redeem" onSubmit={e => redeem(e, x.place)}>
-              <input inputMode="numeric" value={code} onChange={e => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="Code on the fan's phone" aria-label="Code" className="num" />
+              <input inputMode="numeric" value={code} onChange={e => { setCode(e.target.value.replace(/\D/g, "").slice(0, 6)); setLast(null); }} placeholder="Code on the fan's phone" aria-label="Code" className="num" />
               <button className="btn primary" disabled={code.length !== 6}>Check</button>
             </form>
             {last && <p className={"banner " + (last.ok ? "good" : "warn")} role="status">{last.text}</p>}

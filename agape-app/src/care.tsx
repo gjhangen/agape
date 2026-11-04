@@ -1,8 +1,8 @@
 // Agape HQ's care desk: the policy for making things right, every problem and who paid for it, and
 // the fans whose records call for a look. Agape's team only: nothing here is shown to fans or runners.
-import { React, useState } from "./r";
+import { React, useEffect, useState } from "./r";
 import { kernel } from "./kernel";
-import { money, MeasureTile, venueTime } from "./parts";
+import { money, MeasureTile, runnerName, venueTime } from "./parts";
 
 type Cover = { part: "items" | "tax" | "fee" | "tip"; from: "fault" | "stand" | "runner" | "agape" | "tax"; bps: number };
 type Rule = { words: string; fault: string; covers: Cover[]; photo: boolean; auto: boolean; form?: "credit" | "refund" | null };
@@ -27,7 +27,7 @@ export function CareDesk({ c, toast, refresh }: { c: CareView; toast: (t: string
         <MeasureTile label="Claims tonight" value={c.claims} sub={`${pct(c.claim_bps)} of ${c.settled} orders`} tone={c.claim_bps > 300 ? "warn" : "good"} />
         <MeasureTile label="Waiting on us" value={c.open} sub="held for a person" tone={c.open ? "warn" : "good"} />
         <MeasureTile label="Made right" value={money(c.credit + c.refund)} sub={`${money(c.credit)} as credit · ${money(c.refund)} refunded`} />
-        <MeasureTile label="Agape paid" value={money(agapePaid)} sub={Object.entries(c.paid_by).filter(([k]) => k !== "Agape").map(([k, v]) => `${k} ${money(v)}`).join(" · ") || "stands and runners paid the rest"} />
+        <MeasureTile label="Made right by Agape" value={money(agapePaid)} sub={Object.entries(c.paid_by).filter(([k]) => k !== "Agape").map(([k, v]) => `${k} ${money(v)}`).join(" · ") || "stands and runners paid the rest"} />
       </div>
       <div className="seg" role="group" aria-label="Care">{([["queue", "Problems"], ["fans", "Fans to watch"]] as const).map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>)}</div>
       {tab === "queue" && <Queue c={c} act={act} />}
@@ -43,7 +43,7 @@ function Queue({ c, act }: { c: CareView; act: (a: Record<string, unknown>, ok: 
       <div className="grow">
         <b>{p.words}</b> <small className="sub">{p.who} · order {p.order} from {p.stand} · {venueTime(p.t)}</small>
         <small className="care-evidence">{p.photo ? "Photo attached" : "No photo"}{p.handoff_m != null ? ` · handed over ${p.handoff_m} m from the seat` : ""} · on {p.fault}{p.held ? ` · held: ${p.held}` : ""}</small>
-        {p.paid_by.length > 0 && <small className="sub">Paid by {p.paid_by.map(x => `${x.who} ${money(x.amount)}`).join(", ")}</small>}
+        {p.paid_by.length > 0 && <small className="sub">Paid by {p.paid_by.map(x => `${/^runner/.test(x.who) ? runnerName(x.who) : x.who} ${money(x.amount)}`).join(", ")}</small>}
       </div>
       {p.state.state === "open" ? <div className="care-acts">
         <button className="btn ghost sm" onClick={() => act({ do: "resolve", problem: p.id, remedy: false, why: "We checked the trip and the photos" }, "Declined. The fan sees why.")}>Decline</button>
@@ -83,6 +83,7 @@ export function Policies({ c, toast, refresh }: { c: CareView; toast: (t: string
 
 function PayEditor({ p, act }: { p: Pay; act: (a: Record<string, unknown>, ok: string) => void }) {
   const [d, setD] = useState<Pay>(p);
+  useEffect(() => setD(p), [JSON.stringify(p)]);
   const dollars = (c: number) => (c / 100).toFixed(2);
   const cents = (v: string) => Math.round((Number(v.replace(/[^\d.]/g, "")) || 0) * 100);
   const changed = JSON.stringify(d) !== JSON.stringify(p);
@@ -101,12 +102,13 @@ function PayEditor({ p, act }: { p: Pay; act: (a: Record<string, unknown>, ok: s
       {d.free_delivery_over > 0 && <label className="sf"><span>Free when the items come to at least $</span><input inputMode="decimal" defaultValue={dollars(d.free_delivery_over)} onChange={e => setD({ ...d, free_delivery_over: cents(e.target.value) })} /></label>}
     </div>
     <div className="row gap"><span className="grow sub">{changed ? "Not saved yet." : "In force now."}</span>
-      <button className="btn primary" disabled={!changed} onClick={() => act({ do: "set_pay", mode: d.mode, hourly_wage: d.hourly_wage, runner_pay: d.runner_pay, offer_hourly: d.offer_hourly, free_delivery_over: d.free_delivery_over }, "Saved. It applies from the next trip and order.")}>Save</button></div>
+      <button className="btn primary" disabled={!changed} onClick={() => act({ do: "set_pay", mode: d.mode, hourly_wage: d.hourly_wage, runner_pay: d.runner_pay, offer_hourly: d.offer_hourly, free_delivery_over: d.free_delivery_over }, "Saved. It applies from the next trip and order.")}>{changed ? "Save runner pay" : "Saved"}</button></div>
   </section>;
 }
 
 function PolicyEditor({ p, act }: { p: Policy; act: (a: Record<string, unknown>, ok: string) => void }) {
   const [d, setD] = useState<Policy>(() => JSON.parse(JSON.stringify(p)));
+  useEffect(() => setD(JSON.parse(JSON.stringify(p))), [JSON.stringify(p)]);
   const edit = (f: (x: Policy) => void) => setD(x => { const y = JSON.parse(JSON.stringify(x)); f(y); return y; });
   const num = (v: string) => Number(v.replace(/[^\d.]/g, "")) || 0;
   const changed = JSON.stringify(d) !== JSON.stringify(p);
@@ -142,6 +144,6 @@ function PolicyEditor({ p, act }: { p: Policy; act: (a: Record<string, unknown>,
     </div>
     <div className="row gap"><span className="grow sub">{changed ? "Not saved yet." : "This is the policy in force."}</span>
       <button className="btn ghost" disabled={!changed} onClick={() => setD(JSON.parse(JSON.stringify(p)))}>Undo</button>
-      <button className="btn primary" disabled={!changed} onClick={() => act({ do: "set_policy", policy: d }, "Policy saved. It applies from the next claim.")}>Save policy</button></div>
+      <button className="btn primary" disabled={!changed} onClick={() => act({ do: "set_policy", policy: d }, "Policy saved. It applies from the next claim.")}>{changed ? "Save policy" : "Saved"}</button></div>
   </section>;
 }

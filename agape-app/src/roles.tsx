@@ -202,7 +202,7 @@ function ServiceControl({ o, x }: { o: OpsView; x: StaffActs }) {
       <div className="block-head"><h2>Pause all service</h2><span className="sub">every stand, every phone</span></div>
       <input value={reason} onChange={e => { setReason(e.target.value); setSure(false); }} maxLength={160} placeholder="What fans should be told" aria-label="Reason" />
       {!sure ? <button className="btn ghost wide" disabled={!reason.trim()} onClick={() => setSure(true)}>Stop service…</button>
-        : <button className="btn danger wide" onClick={() => { staffAct("ops", x, { do: "halt", reason }, "Service paused. Every fan has been told."); setSure(false); setReason(""); }}>Pause all service now</button>}
+        : <div className="row-acts"><button className="btn ghost" onClick={() => setSure(false)}>Cancel</button><button className="btn danger wide" onClick={() => { staffAct("ops", x, { do: "halt", reason }, "Service paused. Every fan has been told."); setSure(false); setReason(""); }}>Pause all service now</button></div>}
       <small className="sub">Nothing new can be ordered. Orders not yet being made are cancelled and nobody is charged; food already cooking or on its way still goes out.</small>
     </section>
   );
@@ -223,7 +223,7 @@ export function Problems({ o }: { o: OpsView; x?: StaffActs }) {
   );
 }
 
-export function OpsLens({ o, compact, x }: { o: OpsView; compact?: boolean; x?: StaffActs }) {
+export function OpsLens({ o, compact, x, venue }: { o: OpsView; compact?: boolean; x?: StaffActs; venue?: boolean }) {
   const inFlight = ["Accepted", "Preparing", "Ready", "Assigned", "PickedUp"].reduce((n, k) => n + (o.stages[k] ?? 0), 0);
   const stands = [...o.map.stands].sort((a, b) => b.wait - a.wait);
   const maxWait = Math.max(900, ...stands.map(s => s.wait));
@@ -278,7 +278,7 @@ export function OpsLens({ o, compact, x }: { o: OpsView; compact?: boolean; x?: 
           </table></div>
           {o.exchanges.exits.length > 0 && <ul className="earned">{o.exchanges.exits.map((e, i) => <li key={i}><span className="grow">{e.kind}: {EXIT_COPY[e.exit] ?? e.exit}</span><small>{e.owner === "nobody" ? "nobody's fault" : `on ${e.owner}`}</small><b className="num">{e.count}</b></li>)}</ul>}</>}
           <div className="block-head"><h2>Money tonight</h2><span className="sub">Every dollar in, and where it went</span></div>
-          <MoneyFlows f={(o.ledger as any).flows ?? {}} />
+          <MoneyFlows f={(o.ledger as any).flows ?? {}} venue={venue} />
         </section>}
       </div>
       {!compact && x && !o.halt && <div className="ops-foot"><ServiceControl o={o} x={x} /></div>}

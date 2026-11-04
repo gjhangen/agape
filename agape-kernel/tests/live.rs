@@ -134,13 +134,14 @@ fn your_section_hears_you_and_only_your_section() {
 #[test]
 fn predicting_a_quarter_pays_points_through_the_ledger() {
     let mut n = night();
-    until(&mut n, 46);
+    until(&mut n, 45);
+    for _ in 0..2 { n.step(); }
     let v = n.view_fan(YOU);
     assert_eq!(v["live"]["prediction"]["open"], true, "picks open as the quarter starts");
     n.you_predict("home").unwrap();
     let before = n.view_fan(YOU)["me"]["points"].as_i64().unwrap();
     until(&mut n, 52);
-    assert!(n.you_predict("away").is_err(), "picks lock a few minutes in");
+    assert!(n.you_predict("away").is_err(), "picks lock a minute in");
     until(&mut n, 74);
     let v = n.view_fan(YOU);
     let p = &v["live"]["prediction"];

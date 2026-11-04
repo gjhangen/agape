@@ -55,7 +55,7 @@ const CHAT: &[&str] = &["LET'S GO {HOME}", "defense!!", "that was a foul", "who'
     "upper deck making noise", "that's a travel all day", "ref you're missing a great game", "can we get a stop", "my kid caught a shirt!!",
     "anyone collecting the cards tonight?", "{p3} with the hustle", "sweep the boards", "love this building", "big run coming, I can feel it"];
 const CHAT_PRE: &[&str] = &["let's gooo", "first time in this building", "who's getting food before it starts?", "these seats are amazing", "{HOME} warmups look sharp", "can't wait", "ordered from my seat, this is the way", "section's filling up", "it's gonna be loud tonight"];
-const CHAT_SHOW: &[&str] = &["{HOME}!!!", "this sound is unreal", "who's getting merch?", "I can't believe we're here", "play Fever Line!!", "the lights tonight", "best opener I've seen in a while", "my voice is already gone", "hot dog came in 6 min, didn't miss a song", "this section is LOUD"];
+const CHAT_SHOW: &[&str] = &["{ACT}!!!", "this sound is unreal", "who's getting merch?", "I can't believe we're here", "play Fever Line!!", "the lights tonight", "best opener I've seen in a while", "my voice is already gone", "hot dog came in 6 min, didn't miss a song", "this section is LOUD"];
 const CHAT_SONG: &[&str] = &["THIS SONG", "everybody's singing", "chills", "I'm actually crying", "LOUDER", "filming this whole thing", "best night ever", "the whole arena knows every word"];
 const CHAT_RUN: &[&str] = &["{HOME} RUN", "here we go!!", "they can't stop us", "LOUDER", "WHAT A PLAY", "this building is shaking", "{STAR}!!!", "get that card!!", "we're so back"];
 const CHAT_AWAY: &[&str] = &["ugh", "wake up {home}", "timeout please", "we're fine. we're fine.", "defense??", "they can't keep shooting like this", "still plenty of time", "need a stop here", "come on {home}"];
@@ -429,7 +429,8 @@ impl Night {
         let short = home.map(|g| g.short.clone()).unwrap_or_default();
         let who = |i: usize| home.and_then(|g| g.roster.get(i)).map(|m| last_name(&m.name)).unwrap_or_default();
         let star = home.and_then(|g| g.roster.iter().find(|m| m.star)).map(|m| last_name(&m.name)).unwrap_or_else(|| who(0));
-        line.replace("{HOME}", &short.to_uppercase()).replace("{home}", &short.to_lowercase()).replace("{away}", &away)
+        let act = self.concert().and_then(|c| c.acts.last().cloned()).unwrap_or_default();
+        line.replace("{ACT}", &act.to_uppercase()).replace("{HOME}", &short.to_uppercase()).replace("{home}", &short.to_lowercase()).replace("{away}", &away)
             .replace("{STAR}", &star.to_uppercase()).replace("{star}", &star).replace("{p2}", &who(1)).replace("{p3}", &who(2))
     }
 
@@ -796,6 +797,8 @@ impl Night {
     fn mint_moment(&mut self, kind: &str, side: &str, scorer: &str) -> Option<String> {
         if !self.on("cards") { return None; }
         if let Some(c) = self.concert().cloned() {
+            // only songs become cards at a show: not the game's runs, leads or last call
+            if kind != "encore" && kind != "favorite" { return None; }
             // a song the whole building sings becomes a card; the encore is the rarest
             let (supply, rarity) = if kind == "encore" { (80, "Rare") } else { (180, "Uncommon") };
             let head = c.acts.get(2).cloned().unwrap_or_default();
@@ -1304,30 +1307,14 @@ impl Night {
                     self.sched(t + 1000, Ev::Settle(id));
                 }
                 Ev::FanCollects(id) => {
+                    // the stand may already have handed it over by hand
+                    if self.orders[id].c.stage != Stage::Ready { continue; }
                     let stand = self.orders[id].c.quote.stand.clone();
                     self.orders[id].c.act(Action::Deliver, &stand, &mut self.ledger, &self.terms).unwrap();
                     self.orders[id].delivered_at = Some(t);
                     self.sched(t + 1000, Ev::Settle(id));
                 }
-                Ev::Settle(id) => {
-                    let fan = self.orders[id].c.quote.fan.clone();
-                    // fans' complaints go through problems and remedies (care.rs, remedy.rs) now
-                    let dispute = false;
-                    let upheld = self.rng.chance(0.3);
-                    let o = &mut self.orders[id];
-                    let res: Result<(), CommitError> = if dispute {
-                        o.c.act(Action::Dispute, &fan, &mut self.ledger, &self.terms).map(|_| ())
-                            .and_then(|_| o.c.act(Action::Resolve { upheld }, "agape", &mut self.ledger, &self.terms).map(|_| ()))
-                    } else { o.c.act(Action::Settle, "agape", &mut self.ledger, &self.terms).map(|_| ()) };
-                    res.unwrap();
-                    if o.c.stage == Stage::Settled {
-                        let b = breakdown(&o.c.quote, &self.terms).unwrap();
-                        let (src, q) = (o.source.clone(), o.c.quote.clone());
-                        self.attr.settled(&src, &q, &b);
-                        self.use_credit(id, b.charge);
-                        self.crowd_claim(id);
-                    }
-                }
+                Ev::Settle(id) => self.settle_now(id),
             }
         }
         while self.recent.front().map_or(false, |r| t - r.0 > 300_000) { self.recent.pop_front(); }
@@ -1414,6 +1401,7 @@ pub fn money_flows(l: &Ledger, stands: &[String], runners: &[String]) -> BTreeMa
             (p, _) if stands.iter().any(|s| s == p) => "stands",
             (_, "revenue") => "venue_partners",
             (_, "earnings" | "payouts") => "people",
+            (_, "credit") => "credit",
             _ => "held",
         };
         let sign = if k.starts_with("in_") { -1 } else { 1 };
@@ -1516,8 +1504,30 @@ impl Night {
         let t = self.t;
         self.orders[order].c.act(Action::Deliver, stand, &mut self.ledger, &self.terms).map_err(|e| format!("{e:?}"))?;
         self.orders[order].delivered_at = Some(t);
-        self.sched(t + 1000, Ev::Settle(order));
+        self.settle_now(order);
         Ok(())
+    }
+
+    /// Capture a delivered order: the money moves, credit is used first, and now and then the crowd complains.
+    pub(crate) fn settle_now(&mut self, id: usize) {
+                    if self.orders[id].c.stage != Stage::Delivered { return; }
+                    let fan = self.orders[id].c.quote.fan.clone();
+                    // fans' complaints go through problems and remedies (care.rs, remedy.rs) now
+                    let dispute = false;
+                    let upheld = self.rng.chance(0.3);
+                    let o = &mut self.orders[id];
+                    let res: Result<(), CommitError> = if dispute {
+                        o.c.act(Action::Dispute, &fan, &mut self.ledger, &self.terms).map(|_| ())
+                            .and_then(|_| o.c.act(Action::Resolve { upheld }, "agape", &mut self.ledger, &self.terms).map(|_| ()))
+                    } else { o.c.act(Action::Settle, "agape", &mut self.ledger, &self.terms).map(|_| ()) };
+                    res.unwrap();
+                    if o.c.stage == Stage::Settled {
+                        let b = breakdown(&o.c.quote, &self.terms).unwrap();
+                        let (src, q) = (o.source.clone(), o.c.quote.clone());
+                        self.attr.settled(&src, &q, &b);
+                        self.use_credit(id, b.charge);
+                        self.crowd_claim(id);
+                    }
     }
 
     /// The kitchen marks an order ready.
@@ -1653,7 +1663,8 @@ impl Night {
         if t > o.promise { if o.c.late_by.is_none() { o.c.late_by = Some(("agape".into(), (t - o.promise) / 1000)); } self.report.late += 1; }
         o.c.act(Action::Deliver, runner, &mut self.ledger, &self.terms).map_err(|e| format!("{e:?}"))?;
         o.delivered_at = Some(t);
-        self.sched(t + 1000, Ev::Settle(order));
+        // a person's handoff is paid the moment they tap it
+        self.settle_now(order);
         self.after_handoff(runner);
         Ok(())
     }

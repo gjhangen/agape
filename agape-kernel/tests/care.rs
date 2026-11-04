@@ -240,3 +240,21 @@ fn agape_can_pay_runners_by_the_hour_and_make_delivery_free_over_an_amount() {
     assert_eq!(order(&mut n, id)["breakdown"]["fee"], 0);
     assert!(balanced(&n));
 }
+
+#[test]
+fn a_stand_handing_over_pickups_by_hand_never_breaks_the_night() {
+    let mut n = night();
+    until(&mut n, 50);
+    let stand = n.world.thing("burger").unwrap().stand.clone();
+    n.clock_in(&stand).unwrap();
+    // a run of pickup orders, handed over by the stand as soon as they're on the shelf
+    for _ in 0..4 { let _ = n.you_order("burger", 1, false, 0); }
+    for _ in 0..400 {
+        n.step();
+        let ready: Vec<usize> = n.view_stand(&stand)["pickups"].as_array().unwrap().iter().map(|o| o["id"].as_u64().unwrap() as usize).collect();
+        for id in ready { let _ = n.handed_over(&stand, id); }
+        let making: Vec<usize> = n.view_stand(&stand)["stations"].as_array().unwrap().iter().filter_map(|x| x["order"]["id"].as_u64()).map(|x| x as usize).collect();
+        for id in making { let _ = n.mark_ready(&stand, id); }
+    }
+    assert!(balanced(&n));
+}

@@ -74,7 +74,7 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
         <EventSwitch />
         </div>
         <div className="st-ctl">
-          <button className="btn h-btn" onClick={() => setPlaying(!playing)}>{playing ? "Pause" : "Play"}</button>
+          <button className="btn h-btn" onClick={() => setPlaying(!playing)}>{playing ? "Pause" : "Resume"}</button>
           <div className="seg h-seg" role="group" aria-label="Speed">{SPEEDS.map((s, i) => <button key={s.label} className={speed === i ? "on" : ""} onClick={() => setSpeed(i)}>{s.label}</button>)}</div>
           <button className={"btn h-btn" + (explain ? " lit" : "")} aria-pressed={explain} disabled={!explainable} title={explainable ? "Tap parts of the app to see what they are and why they're there" : "Available once the app is open"} onClick={() => { setExplain(!explain); setNote(null); }}>{explain ? "Explaining" : "Explain"}</button>
           <button className="btn h-btn" onClick={() => setFull(true)}>Full screen</button>
@@ -165,7 +165,9 @@ export function useHoldOnBeat(beatId: string) {
     const go = () => setWaiting(false);
     // the next action, not the one that brought this step on
     const t = setTimeout(() => { addEventListener("pointerdown", go, { once: true, capture: true }); addEventListener("keydown", go, { once: true, capture: true }); }, 350);
-    return () => { clearTimeout(t); removeEventListener("pointerdown", go, true); removeEventListener("keydown", go, true); };
+    // never held for long: time enough to read, then the night carries on by itself
+    const auto = setTimeout(go, 9000);
+    return () => { clearTimeout(t); clearTimeout(auto); removeEventListener("pointerdown", go, true); removeEventListener("keydown", go, true); };
   }, [waiting]);
   return waiting;
 }
@@ -175,7 +177,7 @@ export function useTopHeight() {
   useEffect(() => {
     const el = document.querySelector(".st-top") as HTMLElement | null; if (!el) return;
     // a phone is drawn at a real phone's size (390 × 844) and scaled to fit, so what's inside lays out as on a phone
-    const set = () => { const r = document.documentElement.style; r.setProperty("--st-top", el.offsetHeight + "px"); r.setProperty("--dz", String(Math.min(1, Math.max(0.6, (innerHeight - el.offsetHeight - 92) / 868)))); };
+    const set = () => { const r = document.documentElement.style; r.setProperty("--st-top", el.offsetHeight + "px"); r.setProperty("--dz", String(Math.min(1, Math.max(0.6, (innerHeight - el.offsetHeight - 92) / 868)))); r.setProperty("--mz", String(Math.min(1, (innerWidth - 24) / 414))); };
     set(); const o = new ResizeObserver(set); o.observe(el); addEventListener("resize", set); return () => { o.disconnect(); removeEventListener("resize", set); };
   }, []);
 }

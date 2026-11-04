@@ -120,7 +120,7 @@ export type Offer = {
 function endedText(o: Offer) {
   switch (o.ended) {
     case "Time": return "This one ended";
-    case "Condition": return o.condition ? `${o.condition}. That's over now` : "Ended";
+    case "Condition": return o.condition ? `${cond(o.condition)}. That's over now` : "Ended";
     case "SoldOut": return "Sold out";
     case "BudgetSpent": case "CapReached": return o.guaranteed ? "You claimed this one" : "All claimed";
     case "Paused": return "Paused while the stand catches up";
@@ -164,7 +164,7 @@ export function OfferCard({ o, now, onTap, onCheckout }: { o: Offer; now: number
         {o.guaranteed && live && <p className="held">{o.held_for_you ? `Held for you until ${venueTime(o.ends_at ?? now)}` : "Guaranteed"}</p>}
         {!o.guaranteed && live && (
           <div className="drains">
-            {o.condition && <span className="cond">{o.condition}</span>}
+            {o.condition && <span className="cond">{cond(o.condition)}</span>}
             {time != null && <Drain f={time} tone={tone(time)} label={o.ends_at! - now <= 300000 ? `Ends in ${countdown(o.ends_at! - now)}` : `Until ${venueTime(o.ends_at!)}`} />}
             {qty != null && <Drain f={qty} tone={tone(qty)} label={`${o.left} of ${o.left_at_open} left${o.discount ? " at this price" : ""}`} />}
           </div>
@@ -276,7 +276,7 @@ export type FeedItem = { t: number; kind: string; team: string; text: string };
 
 export function SignalRow({ f }: { f: FeedItem }) {
   let text = f.text, cls = f.kind;
-  if (f.kind === "moment") text = momentText(f.text, f.team);
+  if (f.kind === "moment") { text = momentText(f.text, f.team); if (f.team) cls += " " + f.team; }
   if (f.kind === "score") { const [pts, star] = f.text.replace("+", "").split(" "); text = `${team(f.team)} +${pts}${star && f.team === "home" ? ` · ${BRAND.star}` : ""}`; cls += " " + f.team; }
   if (f.kind === "offer") text = `New offer: ${f.text}`;
   if (f.kind === "alert") text = "Stands are busy. Waits are climbing";
@@ -337,10 +337,7 @@ export function PlaceView({ m, onStand, focusStand, showRunners = true, heat = t
       {[0, 6, 12, 18].map(r => { const [x, y] = pt((R.c1 + R.l2i) / 2 + 2, ang(r)); return <rect key={r} x={x - 3} y={y - 3} width={6} height={6} className="stairs"><title>Stairs</title></rect>; })}
       {(() => { const [x, y] = pt((R.c1 + R.l2i) / 2 + 2, ang(3)); return <rect x={x - 4} y={y - 4} width={8} height={8} rx={2} className="lift"><title>Elevator</title></rect>; })()}
       {yrPath.length > 1 && !route && <path d={path(yrPath)} className="route" />}
-      {route && route.length > 1 && <>
-        <path d={path(route.slice(1).reduce<[number, number][]>((acc, to, k) => acc.concat(walk(route[k], to, m.stands)), []))} className="route trip" />
-        {(() => { let n = 0; return route.slice(1).map((pl, k) => { const stand = m.stands.some(st => st.id === pl); if (!stand) n++; const [x, y] = placePoint(pl, m.stands); return <g key={k} className={"stop" + (stand ? " pickup" : "")}><circle cx={x} cy={y} r={8} /><text x={x} y={y + 3.5} textAnchor="middle">{stand ? "P" : n}</text></g>; }); })()}
-      </>}
+
       {m.runners.filter(r => (showRunners || r.id === yr?.id) && !(selfRunner && r.id === yr?.id)).map(r => {
         const p = r.busy ? along(walk(r.from, r.to, m.stands), r.progress) : placePoint(r.from, m.stands);
         return <circle key={r.id} cx={p[0]} cy={p[1]} r={yr?.id === r.id ? 6 : 3.2} className={"runner" + (r.busy ? " busy" : "") + (yr?.id === r.id ? " yours" : "")} />;
@@ -358,6 +355,10 @@ export function PlaceView({ m, onStand, focusStand, showRunners = true, heat = t
       {youPt && <g transform={`translate(${youPt[0]},${youPt[1]})`} className="youpin"><circle r={11} className="pulse" /><circle r={5} /></g>}
       {selfRunner && yr && (() => { const p = yr.busy ? along(walk(yr.from, yr.to, m.stands), yr.progress) : placePoint(yr.from, m.stands);
         return <g transform={`translate(${p[0]},${p[1]})`} className="youpin"><circle r={11} className="pulse" /><circle r={5} /></g>; })()}
+    {route && route.length > 1 && <>
+        <path d={path(route.slice(1).reduce<[number, number][]>((acc, to, k) => acc.concat(walk(route[k], to, m.stands)), []))} className="route trip" />
+        {(() => { let n = 0; return route.slice(1).map((pl, k) => { const stand = m.stands.some(st => st.id === pl); if (!stand) n++; const [x, y] = placePoint(pl, m.stands); return <g key={k} className={"stop" + (stand ? " pickup" : "")}><circle cx={x} cy={y} r={8} /><text x={x} y={y + 3.5} textAnchor="middle">{stand ? "P" : n}</text></g>; }); })()}
+      </>}
     </svg>
   );
 }
@@ -389,18 +390,23 @@ const FLOW_OUT: [string, string, string?][] = [
   ["interchange", "Card networks", "interchange, paid by Agape"],
   ["agape", "Agape: share and delivery fees", "after runner pay"],
   ["agape_processing", "Agape: card processing", "what sellers paid, less interchange"],
+  ["credit", "Agape credit fans hold", "made right, not spent yet"],
   ["held", "Still held", "for deals not finished yet"],
 ];
-export function MoneyFlows({ f }: { f: Record<string, number> }) {
+/** `venue`: the venue's own view, where Agape's share, fees and card processing are one line (its agreement), not Agape's internals. */
+export function MoneyFlows({ f: f0, venue }: { f: Record<string, number>; venue?: boolean }) {
+  const f: Record<string, number> = venue ? { ...f0, agape: (f0?.agape ?? 0) + (f0?.agape_processing ?? 0) + (f0?.interchange ?? 0), agape_processing: 0, interchange: 0 } : f0;
   const g = (k: string) => f?.[k] ?? 0;
   const inn = g("in_fans") + g("in_partners");
+  const OUT = FLOW_OUT.map(([k, l, n]) => k === "agape" && venue ? [k, "Agape", "its share, delivery fees and card processing, as agreed; runners are paid out of it"] as [string, string, string]
+    : k === "people" && !feature("players") ? [k, "Drivers and fans reselling", n] as [string, string, string?] : [k, l, n] as [string, string, string?]);
   return (
     <div className="lines flows">
       <LedgerLine label="Fans paid" amount={g("in_fans")} />
-      {g("in_partners") !== 0 && <LedgerLine label="Sponsors and businesses put in" amount={g("in_partners")} note="discounts they fund and deals with players" />}
+      {g("in_partners") !== 0 && <LedgerLine label="Sponsors and businesses put in" amount={g("in_partners")} note={feature("players") ? "discounts they fund and deals with players" : "discounts they fund"} />}
       <LedgerLine label="Money in" amount={inn} strong />
-      {FLOW_OUT.filter(([k]) => g(k) !== 0).map(([k, l, n]) => <LedgerLine key={k} label={l} amount={g(k)} note={n} />)}
-      <LedgerLine label="Money out" amount={FLOW_OUT.reduce((s, [k]) => s + g(k), 0)} strong />
+      {OUT.filter(([k]) => g(k) !== 0).map(([k, l, n]) => <LedgerLine key={k} label={l} amount={g(k)} note={n} />)}
+      <LedgerLine label="Money out" amount={OUT.reduce((s, [k]) => s + g(k), 0)} strong />
     </div>
   );
 }
@@ -485,5 +491,13 @@ export const W = {
     ? { Changeover: "Break", "The finale": "Finale", "End of the show": "End", "The headliner": "Headliner", "First act": "First act" }
     : { Halftime: "Half", "Start of the 3rd": "Q3", "Start of the 4th": "Q4", "Final buzzer": "Final", "Tip-off": "Tip-off" }; },
 };
+/** Anything charged right away (tickets, a better seat, parking, a ride) needs a way to pay first. */
+export function payReady(toast: (t: string) => void): boolean {
+  try { if (JSON.parse(localStorage.getItem("agape.prefs") || "{}").pay) return true; } catch { return true; }
+  toast("Add a way to pay first: Me, then Payment.");
+  return false;
+}
+/** An offer's condition in tonight's words: a concert has changeovers, not halftimes. */
+export const cond = (c: string) => isConcert() ? c.replace(/Halftime/g, "Changeover").replace(/halftime/g, "changeover") : c;
 /** Floors of the building, in fans' words. */
 export const concourse = (level: number) => level <= 1 ? "lower concourse" : "upper concourse";

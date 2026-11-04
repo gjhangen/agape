@@ -32,6 +32,7 @@ function CantMake({ id, act }: { id: number; act: (a: Record<string, unknown>, o
 function Station({ s, stage, next, toast, refresh }: { s: StandView | null; stage: Stage; next: (x: Stage) => void; toast: (t: string) => void; refresh: () => void }) {
   const [tab, setTab] = useState<Tab>("orders");
   const [pin, setPin] = useState("");
+  const [stopSure, setStopSure] = useState(false);
   const act = (a: Record<string, unknown>, ok: string) => { const x = kernel.act({ ...a, as: STAND }); toast(x.ok ? ok : x.error); refresh(); };
   if (stage === "boot") return <div className="ob ob-boot"><div className="ob-mark"><b>agape</b><small>station</small></div></div>;
   if (stage === "pin") return (
@@ -78,10 +79,10 @@ function Station({ s, stage, next, toast, refresh }: { s: StandView | null; stag
         <header className="sx-top">
           <div><b>{s.name}</b><small>{s.on_shift ? "Open" : "Closed"} · {venueTime(now)}</small></div>
           <div className="sx-wait"><span className="eyebrow">New orders take about</span><b className="num">{Math.max(1, Math.round(s.wait / 60))} min</b></div>
-          <button className={"sx-open" + (s.on_shift ? " on" : "")} onClick={() => act({ do: s.on_shift ? "clock_out" : "clock_in" }, s.on_shift ? "Stopped taking new orders." : "You're open.")}>{s.on_shift ? "Stop new orders" : "Open for orders"}</button>
+          <button className={"sx-open" + (s.on_shift ? (stopSure ? " danger" : " on") : "")} onClick={() => { if (s.on_shift && !stopSure) { setStopSure(true); setTimeout(() => setStopSure(false), 4000); return; } setStopSure(false); act({ do: s.on_shift ? "clock_out" : "clock_in" }, s.on_shift ? "Stopped taking new orders." : "You're open."); }}>{s.on_shift ? (stopSure ? "Tap again to stop new orders" : "Stop new orders") : "Open for orders"}</button>
         </header>
         {tab === "orders" && <div className="sx-cols">
-          <section className="sx-col next"><h3>Coming up <span className="num">{s.queue_len}</span></h3>{s.queue.length ? s.queue.slice(0, 6).map(o => ticket(o)) : <p className="empty">Nothing waiting.</p>}</section>
+          <section className="sx-col next"><h3>Coming up <span className="num">{s.queue_len}</span></h3>{s.queue.length ? <>{s.queue.slice(0, 6).map(o => ticket(o))}{s.queue_len > 6 && <p className="empty">+{s.queue_len - 6} more waiting</p>}</> : <p className="empty">Nothing waiting.</p>}</section>
           <section className="sx-col making"><h3>Making <span className="num">{making.length} of {s.stations.length}</span></h3>
             {making.length ? s.stations.map(x => x.order && ticket(x.order, <div className="row gap"><CantMake id={x.order!.id} act={act} /><button className="btn primary sm grow" onClick={() => act({ do: "ready", order: x.order!.id }, `#${x.order!.id} is on the shelf.`)}>Ready</button></div>, x.until))
               : <p className="empty">Stations are free.</p>}</section>

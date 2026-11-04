@@ -29,13 +29,17 @@ const crewBase = { set: false, pay: 0, tips: 0, delivered: 0 };
 function Handoff({ o, act, now }: { o: any; act: (a: Record<string, unknown>, ok: string) => void; now: number }) {
   const [photo, setPhoto] = useState(false);
   const [pin, setPin] = useState("");
+  const [lost, setLost] = useState(false);
+  const [id21, setId21] = useState(false);
   const done = () => act({ do: "delivered", order: o.id, photo, pin }, o.check_id ? "ID checked, handed over." : "Handed over.");
   return <div className="cw-handoff">
     {o.proof === "photo" && <label className={"btn block " + (photo ? "ghost" : "primary")}>{photo ? "Photo taken ✓" : "Take a photo of the handoff"}<input type="file" accept="image/*" capture="environment" hidden onChange={e => setPhoto(!!e.target.files?.length)} /></label>}
-    {o.proof === "pin" && <label className="sf wide"><span>The fan's PIN, from their phone</span><input inputMode="numeric" maxLength={4} value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ""))} placeholder="4 digits" /></label>}
+    {o.check_id && <label className="check"><input type="checkbox" checked={id21} onChange={e => setId21(e.target.checked)} /> I checked their ID: 21 or older</label>}
+    {o.proof === "pin" && <label className="sf wide"><span>The fan's PIN, from their phone</span><input inputMode="numeric" maxLength={4} value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ""))} placeholder="4 digits" />{o.demo_pin && <small className="sub">In this demo, the fan's phone shows <b className="num">{o.demo_pin}</b>.</small>}</label>}
+    {o.proof === "photo" && !photo && <small className="sub">This fan's handoffs need a photo. In this demo, any picture works.</small>}
     <div className="row gap">
-      <button className="btn ghost sm" disabled={!o.handoff_ok_at || now < o.handoff_ok_at} onClick={() => act({ do: "unreachable", order: o.id }, "Marked. You're still paid for the trip.")}>Can't find them</button>
-      <button className="btn primary sm grow" disabled={(o.proof === "photo" && !photo) || (o.proof === "pin" && pin.length !== 4)} onClick={done}>Handed over</button>
+      <button className="btn ghost sm" disabled={!o.handoff_ok_at || now < o.handoff_ok_at} onClick={() => { if (!lost) { setLost(true); return; } act({ do: "unreachable", order: o.id }, "Marked. You're paid for the trip; the tip goes back to the fan, and the stand is told about the food."); }}>{lost ? "Yes, I can't find them" : "Can't find them"}</button>
+      <button className="btn primary sm grow" disabled={(o.proof === "photo" && !photo) || (o.proof === "pin" && pin.length !== 4) || (o.check_id && !id21)} onClick={done}>Handed over</button>
     </div>
   </div>;
 }
@@ -46,6 +50,7 @@ function shiftFixed() { try { return !!(kernel.view("runner", RUNNER) as any)?.s
 function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage: Stage; next: (s: Stage) => void; toast: (s: string) => void; refresh: () => void }) {
   const [tab, setTab] = useState<Tab>("home");
   const [sure, setSure] = useState(false);
+  const [cashed, setCashed] = useState(0);
   const name = runnerName(RUNNER).replace(/ .\.$/, "");
   const act = (a: Record<string, unknown>, ok: string) => {
     if (a.do === "clock_in" && !crewBase.set && r) { crewBase.set = true; crewBase.pay = r.pay; crewBase.tips = r.tips; crewBase.delivered = r.delivered; }
@@ -137,9 +142,9 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
         {tab === "earn" && <>
           <section className="block cw-earn"><span className="eyebrow">Tonight at {BRAND.venue}</span><b className="cw-earn-big num">{money(pay + tips)}</b>
             <div className="lines"><div className="ledger"><span className="grow">Trip pay</span><span className="num">{money(pay)}</span></div><div className="ledger"><span className="grow">Tips, all yours</span><span className="num">{money(tips)}</span></div></div>
-            <button className="btn primary block cw-cashout" disabled={pay + tips <= 0} onClick={() => toast(`${money(pay + tips)} is on its way to your debit card.`)}>Cash out now</button>
+            <button className="btn primary block cw-cashout" disabled={pay + tips - cashed <= 0} onClick={() => { toast(`${money(pay + tips - cashed)} is on its way to your debit card.`); setCashed(pay + tips); }}>{pay + tips - cashed > 0 ? `Cash out ${money(pay + tips - cashed)} now` : "Cashed out"}</button>
             <small className="sub">Arrives in minutes. Or it's paid out automatically every Monday.</small></section>
-          <section className="block"><h2>This week</h2><div className="cw-bars">{[0, 0, 0, 0, 0, 0, pay + tips].map((v, i, a) => <div key={i}><i style={{ height: `${v ? Math.max(8, 100 * v / Math.max(...a)) : 4}%` }} /><small>{i === 6 ? "Sun" : "MTWTFS"[i]}</small></div>)}</div></section>
+          <section className="block"><h2>This week</h2><div className="cw-bars">{[0, 0, 0, 0, 0, 0, pay + tips].map((v, i, a) => <div key={i}><i style={{ height: `${v ? Math.max(8, Math.round(90 * v / Math.max(...a))) : 3}px` }} /><small>{i === 6 ? "Sun" : "MTWTFS"[i]}</small></div>)}</div></section>
         </>}
         {tab === "me" && <>
           <header className="me-head"><span className="me-av big">{name.slice(0, 1)}</span><div className="grow"><h2>{name}</h2><small>First night · {r.rating ? `★ ${r.rating.toFixed(1)}` : "new"}</small></div></header>
@@ -173,7 +178,7 @@ function beat(stage: Stage, r: RunnerView | null): Beat {
   if (!t) return r.delivered > crewBase.delivered ? { id: "done", title: "Paid as you go", body: <>Each trip adds its pay and tips to your earnings at once. You can cash out tonight from Earnings, or keep going.</> }
     : { id: "wait", title: "Waiting for a trip", body: <>Orders are ready as stands finish them, and you're offered the next trip that's ready. On a busy night it takes seconds.</> };
   if (!t.accepted) return t.mode === "hourly" ? { id: "offer", title: "Your next trip", body: <>About {t.minutes} minutes. Tonight Agape pays runners by the hour, so every trip pays the same; the tip shown is yours on top.</> }
-    : { id: "offer", title: "An offer, with the pay up front", body: <>{money(t.pay)} for about {t.minutes} minutes: the pay is priced on the walk and wait, and the tip is shown on top. If you pass, it goes to the next runner for a little more.</> };
+    : { id: "offer", title: "An offer, with the pay up front", body: <>{money(t.base ?? t.pay)} for about {t.minutes} minutes{t.tips ? <>, plus {money(t.tips)} in tips</> : null}: the pay is priced on the walk and wait, and every tip is the runner's. If you pass, it goes to the next runner for a little more.</> };
   if (!t.picked) return { id: "pick", title: `To ${t.stand_name}`, body: <>The order is on the ready shelf. You grab it by its number and confirm the pickup.</> };
   return { id: "hand", title: "Seat by seat", body: <>The section for each order, plus the row and seat when the fan has given them. Drinks with alcohol need an ID check first. The fan's phone shows you coming.</> };
 }

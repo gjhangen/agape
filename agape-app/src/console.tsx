@@ -4,7 +4,7 @@ import { React, ReactDOM, useEffect, useState } from "./r";
 import { boot, kernel, setWorldOverride } from "./kernel";
 import { BRAND, Icon, money, levelFeatures } from "./parts";
 import { OpsLens, OpsView } from "./roles";
-import { BusinessLens } from "./deals";
+import { BusinessLens, redeemedHere } from "./deals";
 import { SetupLens } from "./setup";
 import { Beat, Invite, Shell, EVENT, demoWorld, levelParam, useToasts } from "./shell";
 import { Note } from "./explain";
@@ -31,7 +31,7 @@ const PARTNER_NOTES: Note[] = [
 
 function Console({ stage, next, toast, o, b, parties, refresh }: { stage: Stage; next: (s: Stage) => void; toast: (t: string) => void; o: OpsView | null; b: any; parties: any; refresh: () => void }) {
   const [tab, setTab] = useState<"live" | "setup" | "team" | "settings">("live");
-  if (stage === "boot") return <div className="ob ob-boot"><div className="ob-mark"><b>agape</b><small>venue</small></div></div>;
+  if (stage === "boot") return <div className="ob ob-boot"><div className="ob-mark"><b>agape</b><small>{PARTNER ? "partners" : "venue"}</small></div></div>;
   if (stage === "signin") return (
     <form className="ob lp-signin" onSubmit={e => { e.preventDefault(); next("tonight"); }}>
       <div className="lp-card">
@@ -40,7 +40,6 @@ function Console({ stage, next, toast, o, b, parties, refresh }: { stage: Stage;
         <label className="sf wide"><span>Work email</span><input placeholder={PARTNER ? "you@dockstreetpizza.com" : "you@harborarena.com"} /></label>
         <label className="sf wide"><span>Password</span><input type="password" placeholder="Your password" /></label>
         <button className="btn ob-primary">Sign in</button>
-        <small className="ob-fine">Protected with two-step sign-in.</small>
       </div>
     </form>
   );
@@ -68,7 +67,7 @@ function Console({ stage, next, toast, o, b, parties, refresh }: { stage: Stage;
           <button key={id} className={tab === id ? "on" : ""} onClick={() => setTab(id as any)}><Icon name={ic as any} /><small>{l}</small></button>)}
       </aside>
       <div className="lp-main">
-        {tab === "live" && !PARTNER && o && <OpsLens o={o} x={{ toast, refresh }} />}
+        {tab === "live" && !PARTNER && o && <OpsLens o={o} x={{ toast, refresh }} venue />}
         {tab === "live" && PARTNER && b && parties && <BusinessLens b={b} businesses={parties.businesses.filter((x: any) => x.id === BIZ)} pick={() => {}} toast={toast} refresh={refresh} />}
         {tab === "setup" && <SetupLens toast={toast} inApp />}
         {tab === "team" && <div className="sx-report settings-list"><h2>Team</h2>
@@ -87,11 +86,12 @@ function Console({ stage, next, toast, o, b, parties, refresh }: { stage: Stage;
 function beat(stage: Stage, o: OpsView | null): Beat {
   if (PARTNER) {
     if (stage !== "app") return { id: "p0", title: "A pizzeria four minutes from the arena", body: <>Dock Street Pizza partners with {BRAND.venue}. You own it. Fans unlock your perk during the event with the points they earn ordering, and walk over when it ends.</> };
+    if (redeemedHere > 0) return { id: "p2", title: "That's a customer, from the arena", body: <>The fan's code was good and is now used, so it can't be shared or used twice. Every redemption counts toward what you pay for: fans who actually walked in, not people who scrolled past an ad.</> };
     return { id: "p1", title: "Results, as they happen", body: <>Every unlock and every code used at your counter shows up here. Partners pay for results, not for impressions.{demoCode && <> The {EVENT === "concert" ? "show" : "game"} just ended and fans are walking over. One is at your counter now, showing code <b className="num">{demoCode}</b>. Type it in to check it.</>}</> };
   }
   if (stage !== "app") return { id: "v0", title: `Operations at ${BRAND.venue}`, body: <>You run operations here. The whole night runs on Agape: every stand, every runner and every dollar, on one screen. Tonight was set up before the doors opened.</> };
   if (!o) return { id: "x", title: "", body: null };
-  if ((o.problems?.length ?? 0) > 0) return { id: "v2", title: "A fan reported a problem", body: <>Problems at your stands land here as they're made right. Agape settles them by its policy, at the cost of whoever was at fault: a stand's food is the stand's to make right; getting it there is Agape's.</> };
+  if ((o.problems ?? []).some((p: any) => p.state === "open")) return { id: "v2", title: "A fan reported a problem", body: <>Problems at your stands land here as they're made right. Agape settles them by its policy, at the cost of whoever was at fault: a stand's food is the stand's to make right; getting it there is Agape's.</> };
   return { id: "v1", title: "The whole night, as it happens", body: <>Orders, seat waits and runners, the floor as it happens, and further down, every dollar to the cent. Switch to Events to set up the next night: {EVENT === "concert" ? "the lineup" : "the teams"}, menu, terms and what fans get.</> };
 }
 

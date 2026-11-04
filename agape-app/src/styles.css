@@ -1791,3 +1791,36 @@ html.standalone .full-exit { display: none; }
 .story.laptop .st-moment, .story.tablet .st-moment { display: none; }
 @media (min-width: 600px) and (max-width: 980px) { .site-why { grid-template-columns: repeat(2, 1fr); } .site-levels { grid-template-columns: repeat(2, 1fr); } }
 .site-steps li { align-content: start; }
+/* a solid danger button is white on red; a ghost one is red on clear */
+.btn.danger:not(.ghost) { background: var(--bad, #C42B1C) !important; color: #fff !important; border-color: var(--bad, #C42B1C) !important; }
+.btn.ghost.danger { background: transparent !important; color: var(--bad, #C42B1C) !important; border: 1px solid color-mix(in srgb, var(--bad, #C42B1C) 45%, transparent) !important; }
+/* while the story holds, its new step breathes: read me */
+@keyframes held-breathe { 0%, 100% { box-shadow: inset 3px 0 0 color-mix(in srgb, #FF8BAA 30%, transparent); } 50% { box-shadow: inset 3px 0 0 #FF8BAA; } }
+.st-story h2 { padding-left: 12px; margin-left: -12px; }
+html.night-held .st-story h2 { animation: held-breathe 1.4s ease-in-out infinite; }
+/* Phones: the demo phone is a real phone's screen (390 × 844) scaled to the width, so the app inside lays
+   out exactly as it would on a phone: no words broken mid-way, nothing squeezed */
+@media (max-width: 760px) {
+  .story:not(.tablet):not(.laptop):not(.full) .device-frame { width: 414px !important; height: 868px !important; zoom: var(--mz, 1); padding: 12px !important; border-radius: 54px !important; aspect-ratio: auto !important; margin: 0 auto; box-sizing: border-box; }
+  .story:not(.tablet):not(.laptop):not(.full) .device-screen { border-radius: 42px !important; }
+  .story:not(.tablet):not(.laptop):not(.full) .device-notch { top: 22px !important; width: 110px !important; height: 30px !important; }
+  .story:not(.tablet):not(.laptop):not(.full) .device-screen > .phone, .story:not(.tablet):not(.laptop):not(.full) .device-screen .overlay-page { padding-top: 56px !important; }
+  .story:not(.tablet):not(.laptop):not(.full) .device-screen .ob { padding: 56px 24px 24px !important; }
+  .story:not(.tablet):not(.laptop):not(.full) .toasts.in-phone { bottom: 90px !important; }
+}
+/* controls inside an app keep the app's colors, not the dark demo frame's */
+.story .device-screen .h-btn, .story .device-screen .h-seg button { background: var(--surface); color: var(--ink); border: 1px solid var(--line); }
+.story .device-screen .h-seg { background: var(--sunk); border-color: var(--line); }
+.story .device-screen .h-seg button.on { background: var(--ink); color: var(--bg); }
+.story .device-screen select.h-btn { color: var(--ink); background: var(--surface); }
+/* HQ care rows wrap on narrow screens */
+@media (max-width: 900px) { .care-row { flex-wrap: wrap; } .care-acts { max-width: none; justify-content: flex-start; } }
+/* the runner's week: bars have a height to grow into */
+.cw-bars { height: 120px; align-items: end; }
+.cw-bars > div { height: 100%; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; gap: 4px; }
+.cw-bars i { display: block; width: 70%; min-height: 3px; }
+/* nearby perks you can't unlock yet stay readable */
+.around-row .perk.locked, .around-row .locked { color: var(--ink-2) !important; opacity: 1 !important; }
+.around-row .btn.perk:disabled { opacity: 1; background: var(--sunk); color: var(--ink-2); border: 1px solid var(--line); }
+
+.sx-open.danger { background: #C6352B; color: #fff; }
