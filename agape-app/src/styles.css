@@ -1759,3 +1759,20 @@ body { margin: 0; }
 .order-pill .pill-txt b, .order-pill .pill-txt small { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .order-pill .pill-txt small { font-size: 12.5px; opacity: .85; font-weight: 500; }
 .free-hint { display: block; margin-top: 6px; color: var(--good); font-weight: 700; font-size: 13px; }
+/* who are you: one page per audience */
+.who-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; }
+.who-card { position: relative; display: grid; gap: 2px; padding: 16px 40px 16px 16px; border-radius: var(--r-lg); border: 1.5px solid var(--line); background: var(--surface); color: var(--ink); text-decoration: none; }
+.who-card b { font-size: 16px; } .who-card span { color: var(--ink-2); font-size: 13.5px; }
+.who-card i { position: absolute; right: 14px; top: 50%; transform: translateY(-50%); font-style: normal; font-weight: 800; color: var(--accent); font-size: 20px; }
+.who-card:hover { border-color: var(--accent); }
+.site-hero.solo { grid-template-columns: 1fr; }
+.site-hero.solo .eyebrow { color: var(--accent); }
+.site-hero.solo h1 { font-size: clamp(40px, 6.5vw, 84px); }
+.site-mark { text-decoration: none; }
+.site-foot a { margin-right: 4px; }
+/* full screen (and the installed app) is the app alone, edge to edge, on every screen size */
+.story.full .device-frame { position: fixed !important; inset: 0 !important; width: 100vw !important; height: 100vh !important; height: 100dvh !important; padding: 0 !important; border-radius: 0 !important; aspect-ratio: auto !important; zoom: 1 !important; box-shadow: none !important; }
+.story.full .device-screen { border-radius: 0 !important; height: 100% !important; }
+html.standalone .full-exit { display: none; }
+.site-seat { display: flex; flex-direction: column; }
+@media (min-width: 761px) { .story.full:not(.tablet):not(.laptop) .device-frame { width: min(100vw, 480px) !important; inset: 0 auto 0 50% !important; transform: translateX(-50%); box-shadow: 0 0 0 100vmax #0E0F13 !important; } }

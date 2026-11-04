@@ -37,6 +37,7 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
   const [explain, setExplain] = useState(false);
   const [note, setNote] = useState<Note | null>(null);
   const [talk, setTalk] = useState(false);
+  const [phone, setPhone] = useState(false);
   const [fan, setFan] = useState<any>(null);
   const [pulse, setPulse] = useState(0);
   const last = useRef("");
@@ -109,9 +110,11 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
             <a className="btn ghost sm" href="/">What is Agape?</a>
             <a className="btn ghost sm" href="/demo/">Behind the scenes</a>
             <button className="btn ghost sm" onClick={() => setTalk(true)}>Talk to us</button>
+            <button className="btn ghost sm" onClick={() => setPhone(true)}>Get it on your phone</button>
           </div>
         </aside>
       </main>
+      {phone && <DemoModal close={() => setPhone(false)}><OnYourPhone close={() => setPhone(false)} /></DemoModal>}
       {full && <HeldCard beat={beat} on={waiting} exit={() => setFull(false)} />}
       {note && <DemoModal close={() => setNote(null)}><ExplainCard n={note} close={() => setNote(null)} /></DemoModal>}
       {talk && <TalkToUs close={() => setTalk(false)} version={null} />}
@@ -178,9 +181,13 @@ export function useTopHeight() {
 }
 
 /** Full screen: the app alone, edge to edge, with a way back. */
+/** Opened from a phone's home screen: the app on its own, edge to edge. */
+export const standalone = () => { try { return matchMedia("(display-mode: standalone)").matches || !!(navigator as any).standalone || new URLSearchParams(location.search).get("app") === "1"; } catch { return false; } };
+
 export function useFull() {
-  const [full, setFullState] = useState(false);
+  const [full, setFullState] = useState(standalone);
   useEffect(() => { document.documentElement.classList.toggle("demo-full", full); }, [full]);
+  useEffect(() => { document.documentElement.classList.toggle("standalone", standalone()); }, []);
   // the screen's real full screen where the browser allows it (computers, Android, iPad); on an
   // iPhone, where Safari only allows it for video, the app fills the browser window instead
   useEffect(() => {
@@ -192,6 +199,7 @@ export function useFull() {
     const el = document.documentElement as any, d = document as any;
     setFullState(on);
     try {
+      if (on && standalone()) return;
       if (on) { const req = el.requestFullscreen ?? el.webkitRequestFullscreen; const p = req?.call(el, { navigationUI: "hide" }); p?.catch?.(() => {}); }
       else if (d.fullscreenElement || d.webkitFullscreenElement) { const p = (d.exitFullscreen ?? d.webkitExitFullscreen)?.call(d); p?.catch?.(() => {}); }
     } catch { /* the in-page full screen still applies */ }
@@ -205,6 +213,23 @@ export function HeldCard({ beat, on, exit }: { beat: Beat; on: boolean; exit: ()
     <button className="full-exit" onClick={exit} aria-label="Leave full screen">Exit full screen</button>
     {on && <div className="demo-dim held"><div className="held-card" role="status"><b>{beat.title}</b><span>{beat.body}</span><button className="btn sm">Continue</button></div></div>}
   </>;
+}
+
+/** How to put this app on a phone's home screen, or send it to someone. */
+export function OnYourPhone({ close }: { close: () => void }) {
+  const url = location.origin + location.pathname;
+  const [copied, setCopied] = useState(false);
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  return <div className="explain-card">
+    <div className="row gap"><span className="eyebrow grow">On your phone</span><button className="btn ghost sm" onClick={close}>Close</button></div>
+    <h2>Use it like an app</h2>
+    <dl>
+      <dt>On this phone</dt><dd>{ios ? <>Tap Share in Safari, then <b>Add to Home Screen</b>.</> : <>Open your browser's menu, then <b>Install app</b> or <b>Add to Home screen</b>.</>} It opens on its own, full screen, with its own icon.</dd>
+      <dt>On another phone</dt><dd>Send this link and do the same there: <span className="num">{url.replace(/^https?:\/\//, "")}</span></dd>
+      <dt>Updates</dt><dd>It's always the latest version. Nothing to update.</dd>
+    </dl>
+    <button className="btn primary block" onClick={() => { try { navigator.clipboard?.writeText(url); setCopied(true); } catch { /* fine */ } }}>{copied ? "Link copied" : "Copy the link"}</button>
+  </div>;
 }
 
 /** Anything the demo says over the app: the app darkens behind it until it's put away. */

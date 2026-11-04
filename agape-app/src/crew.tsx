@@ -40,6 +40,9 @@ function Handoff({ o, act, now }: { o: any; act: (a: Record<string, unknown>, ok
   </div>;
 }
 
+/** Whether Agape's team has made tonight's shifts fixed (online for the whole event). */
+function shiftFixed() { try { return !!(kernel.view("runner", RUNNER) as any)?.shift?.fixed; } catch { return false; } }
+
 function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage: Stage; next: (s: Stage) => void; toast: (s: string) => void; refresh: () => void }) {
   const [tab, setTab] = useState<Tab>("home");
   const [sure, setSure] = useState(false);
@@ -68,13 +71,13 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
     <div className="ob ob-form">
       <h2>Shifts near you</h2>
       <button className="cw-shift on" onClick={() => next("app")}>
-        <div className="grow"><b>{BRAND.venue}</b><small>{EVENT === "concert" ? "Lumen Rivers: The Tidelines Tour" : `${BRAND.home.name} vs ${BRAND.away.name}`} · tonight 6:45 to 10:30 PM</small><small className="cw-hot">Busy night expected · higher pay at {EVENT === "concert" ? "the changeover" : "halftime"}</small></div><span className="btn primary sm">Claim</span>
+        <div className="grow"><b>{BRAND.venue}</b><small>{EVENT === "concert" ? "Lumen Rivers: The Tidelines Tour" : `${BRAND.home.name} vs ${BRAND.away.name}`} · tonight 6:45 to 10:30 PM</small><small className="cw-hot">{shiftFixed() ? "Fixed shift: online for the whole event" : "Go online whenever you like during the event"} · busiest at {EVENT === "concert" ? "the changeover" : "halftime"}</small></div><span className="btn primary sm">Claim</span>
       </button>
       <div className="cw-shift"><div className="grow"><b>{BRAND.venue}</b><small>Concert · Friday, Nov 13 · 6:45 to 11:00 PM</small></div><span className="sub">Opens Thursday</span></div>
     </div>
   );
   if (!r) return null;
-  // her night starts when she first goes online
+  // the runner's night starts when they first go online
   const pay = crewBase.set ? r.pay - crewBase.pay : 0, tips = crewBase.set ? r.tips - crewBase.tips : 0, delivered = crewBase.set ? r.delivered - crewBase.delivered : 0;
   const t = r.trip;
   const on = !!r.on_shift;
@@ -85,7 +88,7 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
       <header className="cw-top">
         <button className={"cw-online" + (on ? " on" : "") + (sure ? " sure" : "")} onClick={() => { if (on && !sure) { setSure(true); setTimeout(() => setSure(false), 4000); return; } setSure(false); act({ do: on ? "clock_out" : "clock_in" }, on ? "You're offline. No new trips." : "You're online. Trips near you will show up here."); }}>
           <i />{sure ? "Tap again to go offline" : on ? "Online" : "Offline"}</button>
-        <span className="cw-where">{BRAND.venue} · till 10:30 PM</span>
+        <span className="cw-where">{BRAND.venue} · {(r as any).shift?.fixed ? "fixed shift, " : ""}till 10:30 PM</span>
       </header>
       <div className="scope-body">
         {tab === "home" && <>
@@ -98,7 +101,7 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
               <b className="cw-pay num">{money(t.pay)}</b>
               <small>{t.mode === "hourly" ? (t.tips ? `${money(t.tips)} in tips, all yours, on top of your hourly pay` : "You're paid by the hour; any tip a fan adds is yours on top.") : t.tips ? `${money(t.base ?? t.pay)} pay + ${money(t.tips)} in tips, all yours` : "Pay for the trip. Any tip a fan adds is yours on top."}{t.raised > 0 ? ` · up ${money(t.raised)} since ${t.passes === 1 ? "a runner" : `${t.passes} runners`} passed` : ""}</small>
               {r.map && t.route && <div className="cw-map"><PlaceView m={{ ...r.map, your_runner: r.runner }} showRunners={false} heat={false} route={t.route} /></div>}
-              <ol className="cw-route"><li><b>Pick up</b> {t.stand_name}</li>{t.sections.map((s, i) => <li key={i}><b>Hand off</b> section {s.slice(1)}</li>)}</ol>
+              <ol className="cw-route">{((t as any).pickups ?? [t.stand_name]).map((n: string) => <li key={n}><b>Pick up</b> {n}</li>)}{t.sections.map((s, i) => <li key={i}><b>Hand off</b> section {s.slice(1)}</li>)}</ol>
               <p className="sub">About {t.minutes} min · {t.orders.length} order{t.orders.length === 1 ? "" : "s"}</p>
               <div className="deal-act two">
                 <button className="btn ghost big" onClick={() => act({ do: "decline_trip" }, t.mode !== "offers" ? "Passed. It goes to someone else." : "Passed. It goes to the next runner, for a little more.")}>Pass</button>
@@ -110,7 +113,7 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
             <section className="cw-steps">
               <div className={"cw-step" + (t.picked ? " done" : " here")}>
                 <span className="cw-n">1</span>
-                <div className="grow"><b>Pick up at {t.stand_name}</b>
+                <div className="grow"><b>Pick up at {((t as any).pickups ?? [t.stand_name]).join(", then ")}</b>
                   {t.orders.map(o => <small key={o.id}>#{o.id} · {o.items.map(i => `${i.qty}× ${i.name}`).join(", ")}</small>)}
                   {!t.picked && <button className="btn primary big wide" onClick={() => act({ do: "picked_up" }, "Got it. On to the seats.")}>I've picked it up</button>}</div>
               </div>

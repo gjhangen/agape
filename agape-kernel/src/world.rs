@@ -38,7 +38,13 @@ pub struct ThingDef {
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Service { pub batch_max: usize, pub max_eta_s: u32, pub handoff_s: u32 }
+pub struct Service { pub batch_max: usize, pub max_eta_s: u32, pub handoff_s: u32,
+    /// A runner is sent to a stand ahead of the food only if they'd wait no longer than this for it.
+    #[serde(default = "d_stage_wait")] pub stage_wait_s: u32,
+    /// A second stand joins a trip if it's at most this far (seconds' walk) from the first.
+    #[serde(default = "d_second_stand")] pub second_stand_s: u32 }
+fn d_stage_wait() -> u32 { 120 }
+fn d_second_stand() -> u32 { 90 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct WorldDef {

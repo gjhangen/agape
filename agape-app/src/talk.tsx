@@ -1,8 +1,8 @@
 // "Bring Agape to your venue": the one way to reach the team from anywhere on the site.
 import { React, useEffect, useState } from "./r";
 
-export function TalkToUs({ close, version }: { close: () => void; version?: string | null }) {
-  const [f, setF] = useState({ name: "", contact: "", org: "", role: "venue", note: "" });
+export function TalkToUs({ close, version, role = "venue" }: { close: () => void; version?: string | null; role?: string }) {
+  const [f, setF] = useState({ name: "", contact: "", org: "", role, note: "" });
   const [state, setState] = useState<"idle" | "busy" | "sent" | string>("idle");
   useEffect(() => { document.documentElement.classList.add("talk-open"); return () => document.documentElement.classList.remove("talk-open"); }, []);
   useEffect(() => { const k = (e: KeyboardEvent) => e.key === "Escape" && close(); addEventListener("keydown", k); return () => removeEventListener("keydown", k); }, []);
@@ -26,7 +26,7 @@ export function TalkToUs({ close, version }: { close: () => void; version?: stri
         {state === "sent" ? <div className="talk-form talk-done"><h2>Thanks, {f.name.split(" ")[0]}.</h2><p>We'll be in touch within a day.</p><button type="button" className="btn primary big wide" onClick={close}>Done</button></div> :
         <form className="talk-form talk" onSubmit={send}>
           <div className="talk-roles" role="group" aria-label="You are">
-            {[["venue", "A venue or team"], ["business", "A business"], ["investor", "An investor"], ["other", "Something else"]].map(([id, label]) =>
+            {[["venue", "A venue or team"], ["stand", "A food service operator"], ["business", "A business or sponsor"], ["runner", "I'd like to run"], ["investor", "An investor"], ["other", "Something else"]].map(([id, label]) =>
               <button type="button" key={id} className={"chip" + (f.role === id ? " on" : "")} aria-pressed={f.role === id} onClick={() => setF({ ...f, role: id })}>{label}</button>)}
           </div>
           <label>Your name<input value={f.name} onChange={set("name")} required autoComplete="name" /></label>

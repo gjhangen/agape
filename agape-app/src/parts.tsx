@@ -338,7 +338,7 @@ export function PlaceView({ m, onStand, focusStand, showRunners = true, heat = t
       {yrPath.length > 1 && !route && <path d={path(yrPath)} className="route" />}
       {route && route.length > 1 && <>
         <path d={path(route.slice(1).reduce<[number, number][]>((acc, to, k) => acc.concat(walk(route[k], to, m.stands)), []))} className="route trip" />
-        {route.slice(1).map((pl, k) => { const [x, y] = placePoint(pl, m.stands); return <g key={k} className={"stop" + (k === 0 ? " pickup" : "")}><circle cx={x} cy={y} r={8} /><text x={x} y={y + 3.5} textAnchor="middle">{k === 0 ? "P" : k}</text></g>; })}
+        {(() => { let n = 0; return route.slice(1).map((pl, k) => { const stand = m.stands.some(st => st.id === pl); if (!stand) n++; const [x, y] = placePoint(pl, m.stands); return <g key={k} className={"stop" + (stand ? " pickup" : "")}><circle cx={x} cy={y} r={8} /><text x={x} y={y + 3.5} textAnchor="middle">{stand ? "P" : n}</text></g>; }); })()}
       </>}
       {m.runners.filter(r => (showRunners || r.id === yr?.id) && !(selfRunner && r.id === yr?.id)).map(r => {
         const p = r.busy ? along(walk(r.from, r.to, m.stands), r.progress) : placePoint(r.from, m.stands);

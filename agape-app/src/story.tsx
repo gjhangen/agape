@@ -8,7 +8,7 @@ import { BRAND, Icon, LEVELS, levelFeatures, momentText, runnerName, venueTime }
 import { applyLook, applyMode, savedLook, savedMode, setVenueColor } from "./themes";
 import { TalkToUs } from "./talk";
 import { ExplainCard, ExplainLayer, FAN_NOTES, Note } from "./explain";
-import { DemoModal, useTopHeight, EVENT, EventSwitch, HeldCard, demoWorld, useFull, useHoldOnBeat, withParam } from "./shell";
+import { DemoModal, OnYourPhone, useTopHeight, EVENT, EventSwitch, HeldCard, demoWorld, useFull, useHoldOnBeat, withParam } from "./shell";
 
 declare const AGAPE_WORLD: any;
 const SPEEDS = [{ label: "1×", tps: 0.1 }, { label: "6×", tps: 0.6 }, { label: "30×", tps: 3 }];
@@ -179,6 +179,7 @@ function Story() {
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
   const [hint, setHint] = useState(true);
   const [talk, setTalk] = useState(false);
+  const [phone, setPhone] = useState(false);
   const [seen] = useState(() => new Set<string>());
   const [ready, setReady] = useState(false);
   const [located, setLocated] = useState(true);
@@ -285,11 +286,13 @@ function Story() {
             <a className="btn ghost sm" href="/">What is Agape?</a>
             <a className="btn ghost sm" href="/demo/">Behind the scenes</a>
             <button className="btn ghost sm" onClick={() => setTalk(true)}>Talk to us</button>
+            <button className="btn ghost sm" onClick={() => setPhone(true)}>Get it on your phone</button>
           </div>
         </aside>
       </main>
       {full && <HeldCard beat={beat} on={waiting} exit={() => setFull(false)} />}
       {note && <DemoModal close={() => setNote(null)}><ExplainCard n={note} close={() => setNote(null)} /></DemoModal>}
+      {phone && <DemoModal close={() => setPhone(false)}><OnYourPhone close={() => setPhone(false)} /></DemoModal>}
       {talk && <TalkToUs close={() => setTalk(false)} version={null} />}
     </div>
   );

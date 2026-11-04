@@ -229,11 +229,11 @@ impl Night {
             let tips: i64 = x.orders.iter().map(|&i| self.orders[i].c.quote.tip).sum();
             let stand = self.world.def.stands.iter().find(|s| s.id == x.stand).map(|s| s.name.clone());
             json!({ "accepted": x.accepted, "picked": x.picked, "stand": x.stand, "stand_name": stand, "expires": x.offered_at + crate::sim::TRIP_OFFER_MS,
-                    "pay": x.pay + tips, "base": x.pay, "tips": tips, "raised": x.pay - x.first, "passes": x.passes, "mode": self.terms.pay_mode, "minutes": (x.done_s as i64 + 59) / 60, "sections": x.orders.iter().map(|&i| self.orders[i].seat.clone()).collect::<Vec<_>>(), "route": x.route,
+                    "pay": x.pay + tips, "base": x.pay, "tips": tips, "raised": x.pay - x.first, "passes": x.passes, "mode": self.terms.pay_mode, "minutes": (x.done_s as i64 + 59) / 60, "sections": x.orders.iter().map(|&i| self.orders[i].seat.clone()).collect::<Vec<_>>(), "route": x.route, "pickups": x.pickups.iter().map(|(st, _)| self.world.def.stands.iter().find(|d| &d.id == st).map(|d| d.name.clone()).unwrap_or(st.clone())).collect::<Vec<_>>(),
                     "orders": x.orders.iter().map(|&i| { let mut c = self.order_card(i); c["handoff_ok_at"] = json!(self.orders[i].picked_at.map(|p| p + 3 * 60_000)); c }).collect::<Vec<_>>() })
         });
         json!({ "clock": self.clock(), "runner": self.runner_at(r), "bag": bag, "plan": plan, "delivered": delivered, "map": self.view_map(None, None),
-                "human": self.human(r), "on_shift": self.live.contains(r), "trip": trip, "pay_mode": self.terms.pay_mode, "wage": self.terms.hourly_wage,
+                "human": self.human(r), "on_shift": self.live.contains(r), "trip": trip, "pay_mode": self.terms.pay_mode, "wage": self.terms.hourly_wage, "shift": { "fixed": self.policy.fixed_shift, "ends": self.end_min * 60_000 },
                 "pay": self.ledger.balance(&acct(r, "pay"), &Unit::usd()), "tips": self.ledger.balance(&acct(r, "tips"), &Unit::usd()),
                 "rating": self.rating_of(r).0, "ratings": self.rating_of(r).1 })
     }

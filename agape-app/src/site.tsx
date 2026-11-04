@@ -53,6 +53,12 @@ function Site() {
         <OrderGlance />
       </section>
 
+      <section className="site-sec who">
+        <h2>Who are you?</h2>
+        <div className="who-grid">{([["fans", "A fan", "Order from your seat"], ["runners", "A runner", "Earn at live events"], ["venues", "A venue or team", "Sell more at every seat"], ["stands", "Food service", "More orders, no line"], ["partners", "A business or sponsor", "Reach fans in the moment"], ["investors", "An investor", "How Agape grows"], ["team", "On Agape's team", "Run many venues"]] as const).map(([k, a, b]) =>
+          <a key={k} className="who-card" href={`/for/${k}/`}><b>{a}</b><span>{b}</span><i aria-hidden="true">→</i></a>)}</div>
+      </section>
+
       <section className="site-sec" id="how">
         <h2>How it works</h2>
         <ol className="site-steps">

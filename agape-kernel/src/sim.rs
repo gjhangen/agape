@@ -290,7 +290,7 @@ pub struct Trip {
     pub orders: Vec<usize>, pub stand: String, pub offered_at: i64, pub accepted: bool, pub picked: bool,
     /// What Agape pays for the trip (tips on top), the first offer it was priced at, and how many runners passed first.
     pub pay: i64, pub first: i64, pub passes: u32,
-    pub route: Vec<String>, pub pickup_s: u32, pub arrive_s: Vec<u32>, pub done_s: u32,
+    pub route: Vec<String>, pub pickup_s: u32, pub pickups: Vec<(String, u32)>, pub arrive_s: Vec<u32>, pub done_s: u32,
 }
 
 /// What going first costs, in points, and how far ahead of others on the shelf it puts an order.
@@ -1230,7 +1230,7 @@ impl Night {
                     self.ready.retain(|x| !a.orders.contains(&x.order));
                     if let Some(r) = self.runners.iter_mut().find(|r| r.id == a.runner) { r.free_at = i64::MAX; }
                     self.trips.insert(a.runner.clone(), Trip { orders: ids, stand, offered_at: t, accepted: false, picked: false, pay, first, passes,
-                        route: a.route.clone(), pickup_s: a.pickup_at_s, arrive_s: a.arrive_s.clone(), done_s: a.done_s });
+                        route: a.route.clone(), pickup_s: a.pickup_at_s, pickups: a.pickups.clone(), arrive_s: a.arrive_s.clone(), done_s: a.done_s });
                     continue;
                 }
                 // a simulated runner weighs the offer (pay and tips for the time it takes) against what their time is worth to them
@@ -1246,7 +1246,8 @@ impl Night {
                 }
                 self.took_trip(&ids, pay, passes);
                 let r = self.runners.iter_mut().find(|r| r.id == a.runner).unwrap();
-                let mut plan = vec![(t, r.at.clone()), (t + a.pickup_at_s as i64 * 1000, a.route[1].clone())];
+                let mut plan = vec![(t, r.at.clone())];
+                plan.extend(a.pickups.iter().map(|(s, at)| (t + *at as i64 * 1000, s.clone())));
                 r.free_at = t + a.done_s as i64 * 1000;
                 r.at = a.route.last().unwrap().clone();
                 let ids: Vec<usize> = a.orders.iter().map(|s| s.parse().unwrap()).collect();
@@ -1258,21 +1259,22 @@ impl Night {
                 self.plans.insert(a.runner.clone(), plan);
                 self.ready.retain(|x| !a.orders.contains(&x.order));
                 self.batches.0 += 1; self.batches.1 += ids.len() as u64;
-                self.sched(t + a.pickup_at_s as i64 * 1000, Ev::PickUp(ids.clone(), a.runner.clone()));
+                // picked up stand by stand, each when the runner gets there
+                for (stand, at) in &a.pickups {
+                    let here: Vec<usize> = ids.iter().copied().filter(|&i| &self.orders[i].c.quote.stand == stand).collect();
+                    self.sched(t + *at as i64 * 1000, Ev::PickUp(here, a.runner.clone()));
+                }
                 for (k, &id) in ids.iter().enumerate() { self.sched(t + a.arrive_s[k] as i64 * 1000, Ev::Arrive(id, a.runner.clone())); }
             }
         }
         // 7b. staging: simulated runners left idle walk to the stands about to need them
         if self.cfg.staging {
-            let soon = t + 120_000;
-            let mut load: BTreeMap<String, usize> = BTreeMap::new();
+            let mut due: Vec<(String, i64)> = vec![];
             for (stand, sts) in &self.stations {
-                let n = sts.iter().filter(|(until, id)| id.map_or(false, |i| self.orders[i].c.quote.delivery && *until <= soon)).count();
-                if n > 0 { *load.entry(stand.clone()).or_insert(0) += n; }
+                for (until, id) in sts { if let Some(i) = id { if self.orders[*i].c.quote.delivery && *until <= t + 600_000 { due.push((stand.clone(), *until)); } } }
             }
-            let load: Vec<(String, usize)> = load.into_iter().collect();
             let idle: Vec<crate::engines::Runner> = self.runners.iter().filter(|r| r.free_at <= t && !self.driven.contains(&r.id) && !self.live.contains(&r.id)).cloned().collect();
-            for (rid, stand, walk) in crate::engines::stage(&self.world, &mut self.costs, &idle, &load, t) {
+            for (rid, stand, walk) in crate::engines::stage(&self.world, &mut self.costs, &idle, &due, t) {
                 if let Some(r) = self.runners.iter_mut().find(|r| r.id == rid) {
                     self.plans.insert(rid.clone(), vec![(t, r.at.clone()), (t + walk as i64 * 1000, stand.clone())]);
                     r.at = stand; r.free_at = t + walk as i64 * 1000;
@@ -1480,6 +1482,9 @@ impl Night {
     }
     pub fn clock_out(&mut self, who: &str) -> Result<(), String> {
         if self.trips.get(who).map_or(false, |x| x.accepted) { return Err("Finish your trip first".into()); }
+        if self.policy.fixed_shift && self.runners.iter().any(|r| r.id == who) && self.t < self.end_min * 60_000 {
+            return Err("This is a fixed shift: you stay online until the event ends".into());
+        }
         if self.trips.contains_key(who) { self.return_trip(who, self.t); }
         self.live.remove(who);
         Ok(())
@@ -1585,7 +1590,8 @@ impl Night {
         let t = self.t;
         let trip = self.trips.get(runner).filter(|x| !x.accepted).cloned().ok_or("No trip is waiting for you")?;
         let r = self.runners.iter_mut().find(|r| r.id == runner).ok_or("Unknown runner")?;
-        let mut plan = vec![(t, r.at.clone()), (t + trip.pickup_s as i64 * 1000, trip.route[1].clone())];
+        let mut plan = vec![(t, r.at.clone())];
+        plan.extend(trip.pickups.iter().map(|(s, at)| (t + *at as i64 * 1000, s.clone())));
         self.took_trip(&trip.orders, trip.pay, trip.passes);
         for (k, &id) in trip.orders.iter().enumerate() {
             self.orders[id].c.act(Action::Assign(runner.into()), "agape", &mut self.ledger, &self.terms).map_err(|e| format!("{e:?}"))?;

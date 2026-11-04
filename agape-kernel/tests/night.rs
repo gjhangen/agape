@@ -75,7 +75,7 @@ fn a_late_backlog_is_batched_not_left_waiting() {
     let a = dispatch(&w, &mut costs, &ready, &runners, 0);
     assert_eq!(a.len(), 1);
     assert_eq!(a[0].orders.len(), 5.min(w.def.service.batch_max), "up to batch_max orders go together");
-    assert_eq!(a[0].orders[0], "0", "oldest first");
+    assert!(a[0].orders.contains(&"0".to_string()), "the oldest is always in the bag; the seats go in the shortest order");
     assert!(a[0].arrive_s.windows(2).all(|p| p[0] <= p[1]));
     // a step-free fan upstairs is routed by the lift
     let up = vec![Ready { order: "u".into(), stand: "grill-104".into(), seat: "s213".into(), step_free: true, ready_at: 0 }];
@@ -85,4 +85,37 @@ fn a_late_backlog_is_batched_not_left_waiting() {
     assert!(lift.1.iter().any(|p| p.starts_with("lift")) && !lift.1.iter().any(|p| p.starts_with("stairs")));
     assert_eq!(a[0].arrive_s[0], lift.0);
     assert!(lift.0 > stairs, "the step-free route is the longer lift route");
+}
+
+#[test]
+fn one_trip_can_pick_up_at_two_stands_close_together() {
+    use agape_kernel::engines::{dispatch, Costs, Ready, Runner};
+    use agape_kernel::world::World;
+    let w = World::build(serde_json::from_str(include_str!("../templates/arena.json")).unwrap());
+    let mut costs = Costs::new();
+    // the stand nearest grill-104, within a short walk
+    let near = w.def.stands.iter().filter(|s| s.id != "grill-104").map(|s| (costs.get(&w, "grill-104", &s.id, false), s.id.clone())).min().unwrap();
+    assert!(near.0 <= w.def.service.second_stand_s, "the sample arena has two stands close together");
+    let ready = vec![
+        Ready { order: "a".into(), stand: "grill-104".into(), seat: "s104".into(), step_free: false, ready_at: 0 },
+        Ready { order: "b".into(), stand: near.1.clone(), seat: "s105".into(), step_free: false, ready_at: 0 }];
+    let runners = vec![Runner { id: "r".into(), at: "grill-104".into(), free_at: 0 }];
+    let a = dispatch(&w, &mut costs, &ready, &runners, 0);
+    assert_eq!(a.len(), 1, "one runner, one trip");
+    assert_eq!(a[0].pickups.len(), 2);
+    assert_eq!(a[0].orders.len(), 2);
+}
+
+#[test]
+fn a_runner_is_sent_ahead_only_when_they_wont_wait_long() {
+    use agape_kernel::engines::{stage, Costs, Runner};
+    use agape_kernel::world::World;
+    let w = World::build(serde_json::from_str(include_str!("../templates/arena.json")).unwrap());
+    let mut costs = Costs::new();
+    let idle = vec![Runner { id: "r".into(), at: "s110".into(), free_at: 0 }];
+    let walk = costs.get(&w, "s110", "grill-104", false) as i64 * 1000;
+    // food ready just as they'd get there: go
+    assert_eq!(stage(&w, &mut costs, &idle, &[("grill-104".into(), walk + 30_000)], 0).len(), 1);
+    // food ready ten minutes after they'd get there: stay put
+    assert_eq!(stage(&w, &mut costs, &idle, &[("grill-104".into(), walk + 600_000)], 0).len(), 0);
 }

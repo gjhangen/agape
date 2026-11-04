@@ -72,6 +72,10 @@ pub struct Policy {
     pub proof_after_orders: usize,
     pub photo_at_bps: i64,
     pub pin_at_bps: i64,
+    /// Runners' shifts are the event: they go online and off when they like during it. A fixed
+    /// shift keeps them online for all of it.
+    #[serde(default)]
+    pub fixed_shift: bool,
 }
 
 fn c(part: Part, from: Source) -> Cover { Cover { part, from, bps: 10_000 } }
@@ -93,7 +97,7 @@ impl Default for Policy {
         // not to the fan's taste: the stand's to make right, as credit; Agape delivered it and keeps its fee
         rules.insert("quality".into(), rule("Not up to standard", "stand", vec![c(Items, Stand)], false, true));
         Policy { form: Form::Credit, rules, auto_per_fan: 2, auto_per_stand: 10, handoff_radius_m: 40, tip_bps: 2000, tip_min: 300,
-                 proof_after_orders: 4, photo_at_bps: 2500, pin_at_bps: 5000 }
+                 proof_after_orders: 4, photo_at_bps: 2500, pin_at_bps: 5000, fixed_shift: false }
     }
 }
 

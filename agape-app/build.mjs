@@ -63,12 +63,17 @@ const REACT = `<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script>`;
 const bundle = async (entry) => (await build({ entryPoints: [entry], bundle: true, write: false, format: "iife", target: "es2020", minify: true,
   jsxFactory: "React.createElement", jsxFragment: "React.Fragment", logLevel: "warning" })).outputFiles[0].text.replace(/<\/script/gi, "<\\/script");
-const head = (title, desc) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+// each role's app can be added to a phone's home screen: it opens on its own, full screen, and is
+// always the live version (nothing to update)
+const appMeta = (dir, name) => dir == null ? "" : `<link rel="manifest" href="/try/${dir ? dir + "/" : ""}manifest.json"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="${name}"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">`;
+const manifest = (dir, name) => { mkdirSync(`dist/server/try/${dir ? dir + "/" : ""}`, { recursive: true }); writeFileSync(`dist/server/try/${dir ? dir + "/" : ""}manifest.json`, JSON.stringify({ name, short_name: name, id: `/try/${dir ? dir + "/" : ""}`, start_url: `/try/${dir ? dir + "/" : ""}?app=1`, scope: `/try/${dir ? dir + "/" : ""}`, display: "standalone", background_color: "#0E0F13", theme_color: "#0E0F13",
+  icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png" }] })); };
+const head = (title, desc, dir = null, app = "") => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>${title}</title><meta name="description" content="${desc}">
 <meta property="og:title" content="${title}"><meta property="og:description" content="${desc}">
 <meta property="og:image" content="https://agapetoyourseat.com/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#B8174F">
-<link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">${FONTS}<style>${css}</style></head><body>`;
+<link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">${appMeta(dir, app)}${FONTS}<style>${css}</style></head><body>`;
 const siteJs = await bundle("src/site.tsx");
 const sitePage = head("Agape · order from your seat", "Agape brings food, drinks and gear to your seat at live events, so you never miss the moment.") +
   `<div id="root"><div class="site"><section class="site-hero"><h1>Order from your seat.<br>It comes to you.</h1></section></div></div>${REACT}<script>var AGAPE_WORLD=${world};var AGAPE_TEMPLATE=${tpl};</script><script>${siteJs}</script></body></html>`;
@@ -76,22 +81,32 @@ writeFileSync("dist/server/index.html", sitePage);
 console.log("dist/server/index.html", (sitePage.length / 1024).toFixed(0) + " KB");
 const storyJs = await bundle("src/story.tsx");
 mkdirSync("dist/server/try", { recursive: true });
-const storyPage = head("Agape · a fan's night", "Open Agape at a game, take your seat, order a hot dog and watch it reach you.") +
+manifest("", "Agape");
+const storyPage = head("Agape · a fan's night", "Open Agape at a game, take your seat, order a hot dog and watch it reach you.", "", "Agape") +
   `<div id="root"><div class="story"><div class="ob ob-boot"><div class="ob-mark"><b>agape</b></div></div></div></div>${REACT}<script>var AGAPE_WASM="${wasm}";var AGAPE_WORLD=${world};var AGAPE_TEMPLATE=${tpl};</script><script>${storyJs}</script></body></html>`;
 writeFileSync("dist/server/try/index.html", storyPage);
 console.log("dist/server/try/index.html", (storyPage.length / 1024).toFixed(0) + " KB");
-for (const [dir, entry, title, desc] of [
-  ["runner", "src/crew.tsx", "Agape · a runner's night", "See trips offered with the pay up front, and carry them to the seats."],
-  ["kitchen", "src/station.tsx", "Agape · a kitchen's night", "Watch orders land on the stand's screen and leave on time."],
-  ["venue", "src/console.tsx", "Agape · the venue's night", "Run the whole night: every order, every runner, every dollar."],
-  ["partner", "src/console.tsx", "Agape · a partner's night", "Reach fans in the moment, and see what it brought in."],
-  ["hq", "src/hq.tsx", "Agape · HQ", "Where Agape's own team runs every venue at once."],
+for (const [dir, entry, title, desc, app] of [
+  ["runner", "src/crew.tsx", "Agape · a runner's night", "See trips offered with the pay up front, and carry them to the seats.", "Agape Crew"],
+  ["kitchen", "src/station.tsx", "Agape · a kitchen's night", "Watch orders land on the stand's screen and leave on time.", "Agape Station"],
+  ["venue", "src/console.tsx", "Agape · the venue's night", "Run the whole night: every order, every runner, every dollar.", "Agape Venue"],
+  ["partner", "src/console.tsx", "Agape · a partner's night", "Reach fans in the moment, and see what it brought in.", "Agape Partner"],
+  ["hq", "src/hq.tsx", "Agape · HQ", "Where Agape's own team runs every venue at once.", "Agape HQ"],
 ]) {
+  manifest(dir, app);
   const js = await bundle(entry);
   mkdirSync(`dist/server/try/${dir}`, { recursive: true });
-  writeFileSync(`dist/server/try/${dir}/index.html`, head(title, desc) + `<div id="root"><div class="story"><div class="ob ob-boot"><div class="ob-mark"><b>agape</b></div></div></div></div>${REACT}<script>var AGAPE_WASM="${wasm}";var AGAPE_WORLD=${world};var AGAPE_TEMPLATE=${tpl};</script><script>${js}</script></body></html>`);
+  writeFileSync(`dist/server/try/${dir}/index.html`, head(title, desc, dir, app) + `<div id="root"><div class="story"><div class="ob ob-boot"><div class="ob-mark"><b>agape</b></div></div></div></div>${REACT}<script>var AGAPE_WASM="${wasm}";var AGAPE_WORLD=${world};var AGAPE_TEMPLATE=${tpl};</script><script>${js}</script></body></html>`);
   console.log(`dist/server/try/${dir}/index.html`);
 }
+
+// one page per kind of person: fans, runners, venues, stands, partners, investors, Agape's team
+const forJs = await bundle("src/audience.tsx");
+for (const [k, title] of [["fans", "Agape for fans"], ["runners", "Agape for runners"], ["venues", "Agape for venues"], ["stands", "Agape for food service"], ["partners", "Agape for partners"], ["investors", "Agape for investors"], ["team", "Agape for its team"]]) {
+  mkdirSync(`dist/server/for/${k}`, { recursive: true });
+  writeFileSync(`dist/server/for/${k}/index.html`, head(title, "Agape brings food, drinks and gear to your seat at live events.") + `<div id="root"></div>${REACT}<script>var AGAPE_WORLD=${world};var AGAPE_TEMPLATE=${tpl};</script><script>${forJs}</script></body></html>`);
+}
+console.log("dist/server/for/*");
 
 // the icons, share image and manifest that make it feel like an app on a phone
 import { copyFileSync } from "fs";

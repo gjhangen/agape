@@ -127,6 +127,8 @@ function PolicyEditor({ p, act }: { p: Policy; act: (a: Record<string, unknown>,
             {FROM.filter(([f]) => f !== "tax" || part === "tax").map(([f, l]) => <option key={f} value={f}>{l}</option>)}</select></label>; })}
       </div>
     </div>)}
+    <div className="block-head"><h2>Shifts</h2><span className="sub">A shift is the event: where, when and how long.</span></div>
+    <label className="check"><input type="checkbox" checked={!!(d as any).fixed_shift} onChange={e => edit(x => { (x as any).fixed_shift = e.target.checked; })} /> Fixed shifts: runners stay online for the whole event and can't end early</label>
     <div className="block-head"><h2>Tips, limits and proof</h2></div>
     <div className="care-grid">
       <label className="sf"><span>Tip shown first, % of items</span><input inputMode="decimal" value={d.tip_bps / 100} onChange={e => edit(x => { x.tip_bps = Math.round(num(e.target.value) * 100); })} /></label>

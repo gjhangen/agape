@@ -76,7 +76,9 @@ pub struct Ready { pub order: String, pub stand: String, pub seat: String, pub s
 pub struct Runner { pub id: PartyId, pub at: String, pub free_at: i64 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub struct Assignment { pub runner: PartyId, pub orders: Vec<String>, pub route: Vec<String>, pub pickup_at_s: u32, pub arrive_s: Vec<u32>, pub done_s: u32 }
+pub struct Assignment { pub runner: PartyId, pub orders: Vec<String>, pub route: Vec<String>, pub pickup_at_s: u32,
+    /// Each stand on the trip and when the runner reaches it (seconds from now).
+    pub pickups: Vec<(String, u32)>, pub arrive_s: Vec<u32>, pub done_s: u32 }
 
 /// Walk-cost cache over the place graph.
 #[derive(Default)]
@@ -93,9 +95,47 @@ impl Costs {
     }
 }
 
-/// Greedy batching: oldest ready order first; the nearest free runner goes to its stand and
-/// takes up to `batch_max` orders from that stand, adding the seat that lengthens the route
-/// least, while every order in the batch still arrives within `max_eta_s` from now.
+/// A trip's walk: from `start` to each pickup in turn, then the seats, nearest next. Returns the
+/// arrival (seconds from now) at each pickup, the orders in the order they're handed off, the arrival
+/// at each of those seats, and when the trip is done.
+fn walk(world: &World, costs: &mut Costs, start: &str, stands: &[String], orders: &[&Ready]) -> (Vec<u32>, Vec<usize>, Vec<u32>, u32) {
+    let h = world.def.service.handoff_s;
+    let (mut t, mut at) = (0u32, start.to_string());
+    let mut picks = vec![];
+    for s in stands { t = t.saturating_add(costs.get(world, &at, s, false)); picks.push(t); at = s.clone(); }
+    let mut left: Vec<usize> = (0..orders.len()).collect();
+    let (mut seq, mut arrive) = (vec![], vec![]);
+    while !left.is_empty() {
+        let (k, c) = left.iter().enumerate().map(|(k, &i)| (k, costs.get(world, &at, &orders[i].seat, orders[i].step_free))).min_by_key(|(k, c)| (*c, orders[left[*k]].order.clone())).unwrap();
+        let i = left.remove(k);
+        t = t.saturating_add(c); arrive.push(t); t = t.saturating_add(h);
+        at = orders[i].seat.clone(); seq.push(i);
+    }
+    (picks, seq, arrive, t)
+}
+
+/// Add orders from `from` to the bag, nearest seat first, while every order still arrives in time.
+fn grow<'a>(world: &World, costs: &mut Costs, start: &str, stands: &[String], batch: &mut Vec<&'a Ready>, from: &str, pending: &[&'a Ready]) {
+    let svc = &world.def.service;
+    loop {
+        if batch.len() >= svc.batch_max { break; }
+        let last = batch.last().unwrap().seat.clone();
+        let mut cands: Vec<(&'a Ready, u32)> = pending.iter().filter(|o| o.stand == from && !batch.iter().any(|b| b.order == o.order)).map(|o| (*o, costs.get(world, &last, &o.seat, o.step_free))).collect();
+        cands.sort_by(|a, b| a.1.cmp(&b.1).then(a.0.order.cmp(&b.0.order)));
+        let mut added = false;
+        for (o, _) in cands {
+            let mut t = batch.clone(); t.push(o);
+            let (_, _, arr, _) = walk(world, costs, start, stands, &t);
+            if arr.iter().all(|&a| a <= svc.max_eta_s) { batch.push(o); added = true; break; }
+        }
+        if !added { break; }
+    }
+}
+
+/// Batching and routing. The oldest ready order goes first; the nearest free runner goes to its
+/// stand and takes more orders from it, then from one more stand close by, as long as every order
+/// still reaches its seat within the promise (`max_eta_s` from now) and the bag holds no more than
+/// `batch_max`. Seats are visited nearest next.
 pub fn dispatch(world: &World, costs: &mut Costs, ready: &[Ready], runners: &[Runner], now: i64) -> Vec<Assignment> {
     let svc = &world.def.service;
     let mut pending: Vec<&Ready> = ready.iter().collect();
@@ -103,61 +143,65 @@ pub fn dispatch(world: &World, costs: &mut Costs, ready: &[Ready], runners: &[Ru
     let mut free: Vec<&Runner> = runners.iter().filter(|r| r.free_at <= now).collect();
     let mut out = vec![];
     while let Some(first) = pending.first().copied() {
-        let Some((ri, to_stand)) = free.iter().enumerate()
+        let Some((ri, _)) = free.iter().enumerate()
             .map(|(i, r)| (i, costs.get(world, &r.at, &first.stand, false)))
             .min_by_key(|(i, c)| (*c, free[*i].id.clone())) else { break };
         let runner = free.remove(ri);
-        let mut batch = vec![first];
-        let mut at = first.seat.clone();
-        let mut t = to_stand + costs.get(world, &first.stand, &first.seat, first.step_free) + svc.handoff_s;
-        let mut arrive = vec![t - svc.handoff_s];
-        // Each added order must still arrive within the service promise counted from now.
-        // (Measuring from the oldest order's ready time would forbid batching exactly when a
-        // backlog makes it most valuable: the alternative for the others is waiting for another runner.)
-        let budget = svc.max_eta_s as i64;
-        loop {
-            if batch.len() >= svc.batch_max { break; }
-            let cand = pending.iter().filter(|o| o.stand == first.stand && !batch.iter().any(|b| b.order == o.order))
-                .map(|o| (*o, costs.get(world, &at, &o.seat, o.step_free)))
-                .min_by_key(|(o, c)| (*c, o.order.clone()));
-            let Some((o, c)) = cand else { break };
-            if (t + c) as i64 > budget.max(0) { break; }
-            t += c + svc.handoff_s;
-            arrive.push(t - svc.handoff_s);
-            at = o.seat.clone();
-            batch.push(o);
+        let mut stands = vec![first.stand.clone()];
+        let mut batch: Vec<&Ready> = vec![first];
+        grow(world, costs, &runner.at, &stands, &mut batch, &first.stand.clone(), &pending);
+        // then one more stand close by, if the bag has room and the promise still holds
+        if batch.len() < svc.batch_max {
+            let mut near: Vec<(String, u32)> = pending.iter().filter(|o| o.stand != first.stand).map(|o| o.stand.clone()).collect::<std::collections::BTreeSet<_>>().into_iter()
+                .map(|s| { let c = costs.get(world, &first.stand, &s, false); (s, c) }).filter(|(_, c)| *c <= svc.second_stand_s).collect();
+            near.sort_by(|a, b| a.1.cmp(&b.1).then(a.0.cmp(&b.0)));
+            for (s, _) in near {
+                let two = vec![first.stand.clone(), s.clone()];
+                let mut b2 = batch.clone();
+                grow(world, costs, &runner.at, &two, &mut b2, &s, &pending);
+                if b2.len() > batch.len() { batch = b2; stands = two; break; }
+            }
         }
         pending.retain(|o| !batch.iter().any(|b| b.order == o.order));
-        let mut route = vec![runner.at.clone(), first.stand.clone()];
-        route.extend(batch.iter().map(|b| b.seat.clone()));
-        out.push(Assignment { runner: runner.id.clone(), orders: batch.iter().map(|b| b.order.clone()).collect(), route, pickup_at_s: to_stand, arrive_s: arrive, done_s: t });
+        let (picks, seq, arrive, done) = walk(world, costs, &runner.at, &stands, &batch);
+        let ordered: Vec<&Ready> = seq.iter().map(|&i| batch[i]).collect();
+        let mut route = vec![runner.at.clone()];
+        route.extend(stands.iter().cloned());
+        route.extend(ordered.iter().map(|b| b.seat.clone()));
+        out.push(Assignment { runner: runner.id.clone(), orders: ordered.iter().map(|b| b.order.clone()).collect(), route,
+            pickup_at_s: *picks.last().unwrap(), pickups: stands.iter().cloned().zip(picks.iter().copied()).collect(), arrive_s: arrive, done_s: done });
     }
     out
 }
 
-/// Staging: idle runners walk to the stands that are about to need them, so a runner is already
-/// at the counter when food comes off the line. `load` is, per stand, the deliveries finishing
-/// there soon. Each stand is covered by one runner per `batch_max` of them; runners already
-/// standing at a stand count toward it. Returns (runner, stand, walk seconds).
-pub fn stage(world: &World, costs: &mut Costs, idle: &[Runner], load: &[(String, usize)], now: i64) -> Vec<(PartyId, String, u32)> {
-    let per = world.def.service.batch_max.max(1);
-    let mut need: Vec<(String, usize)> = load.iter().map(|(s, n)| {
-        let want = (n + per - 1) / per;
-        let have = idle.iter().filter(|r| &r.at == s).count();
-        (s.clone(), want.saturating_sub(have))
-    }).filter(|(_, n)| *n > 0).collect();
-    need.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
-    let stands: std::collections::BTreeSet<&str> = load.iter().map(|(s, _)| s.as_str()).collect();
-    // only runners not already waiting at a stand that needs them move
-    let mut free: Vec<&Runner> = idle.iter().filter(|r| r.free_at <= now && !stands.contains(r.at.as_str())).collect();
+/// Staging: send an idle runner to a stand ahead of its food, timed to arrive as it comes off the
+/// line. `due` is each delivery order still being made: (stand, when it will be ready). A runner is
+/// sent only if they'd arrive no later than a minute after it's ready and wait no longer than
+/// `stage_wait_s` for it; otherwise they stay put and the order goes to whoever is nearest when it's
+/// ready. One runner covers up to `batch_max` orders finishing close together at a stand.
+pub fn stage(world: &World, costs: &mut Costs, idle: &[Runner], due: &[(String, i64)], now: i64) -> Vec<(PartyId, String, u32)> {
+    let svc = &world.def.service;
+    let per = svc.batch_max.max(1);
+    let mut by: std::collections::BTreeMap<&str, Vec<i64>> = std::collections::BTreeMap::new();
+    for (s, f) in due { by.entry(s.as_str()).or_default().push(*f); }
+    let mut free: Vec<&Runner> = idle.iter().filter(|r| r.free_at <= now).collect();
     let mut out = vec![];
-    for (stand, n) in need {
-        for _ in 0..n {
-            let Some((i, c)) = free.iter().enumerate().map(|(i, r)| (i, costs.get(world, &r.at, &stand, false))).min_by_key(|(i, c)| (*c, free[*i].id.clone())) else { return out };
-            // nobody crosses the building to wait: a long walk is better spent on a trip
-            if c > 240 { continue; }
+    // soonest food first
+    let mut stands: Vec<(&str, Vec<i64>)> = by.into_iter().map(|(s, mut v)| { v.sort(); (s, v) }).collect();
+    stands.sort_by_key(|(_, v)| v[0]);
+    for (stand, times) in stands {
+        let want = (times.len() + per - 1) / per;
+        let have = free.iter().filter(|r| r.at == stand).count();
+        // runners already standing there keep it covered
+        free.retain(|r| r.at != stand || false);
+        for k in have..want {
+            let f = times[(k * per).min(times.len() - 1)];
+            let best = free.iter().enumerate().map(|(i, r)| (i, costs.get(world, &r.at, stand, false)))
+                .filter(|(_, c)| { let arrive = now + *c as i64 * 1000; arrive <= f + 60_000 && f - arrive <= svc.stage_wait_s as i64 * 1000 })
+                .min_by_key(|(i, c)| (*c, free[*i].id.clone()));
+            let Some((i, c)) = best else { continue };
             let r = free.remove(i);
-            out.push((r.id.clone(), stand.clone(), c));
+            out.push((r.id.clone(), stand.to_string(), c));
         }
     }
     out
