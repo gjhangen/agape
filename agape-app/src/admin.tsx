@@ -129,22 +129,22 @@ function App() {
     })();
   }, []);
   const enter = (t: string, m: Me) => { keep(t); setMe(m); setBoot("in"); history.replaceState(null, "", "/admin/"); };
-  if (boot === "loading") return <div className="ad-gate"><Mark /></div>;
+  if (boot === "loading") return <div className="ox-gate"><Mark /></div>;
   if (boot === "setup") return <Setup enter={enter} />;
   if (boot === "invite") return <Accept code={invite!} enter={enter} toSignin={() => { history.replaceState(null, "", "/admin/"); setBoot("signin"); }} />;
   if (boot === "signin" || !me) return <SignIn enter={enter} />;
   return <Shell me={me} out={async () => { await api("signout", {}); keep(""); setMe(null); setBoot("signin"); }} />;
 }
 
-const Mark = () => <div className="ad-mark"><b>agape</b><span>admin</span></div>;
+const Mark = () => <div className="ox-mark"><b>agape</b><span>admin</span></div>;
 
 function Gate({ title, sub, children, foot }: { title: string; sub: React.ReactNode; children: React.ReactNode; foot?: React.ReactNode }) {
-  return <div className="ad-gate"><div className="ad-gate-card">
+  return <div className="ox-gate"><div className="ox-gate-card">
     <Mark />
     <h1>{title}</h1>
-    <p className="ad-sub">{sub}</p>
+    <p className="ox-sub">{sub}</p>
     {children}
-    {foot && <div className="ad-gate-foot">{foot}</div>}
+    {foot && <div className="ox-gate-foot">{foot}</div>}
   </div></div>;
 }
 
@@ -161,12 +161,12 @@ function SignIn({ enter }: { enter: (t: string, m: Me) => void }) {
   const f = useForm({ email: "", password: "" });
   return <Gate title="Sign in" sub="Agape Admin is for Agape's team: merchants, payment processing and VAR sheets.">
     <form onSubmit={e => f.run(e, async () => { const r = await api("signin", f.v); if (r.ok) enter(r.token, r.me); else return r.error; })}>
-      <label className="ad-f"><span>Email</span><input type="email" autoComplete="username" autoFocus required {...f.bind("email")} /></label>
-      <label className="ad-f"><span>Password</span><input type="password" autoComplete="current-password" required {...f.bind("password")} /></label>
-      {f.error && <p className="ad-err" role="alert">{f.error}</p>}
-      <button className="ad-btn primary block" disabled={f.busy}>{f.busy ? "Signing in…" : "Sign in"}</button>
+      <label className="ox-f"><span>Email</span><input type="email" autoComplete="username" autoFocus required {...f.bind("email")} /></label>
+      <label className="ox-f"><span>Password</span><input type="password" autoComplete="current-password" required {...f.bind("password")} /></label>
+      {f.error && <p className="ox-err" role="alert">{f.error}</p>}
+      <button className="ox-btn primary block" disabled={f.busy}>{f.busy ? "Signing in…" : "Sign in"}</button>
     </form>
-    <p className="ad-fine">No account? An owner invites you by email address. Forgot your password? Ask an owner to turn your access off and invite you again.</p>
+    <p className="ox-fine">No account? An owner invites you by email address. Forgot your password? Ask an owner to turn your access off and invite you again.</p>
   </Gate>;
 }
 
@@ -177,13 +177,13 @@ function Setup({ enter }: { enter: (t: string, m: Me) => void }) {
       if (f.v.password !== f.v.again) return "The two passwords don't match";
       const r = await api("setup", f.v); if (r.ok) enter(r.token, r.me); else return r.error;
     })}>
-      <label className="ad-f"><span>Setup code</span><input autoFocus required className="mono" autoComplete="off" {...f.bind("code")} /></label>
-      <label className="ad-f"><span>Your name</span><input required autoComplete="name" {...f.bind("name")} /></label>
-      <label className="ad-f"><span>Email</span><input type="email" required autoComplete="username" {...f.bind("email")} /></label>
-      <label className="ad-f"><span>Password</span><input type="password" required minLength={10} autoComplete="new-password" {...f.bind("password")} /><small>At least 10 characters</small></label>
-      <label className="ad-f"><span>Password again</span><input type="password" required autoComplete="new-password" {...f.bind("again")} /></label>
-      {f.error && <p className="ad-err" role="alert">{f.error}</p>}
-      <button className="ad-btn primary block" disabled={f.busy}>Create the owner account</button>
+      <label className="ox-f"><span>Setup code</span><input autoFocus required className="mono" autoComplete="off" {...f.bind("code")} /></label>
+      <label className="ox-f"><span>Your name</span><input required autoComplete="name" {...f.bind("name")} /></label>
+      <label className="ox-f"><span>Email</span><input type="email" required autoComplete="username" {...f.bind("email")} /></label>
+      <label className="ox-f"><span>Password</span><input type="password" required minLength={10} autoComplete="new-password" {...f.bind("password")} /><small>At least 10 characters</small></label>
+      <label className="ox-f"><span>Password again</span><input type="password" required autoComplete="new-password" {...f.bind("again")} /></label>
+      {f.error && <p className="ox-err" role="alert">{f.error}</p>}
+      <button className="ox-btn primary block" disabled={f.busy}>Create the owner account</button>
     </form>
   </Gate>;
 }
@@ -192,18 +192,18 @@ function Accept({ code, enter, toSignin }: { code: string; enter: (t: string, m:
   const [inv, setInv] = useState<{ email: string; name: string; level: Level } | null | "gone">(null);
   const f = useForm({ name: "", password: "", again: "" });
   useEffect(() => { api("invitation/" + encodeURIComponent(code)).then(r => { if (r.ok) { setInv(r.invite); f.bind("name").onChange({ target: { value: r.invite.name } }); } else setInv("gone"); }); }, []);
-  if (inv === null) return <div className="ad-gate"><Mark /></div>;
-  if (inv === "gone") return <Gate title="This invitation can't be used" sub="It has expired or was already used. Ask the person who invited you for a new one." foot={<button className="ad-link" onClick={toSignin}>Sign in instead</button>}><></></Gate>;
+  if (inv === null) return <div className="ox-gate"><Mark /></div>;
+  if (inv === "gone") return <Gate title="This invitation can't be used" sub="It has expired or was already used. Ask the person who invited you for a new one." foot={<button className="ox-link" onClick={toSignin}>Sign in instead</button>}><></></Gate>;
   return <Gate title="Join Agape Admin" sub={<>You've been invited as {LEVELS.find(l => l[0] === inv.level)?.[1].toLowerCase()} with <b>{inv.email}</b>. Choose a password to finish.</>}>
     <form onSubmit={e => f.run(e, async () => {
       if (f.v.password !== f.v.again) return "The two passwords don't match";
       const r = await api("accept", { code, name: f.v.name, password: f.v.password }); if (r.ok) enter(r.token, r.me); else return r.error;
     })}>
-      <label className="ad-f"><span>Your name</span><input required autoComplete="name" {...f.bind("name")} /></label>
-      <label className="ad-f"><span>Password</span><input type="password" required minLength={10} autoFocus autoComplete="new-password" {...f.bind("password")} /><small>At least 10 characters</small></label>
-      <label className="ad-f"><span>Password again</span><input type="password" required autoComplete="new-password" {...f.bind("again")} /></label>
-      {f.error && <p className="ad-err" role="alert">{f.error}</p>}
-      <button className="ad-btn primary block" disabled={f.busy}>Join</button>
+      <label className="ox-f"><span>Your name</span><input required autoComplete="name" {...f.bind("name")} /></label>
+      <label className="ox-f"><span>Password</span><input type="password" required minLength={10} autoFocus autoComplete="new-password" {...f.bind("password")} /><small>At least 10 characters</small></label>
+      <label className="ox-f"><span>Password again</span><input type="password" required autoComplete="new-password" {...f.bind("again")} /></label>
+      {f.error && <p className="ox-err" role="alert">{f.error}</p>}
+      <button className="ox-btn primary block" disabled={f.busy}>Join</button>
     </form>
   </Gate>;
 }
@@ -218,28 +218,28 @@ function Shell({ me, out }: { me: Me; out: () => void }) {
   useEffect(() => { history.replaceState(null, "", "#" + tab); }, [tab]);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 3200); return () => clearTimeout(t); }, [toast]);
   const tabs: [Tab, string][] = [["merchants", "Merchants"], ["team", "Team"], ["leads", "Leads"], ["activity", "Activity"], ["account", "Your account"]];
-  return <div className="ad-app">
-    <header className="ad-top">
+  return <div className="ox-app">
+    <header className="ox-top">
       <Mark />
-      <nav className="ad-nav" aria-label="Sections">{tabs.map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => setTab(k)}>{l}</button>)}</nav>
-      <div className="ad-who"><span>{me.name}<small>{LEVELS.find(l => l[0] === me.level)?.[1]}</small></span><button className="ad-btn ghost sm" onClick={out}>Sign out</button></div>
+      <nav className="ox-nav" aria-label="Sections">{tabs.map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} aria-current={tab === k ? "page" : undefined} onClick={() => setTab(k)}>{l}</button>)}</nav>
+      <div className="ox-who"><span>{me.name}<small>{LEVELS.find(l => l[0] === me.level)?.[1]}</small></span><button className="ox-btn ghost sm" onClick={out}>Sign out</button></div>
     </header>
-    <main className="ad-main">
+    <main className="ox-main">
       {tab === "merchants" && <Merchants me={me} toast={setToast} />}
       {tab === "team" && <Team me={me} toast={setToast} />}
       {tab === "leads" && <Leads />}
       {tab === "activity" && <Activity />}
       {tab === "account" && <Account me={me} toast={setToast} out={out} />}
     </main>
-    {toast && <div className="ad-toast" role="status">{toast}</div>}
+    {toast && <div className="ox-toast" role="status">{toast}</div>}
   </div>;
 }
 
 function Head({ title, sub, children }: { title: string; sub?: React.ReactNode; children?: React.ReactNode }) {
-  return <div className="ad-head"><div><h1>{title}</h1>{sub && <p className="ad-sub">{sub}</p>}</div>{children && <div className="ad-acts">{children}</div>}</div>;
+  return <div className="ox-head"><div><h1>{title}</h1>{sub && <p className="ox-sub">{sub}</p>}</div>{children && <div className="ox-acts">{children}</div>}</div>;
 }
 
-function StatusTag({ s }: { s: Status }) { return <span className={"ad-tag " + s}>{STATUS.find(x => x[0] === s)?.[1] ?? s}</span>; }
+function StatusTag({ s }: { s: Status }) { return <span className={"ox-tag " + s}>{STATUS.find(x => x[0] === s)?.[1] ?? s}</span>; }
 
 function Merchants({ me, toast }: { me: Me; toast: (s: string) => void }) {
   const [list, setList] = useState<Merchant[] | null>(null);
@@ -254,23 +254,23 @@ function Merchants({ me, toast }: { me: Me; toast: (s: string) => void }) {
     saved={m => { load(); setOpen({ m, sheet: false }); }} sheet={m => setOpen({ m, sheet: true })} close={() => { setOpen(null); load(); }} />;
   return <>
     <Head title="Merchants" sub="Each business Agape takes payments for: its processor, the numbers the processor issued, and the VAR sheet to send.">
-      {can && <button className="ad-btn primary" onClick={() => setOpen({ m: null, sheet: false })}>Add a merchant</button>}
+      {can && <button className="ox-btn primary" onClick={() => setOpen({ m: null, sheet: false })}>Add a merchant</button>}
     </Head>
-    {error && <p className="ad-err">{error}</p>}
-    {list === null ? <p className="ad-empty">Loading…</p> : !list.length ? <div className="ad-blank">
+    {error && <p className="ox-err">{error}</p>}
+    {list === null ? <p className="ox-empty">Loading…</p> : !list.length ? <div className="ox-blank">
       <h2>No merchants yet</h2>
       <p>Add the first one with what you know today: the business, its processor, and how cards are taken. The numbers the processor issues can come later, and the VAR sheet shows what's still pending.</p>
-      {can && <button className="ad-btn primary" onClick={() => setOpen({ m: null, sheet: false })}>Add a merchant</button>}
-    </div> : <div className="ad-table-wrap"><table className="ad-table merch">
+      {can && <button className="ox-btn primary" onClick={() => setOpen({ m: null, sheet: false })}>Add a merchant</button>}
+    </div> : <div className="ox-table-wrap"><table className="ox-table merch">
       <thead><tr><th>Merchant</th><th>Processor</th><th>MID</th><th>Ready</th><th>Status</th><th>Updated</th><th></th></tr></thead>
       <tbody>{list.map(m => { const n = filled(m.fields); return <tr key={m.id}>
-        <td><button className="ad-link strong" onClick={() => setOpen({ m, sheet: false })}>{m.fields.dba}</button>{m.fields.city && <small>{m.fields.city}{m.fields.state ? ", " + m.fields.state : ""}</small>}</td>
-        <td data-l="Processor">{m.fields.processor || <span className="ad-muted">Not chosen</span>}</td>
-        <td className="mono nowrap" data-l="MID">{m.fields.mid ? mask(m.fields.mid) : <span className="ad-muted">Pending</span>}</td>
-        <td data-l="Ready"><span className="ad-meter" title={`${n} of ${NEEDED.length} required fields`}><i style={{ width: `${(n / NEEDED.length) * 100}%` }} /></span><small>{n}/{NEEDED.length}</small></td>
+        <td><button className="ox-link strong" onClick={() => setOpen({ m, sheet: false })}>{m.fields.dba}</button>{m.fields.city && <small>{m.fields.city}{m.fields.state ? ", " + m.fields.state : ""}</small>}</td>
+        <td data-l="Processor">{m.fields.processor || <span className="ox-muted">Not chosen</span>}</td>
+        <td className="mono nowrap" data-l="MID">{m.fields.mid ? mask(m.fields.mid) : <span className="ox-muted">Pending</span>}</td>
+        <td data-l="Ready"><span className="ox-meter" title={`${n} of ${NEEDED.length} required fields`}><i style={{ width: `${(n / NEEDED.length) * 100}%` }} /></span><small>{n}/{NEEDED.length}</small></td>
         <td data-l="Status"><StatusTag s={m.status} /></td>
         <td data-l="Updated"><small>{when(m.at)} · {m.by}</small></td>
-        <td><button className="ad-btn sm" onClick={() => setOpen({ m, sheet: true })}>VAR sheet</button></td>
+        <td><button className="ox-btn sm" onClick={() => setOpen({ m, sheet: true })}>VAR sheet</button></td>
       </tr>; })}</tbody>
     </table></div>}
   </>;
@@ -296,18 +296,18 @@ function Editor({ m, can, owner, venues, toast, saved, sheet, close }: { m: Merc
   const leave = () => { if (changed && !confirm("Leave without saving your changes?")) return; close(); };
   return <>
     <Head title={m ? f.dba || "Merchant" : "Add a merchant"} sub={m ? <>Last changed {when(m.at)} by {m.by}.</> : "Fill in what you know. Only the DBA name is needed to save."}>
-      <button className="ad-btn ghost" onClick={leave}>Back to merchants</button>
-      {m && <button className="ad-btn" disabled={changed} title={changed ? "Save first" : undefined} onClick={() => sheet(m)}>VAR sheet</button>}
+      <button className="ox-btn ghost" onClick={leave}>Back to merchants</button>
+      {m && <button className="ox-btn" disabled={changed} title={changed ? "Save first" : undefined} onClick={() => sheet(m)}>VAR sheet</button>}
     </Head>
-    {!can && <p className="ad-note">You can view this merchant and print its VAR sheet. Ask an owner if you need to make changes.</p>}
-    <div className="ad-edit">
-      <div className="ad-sections">
-        {SECTIONS.map(sec => <section key={sec.id} className="ad-card">
-          <h2>{sec.title}</h2><p className="ad-sub">{sec.sub}</p>
-          <div className="ad-grid">
-            {sec.id === "merchant" && venues.length > 0 && <label className="ad-f"><span>Agape venue</span><select disabled={!can} value={f.venue ?? ""} onChange={e => setF({ ...f, venue: e.target.value })}><option value="">Not linked</option>{venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select><small>Which venue's orders this merchant takes</small></label>}
-            {sec.fields.map(fd => <label key={fd.k} className={"ad-f" + (fd.wide ? " wide" : "")}>
-              <span>{fd.l}{NEEDED.includes(fd.k) && <i className="ad-req" title="Needed before cards can be taken">•</i>}</span>
+    {!can && <p className="ox-note">You can view this merchant and print its VAR sheet. Ask an owner if you need to make changes.</p>}
+    <div className="ox-edit">
+      <div className="ox-sections">
+        {SECTIONS.map(sec => <section key={sec.id} className="ox-card">
+          <h2>{sec.title}</h2><p className="ox-sub">{sec.sub}</p>
+          <div className="ox-grid">
+            {sec.id === "merchant" && venues.length > 0 && <label className="ox-f"><span>Agape venue</span><select disabled={!can} value={f.venue ?? ""} onChange={e => setF({ ...f, venue: e.target.value })}><option value="">Not linked</option>{venues.map(v => <option key={v.id} value={v.id}>{v.name}</option>)}</select><small>Which venue's orders this merchant takes</small></label>}
+            {sec.fields.map(fd => <label key={fd.k} className={"ox-f" + (fd.wide ? " wide" : "")}>
+              <span>{fd.l}{NEEDED.includes(fd.k) && <i className="ox-req" title="Needed before cards can be taken">•</i>}</span>
               {fd.opts ? <select disabled={!can} value={f[fd.k] ?? ""} onChange={e => setF({ ...f, [fd.k]: e.target.value })}><option value="">—</option>{fd.opts.map(o => <option key={o}>{o}</option>)}</select>
                 : fd.long ? <textarea disabled={!can} rows={4} value={f[fd.k] ?? ""} placeholder={fd.ph} onChange={e => setF({ ...f, [fd.k]: e.target.value })} />
                 : <input disabled={!can} className={fd.num ? "mono" : ""} inputMode={fd.num ? "text" : undefined} autoComplete="off" spellCheck={!fd.num} value={f[fd.k] ?? ""} placeholder={fd.ph} onChange={e => setF({ ...f, [fd.k]: e.target.value })} />}
@@ -315,19 +315,19 @@ function Editor({ m, can, owner, venues, toast, saved, sheet, close }: { m: Merc
             </label>)}
           </div>
         </section>)}
-        <p className="ad-fine">Agape Admin never keeps card numbers, bank account numbers or processor API secrets. Those stay with the processor.</p>
+        <p className="ox-fine">Agape Admin never keeps card numbers, bank account numbers or processor API secrets. Those stay with the processor.</p>
       </div>
-      <aside className="ad-side">
-        <div className="ad-card sticky">
+      <aside className="ox-side">
+        <div className="ox-card sticky">
           <h2>Status</h2>
-          <div className="ad-status">{STATUS.map(([k, l, d]) => <label key={k} className={status === k ? "on" : ""}><input type="radio" name="status" disabled={!can} checked={status === k} onChange={() => setStatus(k)} /><span><b>{l}</b><small>{d}</small></span></label>)}</div>
+          <div className="ox-status">{STATUS.map(([k, l, d]) => <label key={k} className={status === k ? "on" : ""}><input type="radio" name="status" disabled={!can} checked={status === k} onChange={() => setStatus(k)} /><span><b>{l}</b><small>{d}</small></span></label>)}</div>
           <h3>Needed before cards can be taken</h3>
-          {missing.length ? <ul className="ad-missing">{missing.map(k => <li key={k}>{LABEL[k]}</li>)}</ul> : <p className="ad-ok">Everything the processor needs is here.</p>}
-          {error && <p className="ad-err" role="alert">{error}</p>}
-          {can && <button className="ad-btn primary block" disabled={busy || !changed || !(f.dba ?? "").trim()} onClick={save}>{busy ? "Saving…" : changed ? (m ? "Save changes" : "Add merchant") : "Saved"}</button>}
+          {missing.length ? <ul className="ox-missing">{missing.map(k => <li key={k}>{LABEL[k]}</li>)}</ul> : <p className="ox-ok">Everything the processor needs is here.</p>}
+          {error && <p className="ox-err" role="alert">{error}</p>}
+          {can && <button className="ox-btn primary block" disabled={busy || !changed || !(f.dba ?? "").trim()} onClick={save}>{busy ? "Saving…" : changed ? (m ? "Save changes" : "Add merchant") : "Saved"}</button>}
           {owner && m && (sure
-            ? <div className="ad-row"><button className="ad-btn ghost sm" onClick={() => setSure(false)}>Keep it</button><button className="ad-btn danger sm" onClick={async () => { const r = await api("merchant/delete", { id: m.id }); if (r.ok) { toast("Deleted."); close(); } else setError(r.error); }}>Delete for good</button></div>
-            : <button className="ad-link danger" onClick={() => setSure(true)}>Delete this merchant</button>)}
+            ? <div className="ox-row"><button className="ox-btn ghost sm" onClick={() => setSure(false)}>Keep it</button><button className="ox-btn danger sm" onClick={async () => { const r = await api("merchant/delete", { id: m.id }); if (r.ok) { toast("Deleted."); close(); } else setError(r.error); }}>Delete for good</button></div>
+            : <button className="ox-link danger" onClick={() => setSure(true)}>Delete this merchant</button>)}
         </div>
       </aside>
     </div>
@@ -355,16 +355,16 @@ function Sheet({ m, back, close }: { m: Merchant; back: () => void; close: () =>
     navigator.clipboard?.writeText(lines.join("\n")).then(() => { setCopied(true); setTimeout(() => setCopied(false), 2000); });
   };
   return <>
-    <div className="ad-head noprint">
-      <div><h1>VAR sheet</h1><p className="ad-sub">Print it or save it as a PDF from the print window. Every print is noted in Activity.</p></div>
-      <div className="ad-acts">
-        <button className="ad-btn ghost" onClick={back}>Edit details</button>
-        <button className="ad-btn ghost" onClick={close}>All merchants</button>
-        <button className="ad-btn" onClick={text}>{copied ? "Copied" : "Copy as text"}</button>
-        <button className="ad-btn primary" onClick={print}>Print or save PDF</button>
+    <div className="ox-head noprint">
+      <div><h1>VAR sheet</h1><p className="ox-sub">Print it or save it as a PDF from the print window. Every print is noted in Activity.</p></div>
+      <div className="ox-acts">
+        <button className="ox-btn ghost" onClick={back}>Edit details</button>
+        <button className="ox-btn ghost" onClick={close}>All merchants</button>
+        <button className="ox-btn" onClick={text}>{copied ? "Copied" : "Copy as text"}</button>
+        <button className="ox-btn primary" onClick={print}>Print or save PDF</button>
       </div>
     </div>
-    <div className="ad-copy noprint" role="group" aria-label="Who this copy is for">
+    <div className="ox-copy noprint" role="group" aria-label="Who this copy is for">
       <span>This copy is for</span>
       {([["processor", "The processor", "Every number, in full"], ["venue", "The venue", "Every number, in full"], ["investor", "Investors", "Account numbers masked to the last four"]] as [Copy, string, string][]).map(([k, l, d]) =>
         <button key={k} className={copy === k ? "on" : ""} aria-pressed={copy === k} onClick={() => setCopy(k)}><b>{l}</b><small>{d}</small></button>)}
@@ -407,35 +407,35 @@ function Team({ me, toast }: { me: Me; toast: (s: string) => void }) {
   const set = async (id: string, b: Record<string, unknown>, ok: string) => { const r = await api("user", { id, ...b }); toast(r.ok ? ok : r.error); load(); };
   return <>
     <Head title="Team" sub="Everyone with an Agape Admin account. Owners invite people and decide what they can do." />
-    {owner && <section className="ad-card">
+    {owner && <section className="ox-card">
       <h2>Invite someone</h2>
-      <p className="ad-sub">They get a link to choose their own password. It works once, for 7 days. Send it to them yourself, by email or text.</p>
-      <form className="ad-invite" onSubmit={e => f.run(e, async () => {
+      <p className="ox-sub">They get a link to choose their own password. It works once, for 7 days. Send it to them yourself, by email or text.</p>
+      <form className="ox-invite" onSubmit={e => f.run(e, async () => {
         const r = await api("invite", f.v);
         if (!r.ok) return r.error;
         setLink(`${location.origin}/admin/?invite=${r.code}`); f.bind("email").onChange({ target: { value: "" } }); load();
       })}>
-        <label className="ad-f"><span>Name</span><input required {...f.bind("name")} /></label>
-        <label className="ad-f"><span>Email</span><input type="email" required {...f.bind("email")} /></label>
-        <label className="ad-f"><span>They can</span><select {...f.bind("level")}>{LEVELS.map(([k, l, d]) => <option key={k} value={k}>{l}: {d}</option>)}</select></label>
-        <button className="ad-btn primary" disabled={f.busy}>Create invitation</button>
+        <label className="ox-f"><span>Name</span><input required {...f.bind("name")} /></label>
+        <label className="ox-f"><span>Email</span><input type="email" required {...f.bind("email")} /></label>
+        <label className="ox-f"><span>They can</span><select {...f.bind("level")}>{LEVELS.map(([k, l, d]) => <option key={k} value={k}>{l}: {d}</option>)}</select></label>
+        <button className="ox-btn primary" disabled={f.busy}>Create invitation</button>
       </form>
-      {f.error && <p className="ad-err">{f.error}</p>}
-      {link && <div className="ad-linkbox"><span>Send them this link. It won't be shown again.</span><code>{link}</code><button className="ad-btn sm" onClick={() => navigator.clipboard?.writeText(link).then(() => toast("Link copied."))}>Copy link</button></div>}
+      {f.error && <p className="ox-err">{f.error}</p>}
+      {link && <div className="ox-linkbox"><span>Send them this link. It won't be shown again.</span><code>{link}</code><button className="ox-btn sm" onClick={() => navigator.clipboard?.writeText(link).then(() => toast("Link copied."))}>Copy link</button></div>}
     </section>}
-    <section className="ad-card">
+    <section className="ox-card">
       <h2>People</h2>
-      {!t ? <p className="ad-empty">Loading…</p> : <div className="ad-table-wrap"><table className="ad-table">
+      {!t ? <p className="ox-empty">Loading…</p> : <div className="ox-table-wrap"><table className="ox-table">
         <thead><tr><th>Name</th><th>Email</th><th>Access</th><th>Joined</th>{owner && <th></th>}</tr></thead>
         <tbody>{t.users.map(u => <tr key={u.id} className={u.off ? "off" : ""}>
           <td>{u.name}{u.id === me.id && <small>You</small>}</td><td>{u.email}</td>
           <td>{owner && u.id !== me.id && !u.off ? <select aria-label={`Access for ${u.name}`} value={u.level} onChange={e => set(u.id, { level: e.target.value }, "Access changed.")}>{LEVELS.map(([k, l]) => <option key={k} value={k}>{l}</option>)}</select> : u.off ? "Turned off" : LEVELS.find(l => l[0] === u.level)?.[1]}</td>
           <td><small>{when(u.at)}</small></td>
-          {owner && <td>{u.id !== me.id && <button className="ad-btn ghost sm" onClick={() => set(u.id, { off: !u.off }, u.off ? "Access turned back on." : "Access turned off. They're signed out everywhere.")}>{u.off ? "Turn access on" : "Turn access off"}</button>}</td>}
+          {owner && <td>{u.id !== me.id && <button className="ox-btn ghost sm" onClick={() => set(u.id, { off: !u.off }, u.off ? "Access turned back on." : "Access turned off. They're signed out everywhere.")}>{u.off ? "Turn access on" : "Turn access off"}</button>}</td>}
         </tr>)}
         {t.invites.map(i => <tr key={i.email} className="pending">
           <td>{i.name || "—"}<small>Invited</small></td><td>{i.email}</td><td>{LEVELS.find(l => l[0] === i.level)?.[1]}</td><td><small>Link works until {when(i.until)}</small></td>
-          {owner && <td><button className="ad-btn ghost sm" onClick={async () => { const r = await api("invite/cancel", { email: i.email }); toast(r.ok ? "Invitation cancelled." : r.error); load(); }}>Cancel</button></td>}
+          {owner && <td><button className="ox-btn ghost sm" onClick={async () => { const r = await api("invite/cancel", { email: i.email }); toast(r.ok ? "Invitation cancelled." : r.error); load(); }}>Cancel</button></td>}
         </tr>)}</tbody>
       </table></div>}
     </section>
@@ -449,11 +449,11 @@ function Leads() {
   const shown = (l ?? []).filter(x => !q.trim() || JSON.stringify(x).toLowerCase().includes(q.trim().toLowerCase()));
   return <>
     <Head title="Leads" sub="Everyone who asked to talk from the website, newest first.">
-      <input className="ad-search" type="search" placeholder="Search leads" aria-label="Search leads" value={q} onChange={e => setQ(e.target.value)} />
+      <input className="ox-search" type="search" placeholder="Search leads" aria-label="Search leads" value={q} onChange={e => setQ(e.target.value)} />
     </Head>
-    {l === null ? <p className="ad-empty">Loading…</p> : !shown.length ? <p className="ad-empty">{q ? "No leads match." : "Nobody has asked yet."}</p> : <div className="ad-leads">{shown.map((x, i) => <div key={i} className="ad-card lead">
-      <div className="ad-row between"><b>{x.name}</b><small>{when(x.at)}</small></div>
-      <div className="ad-meta">{[x.role, x.org].filter(Boolean).join(" · ")}</div>
+    {l === null ? <p className="ox-empty">Loading…</p> : !shown.length ? <p className="ox-empty">{q ? "No leads match." : "Nobody has asked yet."}</p> : <div className="ox-leads">{shown.map((x, i) => <div key={i} className="ox-card lead">
+      <div className="ox-row between"><b>{x.name}</b><small>{when(x.at)}</small></div>
+      <div className="ox-meta">{[x.role, x.org].filter(Boolean).join(" · ")}</div>
       <a href={String(x.contact).includes("@") ? `mailto:${x.contact}` : `tel:${String(x.contact).replace(/[^\d+]/g, "")}`}>{x.contact}</a>
       {x.note && <p>{x.note}</p>}
     </div>)}</div>}
@@ -465,7 +465,7 @@ function Activity() {
   useEffect(() => { api("activity").then(r => setLog(r.ok ? r.log : [])); }, []);
   return <>
     <Head title="Activity" sub="Every change and every printed VAR sheet, newest first. It can't be edited." />
-    {log === null ? <p className="ad-empty">Loading…</p> : <ol className="ad-log">{log.map((e, i) => <li key={i}><time>{when(e.at)}</time><b>{e.who}</b><span>{e.what}</span></li>)}</ol>}
+    {log === null ? <p className="ox-empty">Loading…</p> : <ol className="ox-log">{log.map((e, i) => <li key={i}><time>{when(e.at)}</time><b>{e.who}</b><span>{e.what}</span></li>)}</ol>}
   </>;
 }
 
@@ -473,20 +473,20 @@ function Account({ me, toast, out }: { me: Me; toast: (s: string) => void; out: 
   const f = useForm({ old: "", new: "", again: "" });
   return <>
     <Head title="Your account" sub={<>{me.name} · {me.email} · {LEVELS.find(l => l[0] === me.level)?.[1]}</>} />
-    <section className="ad-card narrow">
+    <section className="ox-card narrow">
       <h2>Change your password</h2>
-      <p className="ad-sub">You'll be signed out everywhere, including here.</p>
+      <p className="ox-sub">You'll be signed out everywhere, including here.</p>
       <form onSubmit={e => f.run(e, async () => {
         if (f.v.new !== f.v.again) return "The two new passwords don't match";
         const r = await api("password", { old: f.v.old, new: f.v.new });
         if (!r.ok) return r.error;
         toast("Password changed. Sign in again."); setTimeout(out, 1200);
       })}>
-        <label className="ad-f"><span>Current password</span><input type="password" required autoComplete="current-password" {...f.bind("old")} /></label>
-        <label className="ad-f"><span>New password</span><input type="password" required minLength={10} autoComplete="new-password" {...f.bind("new")} /><small>At least 10 characters</small></label>
-        <label className="ad-f"><span>New password again</span><input type="password" required autoComplete="new-password" {...f.bind("again")} /></label>
-        {f.error && <p className="ad-err" role="alert">{f.error}</p>}
-        <button className="ad-btn primary" disabled={f.busy}>Change password</button>
+        <label className="ox-f"><span>Current password</span><input type="password" required autoComplete="current-password" {...f.bind("old")} /></label>
+        <label className="ox-f"><span>New password</span><input type="password" required minLength={10} autoComplete="new-password" {...f.bind("new")} /><small>At least 10 characters</small></label>
+        <label className="ox-f"><span>New password again</span><input type="password" required autoComplete="new-password" {...f.bind("again")} /></label>
+        {f.error && <p className="ox-err" role="alert">{f.error}</p>}
+        <button className="ox-btn primary" disabled={f.busy}>Change password</button>
       </form>
     </section>
   </>;
@@ -499,11 +499,11 @@ class Guard extends React.Component<{ children: React.ReactNode }, { error: stri
   componentDidCatch(e: any) { console.error(e); }
   render() {
     if (!this.state.error) return this.props.children;
-    return <div className="ad-gate"><div className="ad-gate-card"><Mark /><h1>Something went wrong on this page</h1>
-      <p className="ad-sub">Your account and everything you saved are safe. Reload to try again. If it keeps happening, send Agape this line:</p>
-      <p className="ad-err mono">{this.state.error} · {navigator.userAgent.replace(/^Mozilla\/5\.0 /, "")}</p>
-      <button className="ad-btn primary block" onClick={() => location.reload()}>Reload</button>
-      <button className="ad-link" style={{ marginTop: 12 }} onClick={() => { try { localStorage.removeItem(KEY); } catch {} location.href = "/admin/"; }}>Sign out and start over</button></div></div>;
+    return <div className="ox-gate"><div className="ox-gate-card"><Mark /><h1>Something went wrong on this page</h1>
+      <p className="ox-sub">Your account and everything you saved are safe. Reload to try again. If it keeps happening, send Agape this line:</p>
+      <p className="ox-err mono">{this.state.error} · {navigator.userAgent.replace(/^Mozilla\/5\.0 /, "")}</p>
+      <button className="ox-btn primary block" onClick={() => location.reload()}>Reload</button>
+      <button className="ox-link" style={{ marginTop: 12 }} onClick={() => { try { localStorage.removeItem(KEY); } catch {} location.href = "/admin/"; }}>Sign out and start over</button></div></div>;
   }
 }
 ReactDOM.createRoot(document.getElementById("root")!).render(<Guard><App /></Guard>);
