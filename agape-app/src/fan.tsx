@@ -138,8 +138,7 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
       {lead && space !== "me" && (
         <button className="order-pill" onClick={() => go("me")}>
           <ItemArt name={lead.items[0]?.name ?? ""} size={26} />
-          <span className="grow"><b>{lead.items[0]?.name}</b>{v.orders.length > 1 ? ` +${v.orders.length - 1} more` : ""} · {stageWord(lead.stage)}</span>
-          <span className="num">{lead.delivery ? "here by" : "ready by"} {venueTime(lead.eta)}</span>
+          <span className="grow pill-txt"><b>{lead.items[0]?.name}{v.orders.length > 1 ? ` +${v.orders.length - 1} more` : ""}</b><small>{stageWord(lead.stage)} · {lead.delivery ? "here by" : "ready by"} <span className="num">{venueTime(lead.eta)}</span></small></span>
         </button>
       )}
       <div className="scope-body" ref={body}>
