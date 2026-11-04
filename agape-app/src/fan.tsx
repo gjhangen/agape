@@ -43,7 +43,7 @@ export type FanView = {
     battle: { orders_5m: number; rank: number | null; of: number; ahead: { section: string; orders: number } | null };
   };
   me: {
-    orders: Order[]; receipts: Order[]; points: number; spent: number; credit?: number; tip?: { bps: number; min: number }; holdings: { thing: string; name: string; qty: number }[];
+    orders: Order[]; receipts: Order[]; points: number; spent: number; credit?: number; tip?: { bps: number; min: number }; delivery?: { fee: number; free_over: number }; holdings: { thing: string; name: string; qty: number }[];
     level: number; tier: string; tier_floor: number; next_tier: { name: string; at: number } | null; balance: number;
     earned: { t: number; points: number; why: string }[]; badges: { id: string; name: string; how: string; earned: boolean }[];
     cards: { card: Card; count: number; listing: { id: string; price: number } | null }[];
@@ -908,6 +908,13 @@ function PayButton({ label, disabled, onPay, toast, adult, className = "btn prim
   return <button className={className} disabled={disabled} onClick={() => has && of21 ? onPay() : setAsk(true)}>{label}</button>;
 }
 
+/** How close an order is to free delivery, when the venue has a threshold. */
+function FreeHint({ v, items }: { v: FanView; items: number }) {
+  const over = v.me.delivery?.free_over ?? 0;
+  if (!over || items >= over) return null;
+  return <small className="free-hint">Add {money(over - items)} more and delivery is free.</small>;
+}
+
 function CartBar({ v, open }: { v: FanView; open: () => void }) {
   const lines = useCart();
   if (lines.length === 0) return null;
@@ -957,7 +964,8 @@ function CartSheet({ v, refresh, setSheet, toast, go }: Ctx) {
         <p className="promise">{delivery ? `At section ${sec(v.you.seat)} by about ${venueTime(latest)}.${q?.stands > 1 ? ` It comes from ${q.stands} stands, so it may arrive in parts; you pay one delivery fee.` : ""}` : `Each part is ready at its stand. We'll tell you the moment it's ready to pick up.`}</p>
         {q && <div className="lines">
           <LedgerLine label="Items" amount={q.items} /><LedgerLine label="Tax" amount={q.tax} />
-          {q.fee > 0 && <LedgerLine label="Delivery" amount={q.fee} note="once for the cart" />}{q.tip > 0 && <LedgerLine label="Tip" amount={q.tip} />}
+          {q.fee > 0 && <LedgerLine label="Delivery" amount={q.fee} note="once for the cart" />}{delivery && q.fee === 0 && (v.me.delivery?.free_over ?? 0) > 0 && <LedgerLine label="Delivery" amount={0} note={`free over ${money(v.me.delivery!.free_over)}`} />}
+          {delivery && <FreeHint v={v} items={q.items} />}{q.tip > 0 && <LedgerLine label="Tip" amount={q.tip} />}
           <LedgerLine label="You pay" amount={q.charge} strong />
           <small className="pilot-note">{delivery ? `Charged when it reaches you. If it takes more than 30 minutes, you get ${money(300)} in Agape credit automatically.` : "Charged when it's ready to pick up."}</small>
         </div>}
@@ -1063,7 +1071,8 @@ function ItemSheet({ v, refresh, setSheet, toast, go, id, at: preset }: Ctx & { 
         <p className="promise">{giftTo ? `It goes to ${/^s\d+$/.test(giftTo) ? `section ${sec(giftTo)}` : friends.find(f => f.id === giftTo)?.name ?? "them"}, with your note. Their runner brings it straight there.` : at && !delivery ? `We start it so it's ready at ${item.stand} around ${venueTime(at)}.` : at ? `We hold it now and start it so it reaches section ${sec(v.you.seat)} around ${venueTime(at)}. If it's more than 10 minutes late, you get ${money(300)} in Agape credit automatically.` : delivery ? `At section ${sec(v.you.seat)} around ${venueTime(item.eta)}. If it takes more than 30 minutes, you get ${money(300)} in Agape credit automatically.` : `Ready at ${item.stand}. We'll tell you the moment it's ready to pick up.`}</p>
         {quote && <div className="lines">
           <LedgerLine label="Items" amount={quote.subtotal} /><LedgerLine label="Tax" amount={quote.tax} />
-          {quote.fee > 0 && <LedgerLine label="Delivery" amount={quote.fee} />}{quote.tip > 0 && <LedgerLine label="Tip" amount={quote.tip} />}
+          {quote.fee > 0 && <LedgerLine label="Delivery" amount={quote.fee} />}{delivery && quote.fee === 0 && (v.me.delivery?.free_over ?? 0) > 0 && <LedgerLine label="Delivery" amount={0} note={`free over ${money(v.me.delivery!.free_over)}`} />}{quote.tip > 0 && <LedgerLine label="Tip" amount={quote.tip} />}
+          {delivery && <FreeHint v={v} items={quote.subtotal - (quote.discount ?? 0)} />}
           <LedgerLine label="You pay" amount={quote.charge} strong />
           <small className="pilot-note">{delivery ? "Charged when it reaches you." : "Charged when it's ready to pick up."}</small>
         </div>}

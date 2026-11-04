@@ -233,7 +233,7 @@ impl Night {
                     "orders": x.orders.iter().map(|&i| { let mut c = self.order_card(i); c["handoff_ok_at"] = json!(self.orders[i].picked_at.map(|p| p + 3 * 60_000)); c }).collect::<Vec<_>>() })
         });
         json!({ "clock": self.clock(), "runner": self.runner_at(r), "bag": bag, "plan": plan, "delivered": delivered, "map": self.view_map(None, None),
-                "human": self.human(r), "on_shift": self.live.contains(r), "trip": trip,
+                "human": self.human(r), "on_shift": self.live.contains(r), "trip": trip, "pay_mode": self.terms.pay_mode, "wage": self.terms.hourly_wage,
                 "pay": self.ledger.balance(&acct(r, "pay"), &Unit::usd()), "tips": self.ledger.balance(&acct(r, "tips"), &Unit::usd()),
                 "rating": self.rating_of(r).0, "ratings": self.rating_of(r).1 })
     }
@@ -357,7 +357,8 @@ impl Night {
             for (w, a) in &p.paid_by { *by.entry(if w == "agape" { "Agape".into() } else if w == "tax_authority" { "Tax collected".into() } else if w.starts_with("runner") { "Runners".into() } else { "Stands".into() }).or_insert(0) += a; }
             if let crate::care::ProblemState::Remedied { amount, form, .. } = &p.state { if *form == crate::remedy::Form::Credit { credit += amount } else { refund += amount } }
         }
-        json!({ "policy": self.policy, "settled": settled, "claims": self.problems.len(),
+        json!({ "policy": self.policy, "pay": { "mode": self.terms.pay_mode, "hourly_wage": self.terms.hourly_wage, "runner_pay": self.terms.runner_pay, "offer_hourly": self.terms.offer_hourly,
+                    "free_delivery_over": self.terms.free_delivery_over, "delivery_fee": self.terms.delivery_fee }, "settled": settled, "claims": self.problems.len(),
                 "claim_bps": self.problems.len() as i64 * 10_000 / settled.max(1) as i64,
                 "open": self.problems.iter().filter(|p| p.state == crate::care::ProblemState::Open).count(),
                 "credit": credit, "refund": refund, "paid_by": by,
@@ -593,7 +594,7 @@ impl Night {
         json!({
             "orders": active, "receipts": receipts, "spent": spent, "holdings": holdings, "tickets": self.tickets_of(fan), "passes": self.passes_of(fan), "rides": self.rides_of(fan),
             "level": level, "tier": tier, "tier_floor": floor, "next_tier": next.map(|(n, f)| json!({ "name": n, "at": f })),
-            "credit": self.ledger.balance(&acct(fan, "credit"), &Unit::usd()), "tip": { "bps": self.policy.tip_bps, "min": self.policy.tip_min },
+            "credit": self.ledger.balance(&acct(fan, "credit"), &Unit::usd()), "tip": { "bps": self.policy.tip_bps, "min": self.policy.tip_min }, "delivery": { "fee": self.terms.delivery_fee, "free_over": self.terms.free_delivery_over },
             "balance": balance, "points": balance, "earned": self.earn_history(fan), "badges": self.badges(fan), "cards": self.cards_of(fan),
             "following": following, "deals": self.deals_of(fan), "passport": self.passport_json(fan),
             "messages": threads.into_iter().map(|(k, v)| json!({ "with": k, "name": self.party_name(&k), "lines": v })).collect::<Vec<_>>(),

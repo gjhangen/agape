@@ -165,11 +165,16 @@ export function SetupLens({ toast, inApp }: { toast: (s: string) => void; inApp?
             <Field label="Sales tax %" type="number" step="0.25" value={w.terms.tax_bps / 100} set={v => edit(d => { d.terms.tax_bps = Math.round(num(v) * 100); })} />
           </div>
           <div className="block-head"><h2>Runner pay</h2></div>
+          {inApp ? <p className="pay-explain">Runners are independent and paid by Agape, out of its share and the delivery fee, on Agape's terms for every venue. Tips go to them in full.</p> : <>
           <div className="seg fill pay-mode" role="group" aria-label="How runners are paid">
-            <button className={(w.terms.pay_mode ?? "offers") !== "fixed" ? "on" : ""} onClick={() => edit(d => { d.terms.pay_mode = "offers"; })}>Offers that rise</button>
+            <button className={(w.terms.pay_mode ?? "offers") === "offers" ? "on" : ""} onClick={() => edit(d => { d.terms.pay_mode = "offers"; })}>Offers that rise</button>
             <button className={w.terms.pay_mode === "fixed" ? "on" : ""} onClick={() => edit(d => { d.terms.pay_mode = "fixed"; })}>Fixed per delivery</button>
+            <button className={w.terms.pay_mode === "hourly" ? "on" : ""} onClick={() => edit(d => { d.terms.pay_mode = "hourly"; })}>By the hour</button>
           </div>
-          {w.terms.pay_mode === "fixed" ? <>
+          {w.terms.pay_mode === "hourly" ? <>
+            <p className="pay-explain">A wage for every hour online, whatever the trips. Runners keep every tip on top.</p>
+            <div className="sf-grid"><Field label="Per hour online $" type="number" step="0.5" value={dollars(w.terms.hourly_wage ?? 1800)} set={v => edit(d => { d.terms.hourly_wage = cents(v); })} /></div>
+          </> : w.terms.pay_mode === "fixed" ? <>
             <p className="pay-explain">Every delivery pays the same, whoever takes it. Runners keep every tip on top.</p>
             <div className="sf-grid"><Field label="Pay per delivery $" type="number" step="0.05" value={dollars(w.terms.runner_pay)} set={v => edit(d => { d.terms.runner_pay = cents(v); })} /></div>
           </> : <>
@@ -181,7 +186,7 @@ export function SetupLens({ toast, inApp }: { toast: (s: string) => void; inApp?
               <Field label="Raise each pass %" type="number" step="1" value={(w.terms.offer_raise_bps ?? 1500) / 100} set={v => edit(d => { d.terms.offer_raise_bps = Math.round(num(v) * 100); })} />
               <Field label="Highest, % of first" type="number" step="5" value={(w.terms.offer_cap_bps ?? 16000) / 100} set={v => edit(d => { d.terms.offer_cap_bps = Math.round(num(v) * 100); })} />
             </div>
-          </>}
+          </>}</>}
         </section>
         <section className="block span2">
           <div className="block-head"><h2>Around the venue</h2><span className="sub">Your rideshare, parking and partner businesses, as fans will see them</span></div>
@@ -236,7 +241,7 @@ export function SetupLens({ toast, inApp }: { toast: (s: string) => void; inApp?
               <MeasureTile label="Runners earn" value={`${money(r.runner_hourly)}/h`} sub={r.trips_taken ? `pay and tips · ${Math.round(100 * r.taken_first / r.trips_taken)}% of trips taken on the first offer · ${money(r.trip_pay_avg)} a trip before tips` : "pay and tips"} tone={r.runner_hourly < 2000 ? "warn" : "good"} />
             </div>
             <MoneyFlows f={r.flows ?? {}} />
-            <p className="provenance">Agape keeps {(w.terms.platform_share_bps / 100).toFixed(1)}% of each sale and the {money(w.terms.delivery_fee)} delivery fee, and pays runners {w.terms.pay_mode === "fixed" ? `${money(w.terms.runner_pay)} a delivery` : "by trip offers"} out of it; runners keep every tip. Agape also processes the cards: sellers pay {(w.terms.proc_bps / 100).toFixed(1)}% + {money(w.terms.proc_fixed)}, and Agape pays the card networks' interchange out of that. A preview of this setup, not a forecast. Every unit {r.conserved ? "balanced to zero" : "did NOT balance"}. Busiest stands: {r.stands.slice(0, 3).map((s: any) => `${s.name} ${money(s.revenue)}`).join(", ")}.</p>
+            <p className="provenance">Agape keeps {(w.terms.platform_share_bps / 100).toFixed(1)}% of each sale and the {money(w.terms.delivery_fee)} delivery fee, and pays runners {w.terms.pay_mode === "fixed" ? `${money(w.terms.runner_pay)} a delivery` : w.terms.pay_mode === "hourly" ? `${money(w.terms.hourly_wage ?? 1800)} an hour` : "by trip offers"} out of it; runners keep every tip. Agape also processes the cards: sellers pay {(w.terms.proc_bps / 100).toFixed(1)}% + {money(w.terms.proc_fixed)}, and Agape pays the card networks' interchange out of that. A preview of this setup, not a forecast. Every unit {r.conserved ? "balanced to zero" : "did NOT balance"}. Busiest stands: {r.stands.slice(0, 3).map((s: any) => `${s.name} ${money(s.revenue)}`).join(", ")}.</p>
           </div>}
         </section>
       </div>

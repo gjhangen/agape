@@ -8,7 +8,8 @@ type Cover = { part: "items" | "tax" | "fee" | "tip"; from: "fault" | "stand" | 
 type Rule = { words: string; fault: string; covers: Cover[]; photo: boolean; auto: boolean; form?: "credit" | "refund" | null };
 export type Policy = { form: "credit" | "refund"; rules: Record<string, Rule>; auto_per_fan: number; auto_per_stand: number; handoff_radius_m: number; tip_bps: number; tip_min: number; proof_after_orders: number; photo_at_bps: number; pin_at_bps: number };
 type Rec = { id: string; name: string; orders: number; spent: number; claims: number; claim_bps: number; remedied: number; earned: number; cost: number; net: number; ratings_given: number; avg_given: number | null; proof: "none" | "photo" | "pin"; proof_set: boolean };
-export type CareView = { policy: Policy; settled: number; claims: number; claim_bps: number; open: number; credit: number; refund: number; paid_by: Record<string, number>;
+export type Pay = { mode: "offers" | "fixed" | "hourly"; hourly_wage: number; runner_pay: number; offer_hourly: number; free_delivery_over: number; delivery_fee: number };
+export type CareView = { policy: Policy; pay: Pay; settled: number; claims: number; claim_bps: number; open: number; credit: number; refund: number; paid_by: Record<string, number>;
   problems: { id: string; order: number; fan: string; who: string; stand: string; reason: string; words: string; photo: boolean; held: string | null; state: { state: string; amount?: number; form?: string; why?: string }; t: number; fault: string; handoff_m: number | null; paid_by: { who: string; amount: number }[] }[];
   fans: Rec[] };
 
@@ -17,7 +18,7 @@ const FROM: [Cover["from"] | "", string][] = [["", "Not returned"], ["fault", "W
 const pct = (bps: number) => `${Math.round(bps / 100)}%`;
 
 export function CareDesk({ c, toast, refresh }: { c: CareView; toast: (t: string) => void; refresh: () => void }) {
-  const [tab, setTab] = useState<"queue" | "fans" | "policy">("queue");
+  const [tab, setTab] = useState<"queue" | "fans">("queue");
   const act = (a: Record<string, unknown>, ok: string) => { const r = kernel.act({ ...a, as: "hq" }); toast(r.ok ? ok : r.error); refresh(); };
   const agapePaid = c.paid_by["Agape"] ?? 0;
   return (
@@ -28,10 +29,9 @@ export function CareDesk({ c, toast, refresh }: { c: CareView; toast: (t: string
         <MeasureTile label="Made right" value={money(c.credit + c.refund)} sub={`${money(c.credit)} as credit · ${money(c.refund)} refunded`} />
         <MeasureTile label="Agape paid" value={money(agapePaid)} sub={Object.entries(c.paid_by).filter(([k]) => k !== "Agape").map(([k, v]) => `${k} ${money(v)}`).join(" · ") || "stands and runners paid the rest"} />
       </div>
-      <div className="seg" role="group" aria-label="Care">{([["queue", "Problems"], ["fans", "Fans to watch"], ["policy", "Policy"]] as const).map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>)}</div>
+      <div className="seg" role="group" aria-label="Care">{([["queue", "Problems"], ["fans", "Fans to watch"]] as const).map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>)}</div>
       {tab === "queue" && <Queue c={c} act={act} />}
       {tab === "fans" && <Fans c={c} act={act} />}
-      {tab === "policy" && <PolicyEditor p={c.policy} act={act} />}
     </div>
   );
 }
@@ -69,6 +69,39 @@ function Fans({ c, act }: { c: CareView; act: (a: Record<string, unknown>, ok: s
           <option value="auto">Automatic ({f.proof === "none" ? "none" : f.proof})</option><option value="none">None</option><option value="photo">Runner takes a photo</option><option value="pin">Fan gives a PIN</option></select></td>
       </tr>)}</tbody>
     </table></div>
+  </section>;
+}
+
+/** Agape's policies, in one place: runner pay, delivery, and making things right. */
+export function Policies({ c, toast, refresh }: { c: CareView; toast: (t: string) => void; refresh: () => void }) {
+  const act = (a: Record<string, unknown>, ok: string) => { const r = kernel.act({ ...a, as: "hq" }); toast(r.ok ? ok : r.error); refresh(); };
+  return <div className="role care">
+    <PayEditor p={c.pay} act={act} />
+    <PolicyEditor p={c.policy} act={act} />
+  </div>;
+}
+
+function PayEditor({ p, act }: { p: Pay; act: (a: Record<string, unknown>, ok: string) => void }) {
+  const [d, setD] = useState<Pay>(p);
+  const dollars = (c: number) => (c / 100).toFixed(2);
+  const cents = (v: string) => Math.round((Number(v.replace(/[^\d.]/g, "")) || 0) * 100);
+  const changed = JSON.stringify(d) !== JSON.stringify(p);
+  return <section className="block care-policy">
+    <div className="block-head"><h2>Runner pay</h2><span className="sub">For every venue. Tips always go to the runner on top.</span></div>
+    <div className="seg">{([["offers", "Offers per trip"], ["fixed", "Fixed per delivery"], ["hourly", "By the hour"]] as const).map(([k, l]) => <button key={k} className={d.mode === k ? "on" : ""} onClick={() => setD({ ...d, mode: k })}>{l}</button>)}</div>
+    <p className="explain">{d.mode === "offers" ? "Each trip is offered with its pay, priced on its walk and wait; if a runner passes, the next offer is a little higher. Runners choose their trips." : d.mode === "fixed" ? "The same pay for every delivery, whoever takes it." : "A wage for every hour online, paid by the minute, whatever the trips. Runners take the trips they're given; the more efficient the routes, the less each delivery costs Agape."}</p>
+    <div className="care-grid">
+      {d.mode === "hourly" && <label className="sf"><span>Per hour online $</span><input inputMode="decimal" defaultValue={dollars(d.hourly_wage)} onChange={e => setD({ ...d, hourly_wage: cents(e.target.value) })} /></label>}
+      {d.mode === "fixed" && <label className="sf"><span>Per delivery $</span><input inputMode="decimal" defaultValue={dollars(d.runner_pay)} onChange={e => setD({ ...d, runner_pay: cents(e.target.value) })} /></label>}
+      {d.mode === "offers" && <label className="sf"><span>Offers priced at, per hour of trip $</span><input inputMode="decimal" defaultValue={dollars(d.offer_hourly)} onChange={e => setD({ ...d, offer_hourly: cents(e.target.value) })} /></label>}
+    </div>
+    <div className="block-head"><h2>Delivery</h2><span className="sub">The fee is {money(d.delivery_fee)} unless an order qualifies for free delivery.</span></div>
+    <div className="care-grid">
+      <label className="check"><input type="checkbox" checked={d.free_delivery_over > 0} onChange={e => setD({ ...d, free_delivery_over: e.target.checked ? 2500 : 0 })} /> Free delivery over an amount</label>
+      {d.free_delivery_over > 0 && <label className="sf"><span>Free when the items come to at least $</span><input inputMode="decimal" defaultValue={dollars(d.free_delivery_over)} onChange={e => setD({ ...d, free_delivery_over: cents(e.target.value) })} /></label>}
+    </div>
+    <div className="row gap"><span className="grow sub">{changed ? "Not saved yet." : "In force now."}</span>
+      <button className="btn primary" disabled={!changed} onClick={() => act({ do: "set_pay", mode: d.mode, hourly_wage: d.hourly_wage, runner_pay: d.runner_pay, offer_hourly: d.offer_hourly, free_delivery_over: d.free_delivery_over }, "Saved. It applies from the next trip and order.")}>Save</button></div>
   </section>;
 }
 

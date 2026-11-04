@@ -10,7 +10,7 @@ fn main() {
     for seed in [7u64, 11] {
         let mut w: WorldDef = serde_json::from_str(include_str!("../templates/arena.json")).unwrap();
         w.terms.pay_mode = mode.clone();
-        if mode == "fixed" { w.terms.runner_pay = rate; } else { w.terms.offer_hourly = rate; }
+        if mode == "fixed" { w.terms.runner_pay = rate; } else if mode == "hourly" { w.terms.hourly_wage = rate; } else { w.terms.offer_hourly = rate; }
         if let Some(m) = args.get(4).and_then(|x| x.parse().ok()) { w.terms.offer_min = m; }
         let t: Template = serde_json::from_str(include_str!("../templates/basketball.json")).unwrap();
         if let Some(b) = args.get(5).and_then(|x| x.parse().ok()) { w.service.batch_max = b; }

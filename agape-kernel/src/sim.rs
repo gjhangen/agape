@@ -257,6 +257,8 @@ pub struct Night {
     pub(crate) pay_stats: (u64, u64, u64, i64),
     /// Problems fans reported with orders, and how each was settled.
     pub problems: Vec<crate::care::Problem>,
+    /// Minutes of wage paid to each runner so far tonight (hourly mode).
+    pub(crate) wage_minutes: BTreeMap<String, i64>,
     /// Agape's policy for problems, tips and proof at the handoff; set from Agape's own app.
     pub policy: crate::remedy::Policy,
     /// Proof Agape's team has set for a fan by hand, over what their record calls for.
@@ -409,7 +411,7 @@ impl Night {
             report: Report::default(), placed_by_phase: BTreeMap::new(), batches: (0, 0), score: (0, 0), script, end_min, menu, t: 0,
             feed: vec![], recent: Default::default(), plans: BTreeMap::new(), done: false, chat: Default::default(), predictions: vec![], world,
             league, social: crate::social::Social::default(), last_scorer: BTreeMap::new(), seatmaps: BTreeMap::new(),
-            trade: Default::default(), claimed: BTreeSet::new(), driven: BTreeSet::new(), redeemed: BTreeMap::new(), replies: vec![], replay_check: std::cell::Cell::new((0, true)), live: BTreeSet::new(), trips: BTreeMap::new(), songs_played: 0, pay_stats: (0, 0, 0, 0), problems: vec![], policy: Default::default(), proof_set: BTreeMap::new(), halt: None, ratings: vec![], names: BTreeMap::new(), wearing: BTreeMap::new(), renames: BTreeMap::new(), spots: BTreeMap::new(), level_offset: BTreeMap::new(), passports: BTreeMap::new(), transfers: BTreeMap::new(),
+            trade: Default::default(), claimed: BTreeSet::new(), driven: BTreeSet::new(), redeemed: BTreeMap::new(), replies: vec![], replay_check: std::cell::Cell::new((0, true)), live: BTreeSet::new(), trips: BTreeMap::new(), songs_played: 0, pay_stats: (0, 0, 0, 0), problems: vec![], policy: Default::default(), proof_set: BTreeMap::new(), wage_minutes: BTreeMap::new(), halt: None, ratings: vec![], names: BTreeMap::new(), wearing: BTreeMap::new(), renames: BTreeMap::new(), spots: BTreeMap::new(), level_offset: BTreeMap::new(), passports: BTreeMap::new(), transfers: BTreeMap::new(),
         }.seeded_live()
     }
 
@@ -555,10 +557,13 @@ impl Night {
             }
         }
         let n = groups.len() as i64;
+        // the whole cart counts toward free delivery
+        let total: i64 = groups.iter().flat_map(|g| g.1.iter()).map(|l| l.qty * l.unit_price).sum();
+        let free = self.terms.fee_for(total) == 0;
         let mut ids = vec![];
         for (k, (stand, lines)) in groups.into_iter().enumerate() {
             let share = if delivery { tip / n + if k == 0 { tip % n } else { 0 } } else { 0 };
-            let q = Quote { fan: who.into(), stand, runner: None, lines, discounts: vec![], points_redeemed: 0, tip: share, delivery, fee_waived: k > 0, runner_pay: None };
+            let q = Quote { fan: who.into(), stand, runner: None, lines, discounts: vec![], points_redeemed: 0, tip: share, delivery, fee_waived: k > 0 || free, runner_pay: None };
             let c = match Commitment::accept(&format!("o{}", self.orders.len()), q, &mut self.ledger) {
                 Ok(c) => c,
                 Err(_) => { for &id in &ids { let _ = self.cancel_as(who, id); } return Err("Something in your cart just sold out".into()); }
@@ -583,7 +588,7 @@ impl Night {
         }
         let _ = who;
         let tax: i64 = groups.iter().map(|g| crate::value::bps(g.1, self.terms.tax_bps)).sum();
-        let fee = if delivery && !groups.is_empty() { self.terms.delivery_fee } else { 0 };
+        let fee = if delivery && !groups.is_empty() { self.terms.fee_for(items) } else { 0 };
         let tip = if delivery { tip } else { 0 };
         Ok(serde_json::json!({ "items": items, "tax": tax, "fee": fee, "tip": tip, "charge": items + tax + fee + tip, "stands": groups.len() }))
     }
@@ -950,6 +955,7 @@ impl Night {
         let (ph, rate) = phase(t / 60_000);
         let mut outs: Vec<Output> = vec![];
         self.ledger.now = t;
+        if self.terms.hourly() && t % 60_000 == 0 { self.pay_wages(); }
         // 1. the game itself
         for (m, kind, k) in self.script.clone() {
             if m * 60_000 == t {
@@ -1231,7 +1237,8 @@ impl Night {
                 let tips: i64 = ids.iter().map(|&i| self.orders[i].c.quote.tip).sum();
                 let per_hour = (pay + tips) * 3600 / (a.done_s as i64).max(120);
                 let ratio = per_hour as f64 / reservation(&a.runner) as f64;
-                if !self.rng.chance(((ratio - 0.55) / 0.5).clamp(0.03, 0.97)) {
+                // a runner paid by the hour takes the trips they're given
+                if !self.terms.hourly() && !self.rng.chance(((ratio - 0.55) / 0.5).clamp(0.03, 0.97)) {
                     // passed: it stays on the shelf for the next runner, at a higher offer; this one rests a moment
                     for &i in &ids { self.orders[i].passes += 1; }
                     if let Some(r) = self.runners.iter_mut().find(|r| r.id == a.runner) { r.free_at = t + 20_000; }
@@ -1529,10 +1536,30 @@ impl Night {
     /// who passed on any of its orders; or the fixed amount per delivery. Returns (pay, first offer, passes).
     pub(crate) fn trip_pay(&self, ids: &[usize], secs: u32) -> (i64, i64, u32) {
         let passes = ids.iter().map(|&i| self.orders[i].passes).max().unwrap_or(0);
+        if self.terms.hourly() { return (0, 0, passes); } // paid by the hour instead (see `pay_wages`)
         if !self.terms.offers() { return (self.terms.runner_pay * ids.len() as i64, self.terms.runner_pay * ids.len() as i64, passes); }
         let items: i64 = ids.iter().flat_map(|&i| self.orders[i].c.quote.lines.iter().map(|l| l.qty)).sum();
         let first = self.terms.first_offer(secs as i64, items);
         (self.terms.offer_after(first, passes as i64), first, passes)
+    }
+
+    /// Hourly mode, once a minute: every runner online earns the minute's wage from Agape. Simulated
+    /// runners are online for the whole night; a person only while they're clocked in. Paid to the
+    /// cent over the hour, not rounded per minute.
+    fn pay_wages(&mut self) {
+        let on: Vec<String> = self.runners.iter().map(|r| r.id.clone())
+            .filter(|id| if self.driven.contains(id) { self.live.contains(id) } else { true }).collect();
+        let mut post = vec![];
+        let mut total = 0;
+        for id in on {
+            let m = self.wage_minutes.entry(id.clone()).or_insert(0);
+            let due = self.terms.hourly_wage * (*m + 1) / 60 - self.terms.hourly_wage * *m / 60;
+            *m += 1;
+            if due > 0 { post.push(crate::value::posting(acct(&id, "pay"), Unit::usd(), due)); total += due; }
+        }
+        if total == 0 { return; }
+        post.push(crate::value::posting(acct("agape", "revenue"), Unit::usd(), -total));
+        let _ = self.ledger.post(crate::value::Txn { memo: "wages".into(), postings: post });
     }
 
     /// A runner took a trip: each of its deliveries carries its share of the pay into settlement.

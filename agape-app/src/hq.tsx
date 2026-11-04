@@ -4,14 +4,14 @@ import { React, ReactDOM, useEffect, useState } from "./r";
 import { boot, kernel, setWorldOverride } from "./kernel";
 import { BRAND, Icon, money, MeasureTile, venueTime } from "./parts";
 import { OpsView } from "./roles";
-import { CareDesk, CareView } from "./care";
+import { CareDesk, CareView, Policies } from "./care";
 import { Beat, Invite, Shell, demoWorld, useToasts } from "./shell";
 import { Note } from "./explain";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
 declare const AGAPE_WORLD: any;
 type Stage = "boot" | "signin" | "app";
-type Tab = "venues" | "support" | "crew" | "money" | "people";
+type Tab = "venues" | "support" | "crew" | "money" | "policies" | "people";
 
 const NOTES: Note[] = [
   { sel: ".hq-venues", title: "Every venue at once", what: "Each venue's night in one row: orders, seat waits, runners, problems.", who: "Agape operations", why: "One team watches many venues, which is how Agape grows without growing its staff at the same rate.", level: 1 },
@@ -43,7 +43,7 @@ function HQ({ o, c, stage, next, toast, refresh }: { o: OpsView | null; c: CareV
     <div className="lp-app">
       <aside className="lp-nav">
         <b className="sx-logo">agape</b>
-        {([["venues", "store", "Venues"], ["support", "help", "Care"], ["crew", "people", "Crew"], ["money", "chart", "Money"], ["people", "user", "Staff"]] as [Tab, any, string][]).map(([id, ic, l]) =>
+        {([["venues", "store", "Venues"], ["support", "help", "Care"], ["crew", "people", "Crew"], ["money", "chart", "Money"], ["policies", "list", "Policies"], ["people", "user", "Staff"]] as [Tab, any, string][]).map(([id, ic, l]) =>
           <button key={id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}><Icon name={ic} /><small>{l}{id === "support" && open ? ` · ${open}` : ""}</small></button>)}
       </aside>
       <div className="lp-main"><div className="role">
@@ -60,6 +60,10 @@ function HQ({ o, c, stage, next, toast, refresh }: { o: OpsView | null; c: CareV
             <tbody>{venues.map(v => <tr key={v.name}><td><b>{v.name}</b><br /><small className="sub">{v.city}</small></td><td><span className={"tag" + (v.state === "Live now" ? " good" : "")}>{v.state}</span></td>
               <td className="num">{v.orders ?? "–"}</td><td className="num">{v.wait != null ? `${Math.round(v.wait / 60)} min` : "–"}</td><td className="num">{v.runners}</td><td className="num">{v.problems || "–"}</td></tr>)}</tbody>
           </table></div></section>
+        </>}
+        {tab === "policies" && c && <>
+          <header className="role-head"><h2 className="hq-h">Policies</h2><span className="sub">How runners are paid, when delivery is free, the tip fans see first, and how problems are made right. Agape's team only; changes apply to every venue.</span></header>
+          <Policies c={c} toast={toast} refresh={refresh} />
         </>}
         {tab === "support" && c && <>
           <header className="role-head"><h2 className="hq-h">Care</h2><span className="sub">Fans' problems from every venue, made right by Agape's policy, and the records behind them. Only Agape sees this.</span></header>

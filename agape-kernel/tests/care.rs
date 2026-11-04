@@ -218,3 +218,25 @@ fn a_fan_rates_who_brought_it_once_and_can_order_the_same_again_in_one_tap() {
     assert_eq!((a["items"][0]["thing"].as_str(), a["delivery"].as_bool()), (Some("burger"), Some(true)));
     assert!(n.log.signals.iter().any(|s| s.kind == "social" && s.fields["act"].key() == "rate"), "ratings are signals like everything else");
 }
+
+#[test]
+fn agape_can_pay_runners_by_the_hour_and_make_delivery_free_over_an_amount() {
+    let mut n = night();
+    until(&mut n, 40);
+    assert!(n.set_pay("weekly", None, None, None, None).is_err());
+    n.set_pay("hourly", Some(1800), None, None, Some(2000)).unwrap();
+    let r = "runner0";
+    let t0 = n.t;
+    while n.t < t0 + 3_600_000 { n.step(); }
+    let earned: i64 = n.ledger.txns.iter().filter(|t| t.memo == "wages").flat_map(|t| t.postings.iter()).filter(|p| p.account == acct(r, "pay")).map(|p| p.amount).sum();
+    assert_eq!(earned, 1800, "exactly the wage for an hour online, whatever the trips");
+    // a burger is under $20: the fee applies; two of them are over: it doesn't
+    let one = n.you_quote("burger", 1, true, 0, None).unwrap();
+    let two = n.you_quote("burger", 2, true, 0, None).unwrap();
+    assert_eq!(one["fee"], n.terms.delivery_fee);
+    assert_eq!(two["fee"], 0);
+    let id: usize = n.you_order("burger", 2, true, 0).unwrap().parse().unwrap();
+    for _ in 0..600 { n.step(); if order(&mut n, id)["stage"] == "Settled" { break; } }
+    assert_eq!(order(&mut n, id)["breakdown"]["fee"], 0);
+    assert!(balanced(&n));
+}

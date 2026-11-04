@@ -96,12 +96,12 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
             <section className="cw-offer" aria-live="assertive">
               <div className="row gap"><span className="eyebrow grow">New trip</span><span className="num cw-timer">{countdown(t.expires - now)}</span></div>
               <b className="cw-pay num">{money(t.pay)}</b>
-              <small>{t.tips ? `${money(t.base ?? t.pay)} pay + ${money(t.tips)} in tips, all yours` : "Pay for the trip. Any tip a fan adds is yours on top."}{t.raised > 0 ? ` · up ${money(t.raised)} since ${t.passes === 1 ? "a runner" : `${t.passes} runners`} passed` : ""}</small>
+              <small>{t.mode === "hourly" ? (t.tips ? `${money(t.tips)} in tips, all yours, on top of your hourly pay` : "You're paid by the hour; any tip a fan adds is yours on top.") : t.tips ? `${money(t.base ?? t.pay)} pay + ${money(t.tips)} in tips, all yours` : "Pay for the trip. Any tip a fan adds is yours on top."}{t.raised > 0 ? ` · up ${money(t.raised)} since ${t.passes === 1 ? "a runner" : `${t.passes} runners`} passed` : ""}</small>
               {r.map && t.route && <div className="cw-map"><PlaceView m={{ ...r.map, your_runner: r.runner }} showRunners={false} heat={false} route={t.route} /></div>}
               <ol className="cw-route"><li><b>Pick up</b> {t.stand_name}</li>{t.sections.map((s, i) => <li key={i}><b>Hand off</b> section {s.slice(1)}</li>)}</ol>
               <p className="sub">About {t.minutes} min · {t.orders.length} order{t.orders.length === 1 ? "" : "s"}</p>
               <div className="deal-act two">
-                <button className="btn ghost big" onClick={() => act({ do: "decline_trip" }, t.mode === "fixed" ? "Passed. It goes to someone else." : "Passed. It goes to the next runner, for a little more.")}>Pass</button>
+                <button className="btn ghost big" onClick={() => act({ do: "decline_trip" }, t.mode !== "offers" ? "Passed. It goes to someone else." : "Passed. It goes to the next runner, for a little more.")}>Pass</button>
                 <button className="btn primary big" onClick={() => act({ do: "accept_trip" }, `It's yours. Head to ${t.stand_name}.`)}>Take it</button>
               </div>
             </section>
@@ -169,7 +169,8 @@ function beat(stage: Stage, r: RunnerView | null): Beat {
   if (!r.on_shift) return { id: "off", title: "Going online", body: <>You're at the venue. Going online puts you in line for trips near where you're standing.</> };
   if (!t) return r.delivered > crewBase.delivered ? { id: "done", title: "Paid as you go", body: <>Each trip adds its pay and tips to your earnings at once. You can cash out tonight from Earnings, or keep going.</> }
     : { id: "wait", title: "Waiting for a trip", body: <>Orders are ready as stands finish them, and you're offered the next trip that's ready. On a busy night it takes seconds.</> };
-  if (!t.accepted) return { id: "offer", title: "An offer, with the pay up front", body: <>{money(t.pay)} for about {t.minutes} minutes: the pay is priced on the walk and wait, and the tip is shown on top. If you pass, it goes to the next runner for a little more.</> };
+  if (!t.accepted) return t.mode === "hourly" ? { id: "offer", title: "Your next trip", body: <>About {t.minutes} minutes. Tonight Agape pays runners by the hour, so every trip pays the same; the tip shown is yours on top.</> }
+    : { id: "offer", title: "An offer, with the pay up front", body: <>{money(t.pay)} for about {t.minutes} minutes: the pay is priced on the walk and wait, and the tip is shown on top. If you pass, it goes to the next runner for a little more.</> };
   if (!t.picked) return { id: "pick", title: `To ${t.stand_name}`, body: <>The order is on the ready shelf. You grab it by its number and confirm the pickup.</> };
   return { id: "hand", title: "Seat by seat", body: <>The section for each order, plus the row and seat when the fan has given them. Drinks with alcohol need an ID check first. The fan's phone shows you coming.</> };
 }

@@ -100,6 +100,11 @@ pub fn act(n: &mut Night, who: &str, v: &Value) -> Value {
         }
         // Agape's own team: the policy for problems, tips and proof, and proof for one fan by hand
         Some("set_policy") if who == "agape" || who == "hq" => serde_json::from_value::<crate::remedy::Policy>(v["policy"].clone()).map_err(|e| format!("That policy doesn't read: {e}")).and_then(|p| n.set_policy(p)).map(|_| String::new()),
+        // how runners are paid, and when delivery is free: Agape's call, for every venue it runs
+        Some("set_pay") if who == "agape" || who == "hq" => {
+            let g = |k: &str| v[k].as_i64();
+            n.set_pay(&s("mode"), g("hourly_wage"), g("runner_pay"), g("offer_hourly"), g("free_delivery_over")).map(|_| String::new())
+        }
         Some("set_proof") if who == "agape" || who == "hq" => {
             let p = match s("proof").as_str() { "none" => Some(crate::remedy::Proof::None), "photo" => Some(crate::remedy::Proof::Photo), "pin" => Some(crate::remedy::Proof::Pin), _ => None };
             n.set_proof(&s("fan"), p); Ok(String::new())

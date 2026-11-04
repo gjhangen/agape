@@ -21,8 +21,9 @@ pub struct Terms {
     pub interchange_bps: i64,
     #[serde(default = "d_ic_fixed")]
     pub interchange_fixed: i64,
-    /// How runners are paid for a trip: "offers" (an offer priced on the trip that rises each time a
-    /// runner passes) or "fixed" (the same amount per delivery, whoever takes it).
+    /// How runners are paid: "offers" (an offer priced on each trip that rises each time a runner
+    /// passes), "fixed" (the same amount per delivery, whoever takes it) or "hourly" (a wage for every
+    /// hour online, whatever the trips; tips on top).
     #[serde(default = "d_pay_mode")]
     pub pay_mode: String,
     /// Fixed mode: paid by Agape to the runner per delivery, on top of tips.
@@ -44,6 +45,12 @@ pub struct Terms {
     pub offer_cap_bps: i64,
     /// Points the fan earns per dollar of subtotal, issued by Agape.
     pub points_per_dollar: i64,
+    /// Hourly mode: what Agape pays a runner per hour online.
+    #[serde(default = "d_wage")]
+    pub hourly_wage: i64,
+    /// Orders whose items (after any deal) come to at least this travel free; 0 means never.
+    #[serde(default)]
+    pub free_delivery_over: i64,
 }
 
 fn d_ic_bps() -> i64 { 200 }
@@ -54,13 +61,14 @@ fn d_offer_item() -> i64 { 25 }
 fn d_offer_min() -> i64 { 150 }
 fn d_offer_raise() -> i64 { 1500 }
 fn d_offer_cap() -> i64 { 16000 }
+fn d_wage() -> i64 { 1800 }
 
 impl Default for Terms {
     fn default() -> Self {
         Terms { currency: "USD".into(), platform_share_bps: 3000, tax_bps: 700, delivery_fee: 499, proc_bps: 300, proc_fixed: 30,
                 interchange_bps: d_ic_bps(), interchange_fixed: d_ic_fixed(), pay_mode: d_pay_mode(), runner_pay: 150,
                 offer_hourly: d_offer_hourly(), offer_per_item: d_offer_item(), offer_min: d_offer_min(), offer_raise_bps: d_offer_raise(), offer_cap_bps: d_offer_cap(),
-                points_per_dollar: 10 }
+                points_per_dollar: 10, hourly_wage: d_wage(), free_delivery_over: 0 }
     }
 }
 
@@ -69,7 +77,10 @@ impl Terms {
     pub fn processing(&self, amount: i64) -> i64 { if amount > 0 { bps(amount, self.proc_bps) + self.proc_fixed } else { 0 } }
     /// What the card networks take on a charge of `charge`.
     pub fn interchange(&self, charge: i64) -> i64 { if charge > 0 { bps(charge, self.interchange_bps) + self.interchange_fixed } else { 0 } }
-    pub fn offers(&self) -> bool { self.pay_mode != "fixed" }
+    pub fn offers(&self) -> bool { self.pay_mode == "offers" }
+    pub fn hourly(&self) -> bool { self.pay_mode == "hourly" }
+    /// The delivery fee on items worth `items` (after deals): free over the threshold, when there is one.
+    pub fn fee_for(&self, items: i64) -> i64 { if self.free_delivery_over > 0 && items >= self.free_delivery_over { 0 } else { self.delivery_fee } }
     /// The first offer for a trip of `secs` estimated seconds carrying `items` items.
     pub fn first_offer(&self, secs: i64, items: i64) -> i64 {
         let base = self.offer_hourly * secs / 3600 + self.offer_per_item * (items - 1).max(0);
@@ -147,7 +158,7 @@ pub fn breakdown(q: &Quote, t: &Terms) -> Result<Breakdown, OfferError> {
     if discount > subtotal { return Err(OfferError::DiscountExceedsSubtotal); }
     // Tax on the price the stand sells at; whoever funds a discount, the sale price is the subtotal.
     let tax = bps(subtotal, t.tax_bps);
-    let fee = if q.delivery && !q.fee_waived { t.delivery_fee } else { 0 };
+    let fee = if q.delivery && !q.fee_waived { t.fee_for(subtotal - discount) } else { 0 };
     let charge = subtotal - discount + tax + fee + q.tip;
     // The stand pays processing on its own sale as rung up on the card (food and its tax), as at any card reader;
     // the delivery fee is Agape's and the tip the runner's, so the stand pays nothing on those.

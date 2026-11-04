@@ -203,6 +203,18 @@ impl Night {
 
     /// Agape's team sets the policy (checked before it takes effect), or a fan's proof by hand.
     pub fn set_policy(&mut self, p: crate::remedy::Policy) -> Result<(), String> { p.check()?; self.policy = p; Ok(()) }
+    /// How runners are paid and when delivery is free. Unset amounts stay as they are.
+    pub fn set_pay(&mut self, mode: &str, wage: Option<i64>, per_delivery: Option<i64>, offer_hourly: Option<i64>, free_over: Option<i64>) -> Result<(), String> {
+        if !["offers", "fixed", "hourly"].contains(&mode) { return Err("Pick offers, fixed or hourly".into()); }
+        if [wage, per_delivery, offer_hourly, free_over].iter().any(|x| x.map_or(false, |v| v < 0)) { return Err("Amounts can't be negative".into()); }
+        let t = &mut self.terms;
+        t.pay_mode = mode.into();
+        if let Some(x) = wage { t.hourly_wage = x; }
+        if let Some(x) = per_delivery { t.runner_pay = x; }
+        if let Some(x) = offer_hourly { t.offer_hourly = x; }
+        if let Some(x) = free_over { t.free_delivery_over = x; }
+        Ok(())
+    }
     pub fn set_proof(&mut self, fan: &str, proof: Option<Proof>) { match proof { Some(p) => { self.proof_set.insert(fan.into(), p); } None => { self.proof_set.remove(fan); } } }
 
 // ---------------- the venue stops ----------------

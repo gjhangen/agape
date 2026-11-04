@@ -179,8 +179,23 @@ export function useTopHeight() {
 
 /** Full screen: the app alone, edge to edge, with a way back. */
 export function useFull() {
-  const [full, setFull] = useState(false);
+  const [full, setFullState] = useState(false);
   useEffect(() => { document.documentElement.classList.toggle("demo-full", full); }, [full]);
+  // the screen's real full screen where the browser allows it (computers, Android, iPad); on an
+  // iPhone, where Safari only allows it for video, the app fills the browser window instead
+  useEffect(() => {
+    const sync = () => { const d = document as any; if (!(d.fullscreenElement || d.webkitFullscreenElement)) setFullState(false); };
+    document.addEventListener("fullscreenchange", sync); document.addEventListener("webkitfullscreenchange", sync);
+    return () => { document.removeEventListener("fullscreenchange", sync); document.removeEventListener("webkitfullscreenchange", sync); };
+  }, []);
+  const setFull = (on: boolean) => {
+    const el = document.documentElement as any, d = document as any;
+    setFullState(on);
+    try {
+      if (on) { const req = el.requestFullscreen ?? el.webkitRequestFullscreen; const p = req?.call(el, { navigationUI: "hide" }); p?.catch?.(() => {}); }
+      else if (d.fullscreenElement || d.webkitFullscreenElement) { const p = (d.exitFullscreen ?? d.webkitExitFullscreen)?.call(d); p?.catch?.(() => {}); }
+    } catch { /* the in-page full screen still applies */ }
+  };
   return { full, setFull };
 }
 
