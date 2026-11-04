@@ -40,14 +40,15 @@ function Site() {
     <div className="site">
       <header className="site-top">
         <span className="site-mark"><b>agape</b><span>to your seat</span></span>
-        <nav><a href="#how">How it works</a><a href="#demo">Try it</a><button className="btn sm primary" onClick={open}>Talk to us</button></nav>
+        <nav><a href="#how">How it works</a><a className="btn sm" href="#demo">Try the demo</a><button className="btn sm primary" onClick={open}>Talk to us</button></nav>
       </header>
 
       <section className="site-hero">
         <div className="hero-copy">
           <h1>Order from your seat.<br />It comes to you.</h1>
           <p className="lede">Food, drinks and gear at games, concerts and every live event, made by the venue's own kitchens and carried to your seat, so you never miss the moment you came for.</p>
-          <div className="site-acts"><a className="btn primary big" href="#demo">Step into a night</a><button className="btn big" onClick={open}>Bring Agape to your venue</button></div>
+          <div className="site-acts"><a className="btn primary big" href="#demo">Try the demo <b aria-hidden="true">↓</b></a><button className="btn big" onClick={open}>Bring Agape to your venue</button></div>
+          <small className="hero-note">No sign-up. Runs in your browser, on your phone or computer.</small>
         </div>
         <OrderGlance />
       </section>
@@ -82,11 +83,11 @@ function Site() {
             <a key={x.id} className="site-seat" href={x.href + q}>
               <span className="ss-top"><span className="ss-ic"><Icon name={x.icon} /></span><span className="ss-who">{x.who}</span></span>
               <span className="ss-line">{x.line}</span>
-              <span className="ss-meta">{x.device} · {x.time}</span>
+              <span className="ss-foot"><span className="ss-meta">{x.device} · {x.time}</span><span className="ss-go">Try it as {x.who === "Agape HQ" ? "HQ" : x.who.toLowerCase()} <b aria-hidden="true">→</b></span></span>
             </a>
           ))}
         </div>
-        <a className="site-behind" href={"/demo/" + q}><b>Behind the scenes</b><span>Every role at once: the whole arena, sped up.</span></a>
+        <a className="site-behind" href={"/demo/" + q}><span><b>Behind the scenes</b><span>Every role at once: the whole arena, sped up.</span></span><span className="sb-go">Open it <b aria-hidden="true">→</b></span></a>
       </section>
 
       <section className="site-sec">
@@ -100,7 +101,13 @@ function Site() {
           <span>{l.line}</span>
           <em className={"lv-tag lv-" + l.status.toLowerCase().replace(" ", "-")}>{l.status}</em>
           <details><summary>What's done</summary><small>{l.gaps}</small></details>
+          <a className="lv-go" href={`/try/?level=${l.n}`}>Try Level {l.n} <b aria-hidden="true">→</b></a>
         </li>)}</ol>
+      </section>
+
+      <section className="site-cta">
+        <div><h2>See it for yourself</h2><p>Three minutes as a fan is the fastest way to understand Agape. If you run a venue, partner with one or invest, talk to us.</p></div>
+        <div className="site-acts"><a className="btn primary big" href="/try/">Start as a fan <b aria-hidden="true">→</b></a><button className="btn big" onClick={open}>Talk to us</button></div>
       </section>
 
       <footer className="site-foot">
