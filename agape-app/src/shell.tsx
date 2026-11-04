@@ -42,6 +42,7 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
   const last = useRef("");
   const waiting = useHoldOnBeat(beat.id);
   const { full, setFull } = useFull();
+  useTopHeight();
   useNight(ready, !playing || !!hold || waiting, speed, onTick);
   // the event around the device: the scoreboard and the roar on big moments
   useEffect(() => {
@@ -58,7 +59,7 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
   const c = fan?.clock;
   const moment = fan?.live.event.find((e: any) => e.kind === "moment");
   return (
-    <div className={"story " + device + (full ? " full" : "")} style={{ ["--venue" as any]: BRAND.home.color }}>
+    <div className={"story " + (device === "phone" ? "phone-demo" : device) + (full ? " full" : "")} style={{ ["--venue" as any]: BRAND.home.color }}>
       <header className="st-top">
         <a className="st-brand" href="/"><b>agape</b><span>{tag}</span></a>
         <div className="st-strip">
@@ -102,7 +103,6 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
             <span className="eyebrow">{tag}</span>
             <h2 key={beat.id}>{beat.title}</h2>
             <p key={beat.id + "b"}>{beat.body}</p>
-            {level != null && <p className="st-status"><b className={"lv-" + LEVELS[level - 1].status.toLowerCase().replace(" ", "-")}>{LEVELS[level - 1].status}</b> {LEVELS[level - 1].gaps}</p>}
             {meta && <div className="st-meta">{meta}</div>}
           </>}
           <div className="st-more">
@@ -165,6 +165,16 @@ export function useHoldOnBeat(beatId: string) {
     return () => { clearTimeout(t); removeEventListener("pointerdown", go, true); removeEventListener("keydown", go, true); };
   }, [waiting]);
   return waiting;
+}
+
+/** The header's height, so the device can be sized to the space left under it. */
+export function useTopHeight() {
+  useEffect(() => {
+    const el = document.querySelector(".st-top") as HTMLElement | null; if (!el) return;
+    // a phone is drawn at a real phone's size (390 × 844) and scaled to fit, so what's inside lays out as on a phone
+    const set = () => { const r = document.documentElement.style; r.setProperty("--st-top", el.offsetHeight + "px"); r.setProperty("--dz", String(Math.min(1, Math.max(0.5, (innerHeight - el.offsetHeight - 92) / 868)))); };
+    set(); const o = new ResizeObserver(set); o.observe(el); addEventListener("resize", set); return () => { o.disconnect(); removeEventListener("resize", set); };
+  }, []);
 }
 
 /** Full screen: the app alone, edge to edge, with a way back. */

@@ -52,7 +52,8 @@ export function venueTime(t: number) {
   return `${((h + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
 }
 export function rel(t: number, now: number) {
-  const d = Math.round((t - now) / 60000);
+  // counted in clock minutes, so two things due at the same minute read the same
+  const d = Math.floor(t / 60000) - Math.floor(now / 60000);
   if (Math.abs(d) < 1) return "now";
   return d > 0 ? `in ${d} min` : `${-d} min ago`;
 }
@@ -474,8 +475,8 @@ export const W = {
     ? { halftime: "Changeover", last_call: "The finale", final: "End of the show", second_half: "The headliner", start: "First act" }
     : { halftime: "Halftime", last_call: "Start of the 4th", final: "Final buzzer", second_half: "Start of the 3rd", start: "Tip-off" }; },
   get short(): Record<string, string> { return isConcert()
-    ? { Changeover: "Break", "The finale": "Finale", "End of the show": "End", "The headliner": "Headliner", "First act": "Start" }
-    : { Halftime: "Half", "Start of the 3rd": "Q3", "Start of the 4th": "Q4", "Final buzzer": "Final", "Tip-off": "Tip" }; },
+    ? { Changeover: "Break", "The finale": "Finale", "End of the show": "End", "The headliner": "Headliner", "First act": "First act" }
+    : { Halftime: "Half", "Start of the 3rd": "Q3", "Start of the 4th": "Q4", "Final buzzer": "Final", "Tip-off": "Tip-off" }; },
 };
 /** Floors of the building, in fans' words. */
 export const concourse = (level: number) => level <= 1 ? "lower concourse" : "upper concourse";

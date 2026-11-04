@@ -27,6 +27,7 @@ const crewBase = { set: false, pay: 0, tips: 0, delivered: 0 };
 
 function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage: Stage; next: (s: Stage) => void; toast: (s: string) => void; refresh: () => void }) {
   const [tab, setTab] = useState<Tab>("home");
+  const [sure, setSure] = useState(false);
   const name = runnerName(RUNNER).replace(/ .\.$/, "");
   const act = (a: Record<string, unknown>, ok: string) => {
     if (a.do === "clock_in" && !crewBase.set && r) { crewBase.set = true; crewBase.pay = r.pay; crewBase.tips = r.tips; crewBase.delivered = r.delivered; }
@@ -67,8 +68,8 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
   return (
     <div className="phone crew-app">
       <header className="cw-top">
-        <button className={"cw-online" + (on ? " on" : "")} onClick={() => act({ do: on ? "clock_out" : "clock_in" }, on ? "You're offline. No new trips." : "You're online. Trips near you will show up here.")}>
-          <i />{on ? "Online" : "Offline"}</button>
+        <button className={"cw-online" + (on ? " on" : "") + (sure ? " sure" : "")} onClick={() => { if (on && !sure) { setSure(true); setTimeout(() => setSure(false), 4000); return; } setSure(false); act({ do: on ? "clock_out" : "clock_in" }, on ? "You're offline. No new trips." : "You're online. Trips near you will show up here."); }}>
+          <i />{sure ? "Tap again to go offline" : on ? "Online" : "Offline"}</button>
         <span className="cw-where">{BRAND.venue} · till 10:30 PM</span>
       </header>
       <div className="scope-body">
@@ -120,12 +121,12 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
             <div className="lines"><div className="ledger"><span className="grow">Trip pay</span><span className="num">{money(pay)}</span></div><div className="ledger"><span className="grow">Tips, all yours</span><span className="num">{money(tips)}</span></div></div>
             <button className="btn primary block cw-cashout" disabled={pay + tips <= 0} onClick={() => toast(`${money(pay + tips)} is on its way to your debit card.`)}>Cash out now</button>
             <small className="sub">Arrives in minutes. Or it's paid out automatically every Monday.</small></section>
-          <section className="block"><h2>This week</h2><div className="cw-bars">{[0, 0, 0, 0, 0, 0, pay + tips].map((v, i) => <div key={i}><i style={{ height: `${Math.max(4, Math.min(100, v / 40))}%` }} /><small>{"MTWTFSS"[i]}</small></div>)}</div></section>
+          <section className="block"><h2>This week</h2><div className="cw-bars">{[0, 0, 0, 0, 0, 0, pay + tips].map((v, i, a) => <div key={i}><i style={{ height: `${v ? Math.max(8, 100 * v / Math.max(...a)) : 4}%` }} /><small>{i === 6 ? "Sun" : "MTWTFS"[i]}</small></div>)}</div></section>
         </>}
         {tab === "me" && <>
-          <header className="me-head"><span className="me-av big">{name.slice(0, 1)}</span><div className="grow"><h2>{name}</h2><small>Runner since March · {r.rating ? `★ ${r.rating.toFixed(1)}` : "new"}</small></div></header>
+          <header className="me-head"><span className="me-av big">{name.slice(0, 1)}</span><div className="grow"><h2>{name}</h2><small>First night · {r.rating ? `★ ${r.rating.toFixed(1)}` : "new"}</small></div></header>
           <section className="block settings-list">
-            {[["Documents", "ID and background check approved"], ["ID-check certification", "Valid for drinks with alcohol, renews in March"], ["Payouts", "Debit card •••• 1234 · within minutes, or every Monday"], ["How you get around", "On foot"], ["Notifications", "New trips and shift reminders, on"]].map(([a, b]) =>
+            {[["Documents", "ID and background check approved"], ["ID-check certification", "Valid for drinks with alcohol, renews in a year"], ["Payouts", "Debit card •••• 1234 · within minutes, or every Monday"], ["How you get around", "On foot"], ["Notifications", "New trips and shift reminders, on"]].map(([a, b]) =>
               <div key={a} className="set-row static"><span className="grow"><b>{a}</b><small>{b}</small></span></div>)}
           </section>
           <section className="block"><h2>Safety</h2>
@@ -154,8 +155,8 @@ function beat(stage: Stage, r: RunnerView | null): Beat {
   if (!t) return r.delivered > crewBase.delivered ? { id: "done", title: "Paid as you go", body: <>Each trip adds its pay and tips to your earnings at once. You can cash out tonight from Earnings, or keep going.</> }
     : { id: "wait", title: "Waiting for a trip", body: <>Orders are ready as stands finish them, and you're offered the next trip that's ready. On a busy night it takes seconds.</> };
   if (!t.accepted) return { id: "offer", title: "An offer, with the pay up front", body: <>{money(t.pay)} for about {t.minutes} minutes: the pay is priced on the walk and wait, and the tip is shown on top. If you pass, it goes to the next runner for a little more.</> };
-  if (!t.picked) return { id: "pick", title: `To ${t.stand_name}`, body: <>The order is on the ready shelf. She grabs it by its number and confirms the pickup.</> };
-  return { id: "hand", title: "Seat by seat", body: <>Section, row and seat for each order. Drinks with alcohol need an ID check first. The fan's phone shows you coming.</> };
+  if (!t.picked) return { id: "pick", title: `To ${t.stand_name}`, body: <>The order is on the ready shelf. You grab it by its number and confirm the pickup.</> };
+  return { id: "hand", title: "Seat by seat", body: <>The section for each order, plus the row and seat when the fan has given them. Drinks with alcohol need an ID check first. The fan's phone shows you coming.</> };
 }
 
 function App() {

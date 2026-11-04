@@ -286,7 +286,7 @@ function Get(ctx: Ctx) {
       <Welcome {...ctx} />
       <Nudge {...ctx} />
       <section className="block">
-        <h2>Fastest to section {sec(v.you.seat)}</h2>
+        <h2>Food and drinks soonest to section {sec(v.you.seat)}</h2>
         {v.get.fastest.map(it => <ItemRow key={it.id} it={it} now={now} onPick={() => setSheet({ kind: "item", item: it.id })} />)}
       </section>
       <div className="cats-bar"><div className="cats chips" role="group" aria-label="What you want">
@@ -673,7 +673,7 @@ function Me({ v, refresh, toast, open, settings, setting }: Ctx) {
       )}
       {m.orders.length > 0 && (
         <section className="block">
-          <h2>On the way</h2>
+          <h2>Your order{m.orders.length > 1 ? "s" : ""}</h2>
           {m.orders.map(o => <CommitmentCard key={o.id} o={o} now={now} onCancel={() => { const x = kernel.act({ do: "cancel", order: o.id }); if (!x.ok) toast(x.error); refresh(); }} />)}
           {r && r.busy && (
             <div className="mini-map">
@@ -700,7 +700,7 @@ function Me({ v, refresh, toast, open, settings, setting }: Ctx) {
         <div className="pair">
           <div><span className="eyebrow">Charged tonight</span><b className="big num">{money(m.spent)}</b><small>{(() => { const n = m.receipts.filter(o => o.stage === "Settled").length; return `${n} receipt${n === 1 ? "" : "s"}`; })()}{onWay ? ` · ${money(onWay)} on the way, charged when it arrives` : ""}</small></div>
           {feature("points") ? <div><span className="eyebrow">Points</span><b className="big num">{m.balance.toLocaleString()}</b><small>{m.tier} status</small></div>
-            : <div><span className="eyebrow">Paying with</span><b className="big">{pref<string>("pay", "") || "Not set"}</b><small>{pref<string>("pay", "") ? "change in Payment" : "asked when you first order"}</small></div>}
+            : <div><span className="eyebrow">Paying with</span><b className="pay-name">{pref<string>("pay", "") || "Not set"}</b><small>{pref<string>("pay", "") ? "change in Payment" : "asked when you first order"}</small></div>}
         </div>
       </section>
       <section className="block">
@@ -811,9 +811,10 @@ function SettingsPage({ which, v, toast, refresh, go, close }: Ctx & { which: st
           {(feature("chat") || feature("players")) && <div className="set-group"><b>Who sees your profile</b><div className="seg fill" role="group" aria-label="Who sees your profile">{["Everyone", "My section", "Only me"].map(x => <button key={x} className={pref("vis", "My section") === x ? "on" : ""} onClick={() => set("vis", x)}>{x}</button>)}</div></div>}
           {tog("loc", "Location while using Agape", "So we know when you've arrived at an event. Never in the background.", true)}
           {feature("offers") && tog("ads", "Personalized deals", "Use what you order to choose which deals you see", true)}
+          {isGuest() || !profileName() ? <p className="explain">As a guest, Agape keeps only your seat and tonight's orders, to deliver them and settle payment. Nothing is tied to a name or an email, and we don't sell any of it.</p> : <>
           <p className="explain">We keep your name, email, seat and orders to run Agape. We don't sell them.</p>
           <button className="btn ghost block" onClick={() => toast("We're preparing your data. You'll get an email with a download link.")}>Download my data</button>
-          <button className="btn ghost block danger" onClick={() => toast("To delete your account, confirm from the email we just sent. It takes effect within 30 days.")}>Delete my account</button>
+          <button className="btn ghost block danger" onClick={() => toast("To delete your account, confirm from the email we just sent. It takes effect within 30 days.")}>Delete my account</button></>}
         </>}
         {which === "help" && thread && <div className="support">
           <p className="explain">Agape support, here at {BRAND.venue}. Most questions are answered in a few minutes.</p>
@@ -823,7 +824,7 @@ function SettingsPage({ which, v, toast, refresh, go, close }: Ctx & { which: st
         {which === "help" && !thread && <>
           <button className="set-row" onClick={() => { close(); go("me"); }}><Icon name="help" size={20} /><span className="grow"><b>A problem with an order</b><small>Report it from the order itself; most are settled on the spot</small></span><Icon name="chev" size={18} /></button>
           {[["When will my order arrive?", "Every time you see is when it reaches your seat, measured from how long the kitchen and runners are actually taking right now. If anything changes, the time on your order changes with it."],
-            ["What if it's late?", "If it's late, you get money back automatically. You don't need to ask."],
+            ["What if it's late?", `If an order takes more than 30 minutes, or a scheduled one is more than 10 minutes past its time, ${money(300)} comes back to you automatically. You don't need to ask.`],
             ["Who gets my tip?", "Your runner keeps all of it."],
             ["Ordering drinks", "Drinks with alcohol are for people 21 and older. The first time you order one, we'll ask you to confirm, and your runner checks ID at your seat."],
             ["What if I move seats?", "Change your seat in Settings and anything not yet on its way follows you."]].map(([q, a]) =>
@@ -833,7 +834,7 @@ function SettingsPage({ which, v, toast, refresh, go, close }: Ctx & { which: st
         {which === "about" && <>
           <div className="about-mark"><b>agape</b><small>to your seat</small></div>
           <p className="explain">Agape brings what you want to your seat at live events, made by the venue's own kitchens and carried by runners, so you never miss the moment.</p>
-          <details className="faq"><summary>Terms of service</summary><p>You order from the venue's stands through Agape. You're charged when your order reaches you or is ready to pick up. If it's late, money comes back automatically. Drinks with alcohol are for people 21 and older, and your runner checks ID. Points have no cash value and can't be bought or sold for money.</p></details>
+          <details className="faq"><summary>Terms of service</summary><p>You order from the venue's stands through Agape. You're charged when your order reaches you or is ready to pick up. If it's late, money comes back automatically, as described in Help. Drinks with alcohol are for people 21 and older, and your runner checks ID. Points have no cash value and can't be bought or sold for money.</p></details>
           <details className="faq"><summary>Privacy policy</summary><p>Agape keeps your name, email, seat and orders to run the service, and uses your location only while the app is open, to find your venue. You can download or delete your data from Privacy in Settings.</p></details>
           <p className="sub center">Version 1.0</p>
         </>}
@@ -846,7 +847,7 @@ function SettingsPage({ which, v, toast, refresh, go, close }: Ctx & { which: st
 
 function Search({ q, v, setSheet }: Ctx & { q: string }) {
   const n = q.trim().toLowerCase();
-  const words = (i: Item) => [i.name, i.stand, i.category, i.adult ? "beer alcohol booze" : "", i.category === "drink" ? "drinks" : "", i.category === "merch" ? "gear merch shirt hat" : "", i.category === "food" ? "eat snack" : "", /bean|knots|popcorn|nachos|pretzel/i.test(i.name) ? "vegetarian veggie meatless" : ""];
+  const words = (i: Item) => [i.name, i.stand, i.category, i.adult ? "beer alcohol booze" : "", i.category === "drink" ? "drinks" : "", i.category === "merch" ? "gear merch" : "", /tee|hoodie|jersey|shirt/i.test(i.name) ? "shirt" : "", /beanie|cap\b|hat\b/i.test(i.name) ? "hat" : "", i.category === "food" ? "eat snack" : "", i.category === "food" && /\bbean\b|knots|popcorn|nachos|pretzel|fries/i.test(i.name) ? "vegetarian veggie meatless" : ""];
   const hits = v.items.filter(i => words(i).join(" ").toLowerCase().includes(n)).sort((a, b) => Number(b.available) - Number(a.available) || a.eta - b.eta);
   return (
     <section className="block">
@@ -869,28 +870,40 @@ function useQuote(args: Record<string, unknown>, deps: unknown[]) {
 /** Everything picked so far, one tap from checkout. */
 /** Adding a card: the number, its expiry and its code. */
 function CardForm({ toast, done }: { toast: (t: string) => void; done: (label: string) => void }) {
-  return <form className="add-card" onSubmit={e => { e.preventDefault(); const n = (new FormData(e.currentTarget).get("n") as string).replace(/\D/g, ""); if (n.length < 12) { toast("That card number looks short."); return; } const label = `Card •••• ${n.slice(-4)}`; setPref("cards", [...pref<string[]>("cards", []), label]); setPref("pay", label); done(label); }}>
+  const [err, setErr] = useState(""); void toast;
+  return <form className="add-card" onSubmit={e => { e.preventDefault(); const fd = new FormData(e.currentTarget); const n = (fd.get("n") as string).replace(/\D/g, ""); if (n.length < 13) { setErr("Enter the full card number."); return; } if (!/^(0[1-9]|1[0-2])\s*\/?\s*\d{2}$/.test(String(fd.get("x")).trim())) { setErr("Enter the expiry as MM/YY."); return; } if (!/^\d{3,4}$/.test(String(fd.get("c")).trim())) { setErr("Enter the 3- or 4-digit security code."); return; } const label = `${({ "4": "Visa", "5": "Mastercard", "3": "Amex", "6": "Discover" } as Record<string, string>)[n[0]] ?? "Card"} •••• ${n.slice(-4)}`; setPref("cards", [...pref<string[]>("cards", []), label]); setPref("pay", label); done(label); }}>
     <label className="sf wide"><span>Card number</span><input name="n" inputMode="numeric" autoComplete="cc-number" placeholder="1234 5678 9012 3456" /></label>
-    <div className="sf-grid"><label className="sf"><span>Expires</span><input inputMode="numeric" autoComplete="cc-exp" placeholder="MM/YY" /></label><label className="sf"><span>Security code</span><input inputMode="numeric" autoComplete="cc-csc" placeholder="123" /></label></div>
+    <div className="sf-grid"><label className="sf"><span>Expires</span><input name="x" inputMode="numeric" autoComplete="cc-exp" placeholder="MM/YY" /></label><label className="sf"><span>Security code</span><input name="c" inputMode="numeric" autoComplete="cc-csc" placeholder="123" /></label></div>
+    {err && <small className="ob-warn" role="alert">{err}</small>}
     <button className="btn primary block">Add card</button></form>;
 }
 
 /** The order button. The first time a fan orders, it asks how they'll pay, once, then places the order. */
-function PayButton({ label, disabled, onPay, toast, className = "btn primary block big" }: { label: string; disabled?: boolean; onPay: () => void; toast: (t: string) => void; className?: string }) {
+function PayButton({ label, disabled, onPay, toast, adult, className = "btn primary block big" }: { label: string; disabled?: boolean; onPay: () => void; toast: (t: string) => void; adult?: boolean; className?: string }) {
   const [ask, setAsk] = useState(false);
   const [card, setCard] = useState(false);
+  const [, bump] = useState(0);
   const has = !!pref<string>("pay", "");
+  const of21 = !adult || pref<boolean>("age21", false);
+  if (ask && !of21) return (
+    <div className="pay-ask">
+      <b>Drinks with alcohol are 21+</b>
+      <small>Confirm you're 21 or older. Your runner checks ID at your seat before handing it over.</small>
+      <button className="btn primary block big" onClick={() => { setPref("age21", true); bump(x => x + 1); if (has) { setAsk(false); onPay(); } }}>I'm 21 or older</button>
+      <button className="btn ghost block" onClick={() => setAsk(false)}>Not now</button>
+    </div>
+  );
   if (ask && !has) return (
     <div className="pay-ask">
       <b>How do you want to pay?</b>
       <small>You're charged only when it reaches you.</small>
-      {card ? <CardForm toast={toast} done={() => { setAsk(false); onPay(); }} /> : <>
+      {card ? <><CardForm toast={toast} done={() => { setAsk(false); onPay(); }} /><button className="link-inline small" onClick={() => setCard(false)}>Back</button></> : <>
         <button className="btn apple-pay block big" onClick={() => { setPref("pay", "Apple Pay"); setAsk(false); onPay(); }}>Apple Pay</button>
         <button className="btn ghost block" onClick={() => setCard(true)}>Add a card</button>
       </>}
     </div>
   );
-  return <button className={className} disabled={disabled} onClick={() => has ? onPay() : setAsk(true)}>{label}</button>;
+  return <button className={className} disabled={disabled} onClick={() => has && of21 ? onPay() : setAsk(true)}>{label}</button>;
 }
 
 function CartBar({ v, open }: { v: FanView; open: () => void }) {
@@ -942,10 +955,10 @@ function CartSheet({ v, refresh, setSheet, toast, go }: Ctx) {
           <LedgerLine label="Items" amount={q.items} /><LedgerLine label="Tax" amount={q.tax} />
           {q.fee > 0 && <LedgerLine label="Delivery" amount={q.fee} note="once for the cart" />}{q.tip > 0 && <LedgerLine label="Tip" amount={q.tip} />}
           <LedgerLine label="You pay" amount={q.charge} strong />
-          <small className="pilot-note">{delivery ? "Charged when it reaches you. If it's late, money comes back automatically." : "Charged when it's ready to pick up."}</small>
+          <small className="pilot-note">{delivery ? `Charged when it reaches you. If it takes more than 30 minutes, ${money(300)} comes back automatically.` : "Charged when it's ready to pick up."}</small>
         </div>}
         <button className="btn ghost sm" onClick={() => { cart.clear(); setSheet(null); }}>Empty the cart</button>
-        <PayButton toast={toast} disabled={busy || !!v.halt || blocked.length > 0} onPay={place} label={v.halt ? "Service is paused" : blocked.length ? "Remove what's unavailable" : `Place order · ${money(q?.charge)}`} />
+        <PayButton toast={toast} adult={items.some(x => x.it.adult)} disabled={busy || !!v.halt || blocked.length > 0} onPay={place} label={v.halt ? "Service is paused" : blocked.length ? "Remove what's unavailable" : `Place order · ${money(q?.charge)}`} />
       </div>
     </SheetFrame>
   );
@@ -1049,8 +1062,8 @@ function ItemSheet({ v, refresh, setSheet, toast, go, id, at: preset }: Ctx & { 
           <small className="pilot-note">{delivery ? "Charged when it reaches you." : "Charged when it's ready to pick up."}</small>
         </div>}
         <div className="sheet-actions">
-          {at == null && !giftTo && !first && <button className="btn big" disabled={!!v.halt} onClick={() => { cart.add(id, qty); toast(`${qty > 1 ? `${qty}× ` : ""}${item.name} is in your cart.`); setSheet(null); }}>Add to cart</button>}
-          <PayButton className="btn primary big grow" toast={toast} disabled={!!v.halt} onPay={place} label={v.halt ? "Service is paused" : `${giftTo ? "Send it" : "Order now"} · ${money(quote?.charge)}`} />
+          {at == null && !giftTo && !first && <button className="btn big" disabled={!!v.halt} onClick={() => { cart.add(id, qty); toast(`Added to your cart: ${qty > 1 ? `${qty}× ` : ""}${item.name}.`); setSheet(null); }}>Add to cart</button>}
+          <PayButton className="btn primary big grow" toast={toast} adult={item.adult} disabled={!!v.halt} onPay={place} label={v.halt ? "Service is paused" : `${giftTo ? "Send it" : at != null ? "Schedule it" : "Place order"} · ${money(quote?.charge)}`} />
         </div>
       </div>
     </SheetFrame>

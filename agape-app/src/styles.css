@@ -1249,7 +1249,7 @@ html.calm *, html.calm *::before, html.calm *::after { animation: none !importan
 .st-story p { color: rgb(255 255 255 / .82); font-size: 16px; line-height: 1.55; margin: 0; animation: ob-in .5s .05s ease both; }
 .st-meta { display: grid; gap: 4px; font-size: 13px; color: rgb(255 255 255 / .55); padding-top: 8px; border-top: 1px solid rgb(255 255 255 / .1); }
 .st-more { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 8px; }
-.story .btn.ghost { color: #fff; border-color: rgb(255 255 255 / .2); background: transparent; text-decoration: none; }
+.story :is(.st-story, .st-top, .st-more) .btn.ghost { color: #fff; border-color: rgb(255 255 255 / .2); background: transparent; text-decoration: none; }
 @media (max-width: 1100px) {
   .st-stage { grid-template-columns: auto minmax(260px, 360px); justify-content: center; }
   .st-device { grid-column: 1; } .st-story { grid-column: 2; }
@@ -1655,8 +1655,8 @@ body { margin: 0; }
 .pay-ask .btn.ghost { color: var(--ink); background: var(--surface); border: 1px solid var(--line); }
 .talk-roles .chip { padding: 8px 14px; border: 1px solid var(--line); cursor: pointer; }
 /* in-app messages sit above the tab bar, never over Back or Close */
-.story .toasts.in-phone, .story.full .toasts.in-phone, .story:not(.tablet):not(.laptop) .toasts.in-phone { top: auto !important; bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
-.story.tablet .toasts.in-phone, .story.laptop .toasts.in-phone { bottom: 24px; width: min(420px, calc(100% - 28px)); }
+.story .toasts.in-phone, .story.full .toasts.in-phone, .story:not(.tablet):not(.laptop) .toasts.in-phone { top: auto !important; bottom: calc(78px + env(safe-area-inset-bottom, 0px)) !important; }
+.story.tablet .toasts.in-phone, .story.laptop .toasts.in-phone { bottom: 24px !important; width: min(420px, calc(100% - 28px)); }
 /* staff devices fit the window on a computer */
 @media (min-width: 761px) {
   .story.tablet .st-device, .story.laptop .st-device { margin-top: 30px; }
@@ -1668,3 +1668,22 @@ body { margin: 0; }
   .st-strip { -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 36px), transparent); padding-right: 28px; }
 }
 .redeem input::placeholder { letter-spacing: normal; font-family: var(--body); }
+/* audit pass */
+.welcome .eyebrow { padding-right: 44px; }
+.tips .seg button { white-space: nowrap; padding-inline: 2px; min-width: 0; }
+.tips .seg { display: grid; grid-auto-flow: column; grid-auto-columns: 1fr; }
+.wallet .pay-name { display: block; font: 700 17px/1.25 var(--body); margin: 6px 0 2px; }
+.story { overflow-x: clip; }
+.st-venue { overflow: hidden; }
+.lineup { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; } .lineup li { display: flex; justify-content: space-between; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-md); } .lineup small { color: var(--muted); }
+/* devices sized to the space under the header, however many rows it takes */
+@media (min-width: 761px) {
+  .story:not(.tablet):not(.laptop) .device-frame { height: max(440px, calc(100vh - var(--st-top, 124px) - 96px)); width: calc(max(440px, calc(100vh - var(--st-top, 124px) - 96px)) * 390 / 844 + 24px); }
+  .device-frame.tablet { height: max(440px, min(680px, calc(100vh - var(--st-top, 124px) - 106px))); }
+  .device-frame.laptop { height: max(440px, min(720px, calc(100vh - var(--st-top, 124px) - 116px))); }
+  .st-hint { display: none; }
+}
+/* the phone on a computer: a real phone's size, scaled to the space under the header */
+@media (min-width: 761px) {
+  .story:not(.tablet):not(.laptop):not(.full) .device-frame { width: 414px; height: 868px; max-width: none; min-height: 0; zoom: var(--dz, 1); }
+}

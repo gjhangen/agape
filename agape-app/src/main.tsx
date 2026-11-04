@@ -2,7 +2,8 @@ import { React, ReactDOM, useEffect, useRef, useState } from "./r";
 import { boot, kernel } from "./kernel";
 import { FanApp, FanView, Sheet } from "./fan";
 import { OpsLens, OpsView, RunnerLens, RunnerView, StandLens, StandView } from "./roles";
-import { BRAND, runnerName, venueTime } from "./parts";
+import { BRAND, isConcert, runnerName, venueTime } from "./parts";
+import { demoWorld } from "./shell";
 import { BusinessLens, PlayerLens } from "./deals";
 import { SetupLens, resetVenue } from "./setup";
 import { setWorldOverride, worldOverride } from "./kernel";
@@ -128,14 +129,14 @@ function App() {
     <>
       <header className="harness sim">
         <div className="harness-in">
-          <span className="sim-brand"><b>agape</b> simulator<span className="sub"> · {BRAND.venue}{worldOverride() && <> · {sessionStorage.getItem("agape.shared") ? "a version made for you" : "your version"} <button className="link-inline small" onClick={() => { try { sessionStorage.removeItem("agape.shared"); } catch { /* fine */ } resetVenue(); }}>see the sample venue</button></>}</span></span>
+          <span className="sim-brand"><b>agape</b> simulator<span className="sub"> · {BRAND.venue}{isConcert() && !sessionStorage.getItem("agape.shared") ? <> · concert night</> : null}{worldOverride() && !(isConcert() && !sessionStorage.getItem("agape.shared")) && <> · {sessionStorage.getItem("agape.shared") ? "a version made for you" : "your version"} <button className="link-inline small" onClick={() => { try { sessionStorage.removeItem("agape.shared"); } catch { /* fine */ } resetVenue(); }}>see the sample venue</button></>}</span></span>
           <div className="controls">
             <button className="btn h-btn" onClick={() => setPlaying(!playing)} aria-pressed={!playing}>{done ? "Night over" : playing ? "Pause" : "Play"}</button>
             <div className="seg h-seg" role="group" aria-label="Speed">
               {SPEEDS.map((s, i) => <button key={s.id} className={speed === i ? "on" : ""} title={i === 0 ? "Real time" : `${s.label} real time`} onClick={() => setSpeed(i)}>{s.label}</button>)}
             </div>
             <select id="skip" className="h-btn" value="" onChange={e => { skip(e.target.value); e.target.value = ""; }} aria-label="Skip ahead">
-              <option value="">Skip to…</option><option value="half">Halftime</option><option value="q4">4th quarter</option><option value="final">Final</option>
+              <option value="">Skip to…</option><option value="half">{isConcert() ? "The changeover" : "Halftime"}</option><option value="q4">{isConcert() ? "The finale" : "4th quarter"}</option><option value="final">{isConcert() ? "The end of the show" : "Final"}</option>
             </select>
             <button className="btn h-btn" onClick={() => location.reload()} title="Start the night again">Restart</button>
             <button className="btn h-btn" onClick={() => goTour(0)}>Tour</button>
@@ -154,11 +155,11 @@ function App() {
           <div>
             <span className="eyebrow">You're looking at a whole night, simulated</span>
             <h1>A full arena, running in your browser.</h1>
-            <p>A basketball night at {BRAND.venue}: {(worldOverride()?.pilot?.fans ?? 3000).toLocaleString()} simulated fans ordering, chatting and collecting, {worldOverride()?.pilot?.runners ?? 40} runners, every kitchen, every dollar. Agape itself is real; the crowd and the game are simulated so you can see all of it at once. Step into any seat above, speed time up, switch features off, or put your own team on it in the Studio. Nothing you do here affects anyone else. Anything tagged <span className="opt">Optional</span> is built and working but not in the launch set; a venue switches it on if it wants it.</p>
+            <p>{isConcert() ? "A concert" : "A basketball game"} at {BRAND.venue}: {(worldOverride()?.pilot?.fans ?? 3000).toLocaleString()} simulated fans ordering, chatting and collecting, {worldOverride()?.pilot?.runners ?? 40} runners, every kitchen, every dollar. Agape itself is real; the crowd and the {isConcert() ? "show" : "game"} are simulated so you can see all of it at once. Step into any seat above, speed time up, switch features off, or put your own team on it in the Studio. Nothing you do here affects anyone else. Anything tagged with a package name, such as <span className="opt">Deals</span>, is built and working but beyond what Agape launches with; a venue switches it on if it wants it.</p>
           </div>
           <div className="sim-intro-acts">
             <button className="btn primary big" onClick={() => { closeIntro(); goTour(0); }}>Take the 2-minute tour</button>
-            <button className="btn big" onClick={() => { closeIntro(); setPersp("setup"); }}>Put my team on it</button>
+            <button className="btn big" onClick={() => { closeIntro(); setPersp("setup"); }}>{isConcert() ? "Make it your venue" : "Put my team on it"}</button>
             <button className="link-inline" onClick={closeIntro}>Just let me explore</button>
           </div>
         </section>
@@ -189,7 +190,7 @@ function App() {
             )}
           </div>
         )}
-        {persp !== "fan" && persp !== "setup" && <p className="staff-clock"><b className="num">{venueTime(c.t)}</b><span>{c.phase === "halftime" ? "Halftime" : c.phase === "pregame" ? "Before tip-off" : c.phase === "postgame" ? "After the final" : c.label.split(" ")[0]}</span></p>}
+        {persp !== "fan" && persp !== "setup" && <p className="staff-clock"><b className="num">{venueTime(c.t)}</b><span>{isConcert() ? c.label : c.phase === "halftime" ? "Halftime" : c.phase === "pregame" ? "Before tip-off" : c.phase === "postgame" ? "After the final" : c.label.split(" ")[0]}</span></p>}
         {persp === "runner" && runner && <RunnerLens r={runner} map={fan.map} pick={setRunnerId} runners={runners.map(r => r.id)} x={{ toast, refresh }} />}
         {persp === "stand" && stand && <StandLens s={stand} pick={setStandId} stands={fan.map.stands} x={{ toast, refresh }} />}
         {persp === "player" && player && parties && <PlayerLens p={player} players={parties.players} pick={setPlayerId} toast={toast} refresh={refresh} />}
@@ -213,6 +214,8 @@ function App() {
       else { setWorldOverride(null); try { sessionStorage.removeItem("agape.shared"); sessionStorage.setItem("agape.badlink", "1"); } catch { /* fine */ } }
     } catch { /* the sample venue, then */ }
   }
+  // a concert night, when asked for
+  if (!worldOverride() && new URLSearchParams(location.search).get("event") === "concert") setWorldOverride(demoWorld());
   setVenueColor(worldOverride()?.brand?.home?.color || null);
   const r = await boot(7, YOU_SEAT);
   if (!r.ok) throw new Error(r.error);

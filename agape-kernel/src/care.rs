@@ -79,7 +79,7 @@ impl Night {
         Ok(id)
     }
 
-    /// Refund what the fan paid for the order (and the delivery fee if it never came). The sale is
+    /// Refund what the fan paid for the order, delivery fee included; the tip stays with the runner. The sale is
     /// unwound in the shares it was made in; whoever was at fault also bears the card processing
     /// already paid. Tips stay with whoever earned them unless operations decides otherwise.
     pub fn resolve_problem(&mut self, by: &str, id: &str, refund: bool, why: &str) -> Result<(), String> {
@@ -93,17 +93,18 @@ impl Night {
         let q = self.orders[p.order].c.quote.clone();
         let b = breakdown(&q, &self.terms).map_err(|e| format!("{e:?}"))?;
         let usd = Unit::usd();
-        let with_fee = p.reason == Reason::NeverArrived;
-        let fee = if with_fee { b.fee } else { 0 };
+        // the fan gets everything back but the tip: the delivery fee too, since a ruined order wasn't delivered
+        let fee = b.fee;
         let back = b.subtotal - b.discount + b.tax + fee;
         let fault_acct = if p.fault == DISPATCHER { acct("agape", "revenue") } else { acct(&p.fault, "revenue") };
         let mut post = vec![
             posting(acct(&p.fan, "card"), usd.clone(), back),
             posting(acct("tax_authority", "payable"), usd.clone(), -b.tax),
             posting(acct(&q.stand, "revenue"), usd.clone(), -b.stand_net),
-            posting(acct("agape", "revenue"), usd.clone(), -(b.agape_share + fee)),
-            // the stand paid processing out of the sale and the fan gets it all back: whoever was at fault covers it
-            posting(fault_acct, usd.clone(), -b.processing),
+            posting(acct("agape", "revenue"), usd.clone(), -b.agape_share),
+            // the stand paid processing out of the sale and the fan gets it all back, with the delivery fee:
+            // whoever was at fault covers both
+            posting(fault_acct, usd.clone(), -(b.processing + fee)),
         ];
         for d in &q.discounts { post.push(posting(acct(&d.payer, "promo_budget"), usd.clone(), d.amount)); }
         if q.points_redeemed > 0 {

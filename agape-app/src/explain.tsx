@@ -5,7 +5,7 @@ import { React, useEffect, useState } from "./r";
 export type Note = { sel: string; title: string; what: string; who: string; why: string; level: number };
 
 export const FAN_NOTES: Note[] = [
-  { sel: ".anchor", title: "The event, in one line", what: "The score and the latest thing that happened, always at the top of Get. Tap it to open the event.", who: "Fans", why: "The event is one tap away, so nobody leaves the app to check it, and it never competes with ordering for the front door.", level: 1 },
+  { sel: ".anchor", title: "The event, in one line", what: "The score and the latest thing that happened, always at the top of Get. Tap it to open the event.", who: "Fans", why: "The event is one tap away, so nobody leaves the app to check it, and it never pushes ordering off the main screen.", level: 1 },
   { sel: ".welcome", title: "The first-night card", what: "Greets a new fan with the one thing Agape is for: something good, at their seat, soon.", who: "First-time fans", why: "The first order is what turns a download into a customer.", level: 1 },
   { sel: ".item-row", title: "When it reaches you", what: "Every item shows the time it would reach this seat, from how fast this kitchen and its runners are going right now.", who: "Fans", why: "An honest time is why people order instead of standing in line. Agape keeps a share of every sale and the delivery fee.", level: 1 },
   { sel: ".order-pill", title: "Your order follows you", what: "Wherever you are in the app, your order's stage and arrival time stay at the top.", who: "Fans with an order on the way", why: "Fans stop worrying and keep watching, which brings them back to order again.", level: 1 },
@@ -30,6 +30,8 @@ export function ExplainLayer({ root, notes, on, pick, picked }: { root: () => HT
     const measure = () => {
       const r = root(); if (!r) return;
       const base = r.getBoundingClientRect();
+      // the device may be drawn scaled: boxes are placed in its own, unscaled units
+      const z = r.offsetWidth ? base.width / r.offsetWidth : 1;
       const out: Box[] = [];
       notes.forEach((n, i) => {
         const el = r.querySelector(n.sel) as HTMLElement | null;
@@ -37,7 +39,7 @@ export function ExplainLayer({ root, notes, on, pick, picked }: { root: () => HT
         const b = el.getBoundingClientRect();
         const y = Math.max(b.top, base.top), bottom = Math.min(b.bottom, base.bottom);
         if (bottom - y < 14 || b.width < 10) return;
-        out.push({ i, x: b.left - base.left, y: y - base.top, w: b.width, h: bottom - y });
+        out.push({ i, x: (b.left - base.left) / z, y: (y - base.top) / z, w: b.width / z, h: (bottom - y) / z });
       });
       setBoxes(out);
     };

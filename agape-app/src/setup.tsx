@@ -2,7 +2,7 @@
 // you type; a preview runs a whole simulated night on the template; then it opens.
 import { React, useMemo, useState } from "./r";
 import { kernel, setup, setWorldOverride, world as currentWorld } from "./kernel";
-import { LEVELS, MeasureTile, money, MoneyFlows } from "./parts";
+import { LEVELS, MeasureTile, money, MoneyFlows, isConcert } from "./parts";
 
 /** The level a feature arrives at. */
 const levelOf = (k: string) => LEVELS.find(l => l.on.includes(k))?.n ?? 5;
@@ -116,7 +116,7 @@ export function SetupLens({ toast, inApp }: { toast: (s: string) => void; inApp?
   const m = r?.money ?? {};
   return (
     <div className="role setup">
-      {inApp ? <header className="role-head"><span className="eyebrow">Events · set up a night</span><span className="sub">Who's playing, your menu, your terms and what fans get. Every change is checked as you go, and you can preview a whole night before it opens.</span></header>
+      {inApp ? <header className="role-head"><span className="eyebrow">Events · set up a night</span><span className="sub">{isConcert() ? "Who's on" : "Who's playing"}, your menu, your terms and what fans get. Every change is checked as you go, and you can preview a whole night before it opens.</span></header>
         : <header className="role-head"><span className="eyebrow">Studio · make it yours</span><span className="sub">Your teams, your menu, your rules. Every change is checked as you go; preview a whole night on it, then open it and see it from every seat.</span></header>}
       <div className={"issues " + (blocking.length ? "bad" : "good")} role="status">
         <b>{blocking.length ? `${blocking.length} thing${blocking.length === 1 ? "" : "s"} to fix before it can open` : "Ready to open"}</b>
@@ -124,21 +124,23 @@ export function SetupLens({ toast, inApp }: { toast: (s: string) => void; inApp?
       </div>
       <div className="role-grid">
         <section className="block span2 studio-brand">
-          <div className="block-head"><h2>Your teams</h2><span className="sub">Names, colors, logos and players. Leave a field empty to keep what's there now.</span></div>
+          {isConcert() ? <><div className="block-head"><h2>Tonight's lineup</h2><span className="sub">Set by the promoter's booking. The running order sets when the rush comes and when last call is.</span></div>
+            <ul className="lineup">{(w.event?.acts ?? []).map((a: string, i: number) => <li key={a}><b>{a}</b><small>{i === (w.event?.acts?.length ?? 1) - 1 ? "Headliner" : "Opener"}</small></li>)}</ul></>
+          : <><div className="block-head"><h2>Your teams</h2><span className="sub">Names, colors, logos and players. Leave a field empty to keep what's there now.</span></div>
           <div className="team-eds">
             <TeamEditor side="home" w={w} edit={edit} roster={roster("hbk")} />
             <TeamEditor side="away" w={w} edit={edit} roster={roster("msc")} />
-          </div>
-          <div className="studio-look"><span className="eyebrow">The app's look</span><LookPicker /><small>Fans see the home team's colors automatically; this sets everything else.</small></div>
+          </div></>}
+          <div className="studio-look"><span className="eyebrow">The app's look</span><LookPicker /><small>{isConcert() ? "Fans see the tour's colors automatically; this sets everything else." : "Fans see the home team's colors automatically; this sets everything else."}</small></div>
         </section>
         <section className="block span2">
-          <div className="block-head"><h2>What fans get</h2><span className="sub">Ordering to the seat, tracking, receipts and ratings are always on: that's Level 1. Everything else arrives at a later level, and a venue switches on what it wants.</span>
-            <button className="btn ghost sm" onClick={() => edit(d => { d.features = Object.fromEntries([...FEATURES.map(([k]) => [k, false]), ["points", false], ["offers", false]]); })}>Level 1 only</button>
+          <div className="block-head"><h2>What fans get</h2><span className="sub">Ordering to the seat, tracking, receipts and ratings are always on. Everything else comes in packages your venue switches on when it wants them.</span>
+            <button className="btn ghost sm" onClick={() => edit(d => { d.features = Object.fromEntries([...FEATURES.map(([k]) => [k, false]), ["points", false], ["offers", false]]); })}>Ordering only</button>
             <button className="btn ghost sm" onClick={() => edit(d => { d.features = Object.fromEntries(FEATURES.map(([k]) => [k, true])); })}>Everything on</button></div>
-          <div className="features">{FEATURES.map(([k, name, blurb]) => {
+          <div className="features">{FEATURES.filter(([k]) => !isConcert() || !["predictions", "colors", "cards"].includes(k)).map(([k, name, blurb]) => {
             const on = w.features?.[k] !== false;
             return <label key={k} className={"feature" + (on ? " on" : "")}><input type="checkbox" checked={on} onChange={e => edit(d => { d.features = { ...(d.features ?? {}), [k]: e.target.checked }; })} />
-              <span><b>{name} <em className="opt">Level {levelOf(k)}</em></b><small>{blurb}</small></span></label>;
+              <span><b>{name} <em className="opt">{LEVELS[levelOf(k) - 1].name}</em></b><small>{blurb}</small></span></label>;
           })}</div>
         </section>
         <section className="block">

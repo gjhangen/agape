@@ -86,13 +86,13 @@ function Console({ stage, next, toast, o, b, parties, refresh }: { stage: Stage;
 
 function beat(stage: Stage, o: OpsView | null): Beat {
   if (PARTNER) {
-    if (stage !== "app") return { id: "p0", title: "A pizzeria four minutes from the arena", body: <>Dock Street Pizza partners with {BRAND.venue}. You own it. Fans unlock your perk with the points they earn ordering, and walk over after the event.</> };
-    return { id: "p1", title: "Results, as they happen", body: <>Every unlock and every code used at your counter shows up here. Partners pay for results, not for impressions.{demoCode && <> Fans come in after the event with a code on their phone. To try the counter now, here is one a fan unlocked tonight: <b className="num">{demoCode}</b>.</>}</> };
+    if (stage !== "app") return { id: "p0", title: "A pizzeria four minutes from the arena", body: <>Dock Street Pizza partners with {BRAND.venue}. You own it. Fans unlock your perk during the event with the points they earn ordering, and walk over when it ends.</> };
+    return { id: "p1", title: "Results, as they happen", body: <>Every unlock and every code used at your counter shows up here. Partners pay for results, not for impressions.{demoCode && <> The {EVENT === "concert" ? "show" : "game"} just ended and fans are walking over. One is at your counter now, showing code <b className="num">{demoCode}</b>. Type it in to check it.</>}</> };
   }
   if (stage !== "app") return { id: "v0", title: `Operations at ${BRAND.venue}`, body: <>You run operations here. The whole night runs on Agape: every stand, every runner and every dollar, on one screen. Tonight was set up before the doors opened.</> };
   if (!o) return { id: "x", title: "", body: null };
   if ((o.problems?.length ?? 0) > 0) return { id: "v2", title: "A fan reported a problem", body: <>Problems land here with their likely cause. One tap refunds the fan, and the refund is charged to whoever caused it, as your agreement sets out.</> };
-  return { id: "v1", title: "The whole night, as it happens", body: <>Orders, seat waits and runners, the floor as it happens, and further down, every dollar to the cent. Switch to Events to set up the next night: teams, menu, terms and what fans get.</> };
+  return { id: "v1", title: "The whole night, as it happens", body: <>Orders, seat waits and runners, the floor as it happens, and further down, every dollar to the cent. Switch to Events to set up the next night: {EVENT === "concert" ? "the lineup" : "the teams"}, menu, terms and what fans get.</> };
 }
 
 function App() {
@@ -107,6 +107,8 @@ function App() {
     setWorldOverride(demoWorld(levelFeatures(LEVEL)));
     const x = await boot(19, "s104"); if (!x.ok) return;
     kernel.step(START_MINUTE * 6);
+    // a partner's night starts when the event ends: that's when fans walk over
+    if (PARTNER) for (let i = 0; i < 80 && (kernel.view("fan") as any)?.clock?.phase !== "postgame"; i++) kernel.step(30);
     if (PARTNER) {
       kernel.act({ do: "drive", party: BIZ }); setParties(kernel.view("parties"));
       // the demo walks one fan in the door: they unlock the perk with their points, and their code is told in the story

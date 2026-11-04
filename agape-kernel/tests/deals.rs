@@ -140,8 +140,8 @@ fn a_perk_is_used_once_at_the_counter_with_the_code_on_the_fans_phone() {
     let v = n.view_fan(YOU);
     let pass = v["me"]["passes"].as_array().unwrap().iter().find(|p| p["place"] == "copper-tap").unwrap().clone();
     assert!(pass["used"].is_null());
-    assert_eq!(n.redeem("copper-tap", "000000"), Err("No pass with that code".into()));
-    assert_eq!(n.redeem("dock-pizza", pass["code"].as_str().unwrap()), Err("No pass with that code".into()), "a code works only where it was issued");
+    assert_eq!(n.redeem("copper-tap", "000000"), Err("No perk or pass matches that code".into()));
+    assert_eq!(n.redeem("dock-pizza", pass["code"].as_str().unwrap()), Err("No perk or pass matches that code".into()), "a code works only where it was issued");
     assert_eq!(n.redeem("copper-tap", pass["code"].as_str().unwrap()), Ok(YOU.to_string()));
     assert_eq!(pass["code"].as_str().unwrap(), pass_code(YOU, "copper-tap"));
     assert_eq!(n.redeem("copper-tap", pass["code"].as_str().unwrap()), Err("Already used".into()));

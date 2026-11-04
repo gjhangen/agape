@@ -546,7 +546,7 @@ impl Night {
         let fan = self.ledger.balances_iter().filter(|((a, u), v)| a.purpose == "holdings" && *u == unit && **v > 0)
             .map(|((a, _), _)| a.party.clone()).find(|f| pass_code(f, place) == code);
         let Some(fan) = fan else {
-            return Err(if self.redeemed.keys().any(|(f, p)| p == place && pass_code(f, place) == code) { "Already used".into() } else { "No pass with that code".into() });
+            return Err(if self.redeemed.keys().any(|(f, p)| p == place && pass_code(f, place) == code) { "Already used".into() } else { "No perk or pass matches that code".into() });
         };
         let a = self.trade.all().iter().rev().find(|a| a.buyer == fan && matches!(a.kind, Kind::Perk | Kind::Parking) && self.trade.offer(&a.offer).map_or(false, |o| o.subject == place)).map(|a| a.id.clone()).unwrap_or_default();
         self.ledger.post(Txn { memo: format!("redeem {place} x:{a}"), postings: vec![posting(acct(&fan, "holdings"), unit.clone(), -1), posting(acct(place, "redeemed"), unit, 1)] }).map_err(|e| format!("{e:?}"))?;

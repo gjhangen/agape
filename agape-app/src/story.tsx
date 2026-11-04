@@ -8,7 +8,7 @@ import { BRAND, Icon, LEVELS, levelFeatures, momentText, runnerName, venueTime }
 import { applyLook, applyMode, savedLook, savedMode, setVenueColor } from "./themes";
 import { TalkToUs } from "./talk";
 import { ExplainCard, ExplainLayer, FAN_NOTES, Note } from "./explain";
-import { DemoModal, EVENT, EventSwitch, HeldCard, demoWorld, useFull, useHoldOnBeat, withParam } from "./shell";
+import { DemoModal, useTopHeight, EVENT, EventSwitch, HeldCard, demoWorld, useFull, useHoldOnBeat, withParam } from "./shell";
 
 declare const AGAPE_WORLD: any;
 const SPEEDS = [{ label: "1×", tps: 0.1 }, { label: "6×", tps: 0.6 }, { label: "30×", tps: 3 }];
@@ -22,11 +22,15 @@ function useWorld(level: number) { setWorldOverride(demoWorld(levelFeatures(leve
 
 // ---------- inside the phone: opening Agape for the first time ----------
 
-function Onboarding({ stage, next, seatChosen }: { stage: Stage; next: (s: Stage) => void; seatChosen: (section: string, row: string, seat: string) => void }) {
+function Onboarding({ stage, next, seatChosen, onLocated }: { stage: Stage; next: (s: Stage) => void; seatChosen: (section: string, row: string, seat: string) => void; onLocated: (on: boolean) => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [sec, setSec] = useState(""); const [row, setRow] = useState(""); const [seat, setSeat] = useState("");
   const [scanning, setScanning] = useState(false);
+  const [pw, setPw] = useState(""); const [tried, setTried] = useState(false);
+  const [located, setLocated] = useState(true);
+  // Apple and Google hand over the name and email they have
+  const social = (n: string, e: string) => { try { localStorage.setItem("agape.profile", JSON.stringify({ name: n, email: e })); } catch { /* fine */ } };
   // a returning fan: their name and the card they saved last time
   const returning = () => { try { localStorage.setItem("agape.profile", JSON.stringify({ name: "Jordan Lee", email: email.trim() || "jordan.lee@gmail.com" })); localStorage.setItem("agape.prefs", JSON.stringify({ cards: ["Visa •••• 7612"], pay: "Visa •••• 7612" })); } catch { /* fine */ } };
   const ok = /^(1(0[1-9]|1\d|2[0-4])|2(0[1-9]|1\d|2[0-4]))$/.test(sec);
@@ -38,13 +42,15 @@ function Onboarding({ stage, next, seatChosen }: { stage: Stage; next: (s: Stage
     </div>
   );
   if (stage === "signup") return (
-    <form className="ob ob-form" onSubmit={e => { e.preventDefault(); try { localStorage.setItem("agape.profile", JSON.stringify({ name: name.trim() || "Jordan", email: email.trim() })); } catch { /* fine */ } next("perms"); }}>
+    <form className="ob ob-form" onSubmit={e => { e.preventDefault(); if (!name.trim() || !/.+@.+\..+/.test(email) || pw.length < 8) { setTried(true); return; } try { localStorage.setItem("agape.profile", JSON.stringify({ name: name.trim(), email: email.trim() })); } catch { /* fine */ } next("perms"); }}>
       <h2>Create your account</h2>
-      <button type="button" className="btn ob-social" onClick={() => { setName(n => n || "Jordan Lee"); setEmail(e => e || "jordan@icloud.com"); }}> Continue with Apple</button>
-      <button type="button" className="btn ob-social light" onClick={() => { setName(n => n || "Jordan Lee"); setEmail(e => e || "jordan.lee@gmail.com"); }}>Continue with Google</button>
+      <button type="button" className="btn ob-social" onClick={() => { social("Jordan Lee", "jordan@icloud.com"); next("perms"); }}> Continue with Apple</button>
+      <button type="button" className="btn ob-social light" onClick={() => { social("Jordan Lee", "jordan.lee@gmail.com"); next("perms"); }}>Continue with Google</button>
       <div className="ob-or"><span>or</span></div>
       <label className="sf wide"><span>Your name</span><input value={name} onChange={e => setName(e.target.value)} placeholder="Jordan Lee" autoComplete="name" /></label>
       <label className="sf wide"><span>Email</span><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></label>
+      <label className="sf wide"><span>Password</span><input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="8 or more characters" autoComplete="new-password" /></label>
+      {tried && <small className="ob-warn">{!name.trim() ? "Add your name." : !/.+@.+\..+/.test(email) ? "Add your email." : "Choose a password of 8 or more characters."}</small>}
       <button className="btn ob-primary">Continue</button>
       <small className="ob-fine">By continuing you agree to Agape's terms and privacy policy.</small>
     </form>
@@ -58,7 +64,6 @@ function Onboarding({ stage, next, seatChosen }: { stage: Stage; next: (s: Stage
       <label className="sf wide"><span>Email</span><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></label>
       <label className="sf wide"><span>Password</span><input type="password" placeholder="Your password" autoComplete="current-password" /></label>
       <button className="btn ob-primary">Sign in</button>
-      <small className="ob-fine">In this demo, any email and password sign you in to Jordan's account.</small>
     </form>
   );
   if (stage === "perms") return (
@@ -66,16 +71,16 @@ function Onboarding({ stage, next, seatChosen }: { stage: Stage; next: (s: Stage
       <h2>Two quick things</h2>
       <div className="ob-perm"><span className="ob-pi">📍</span><div><b>Know when you're at an event</b><small>Agape uses your location only while it's open, to find the venue you're in.</small></div></div>
       <div className="ob-perm"><span className="ob-pi"><Icon name="bell" /></span><div><b>Tell you when it's here</b><small>A heads-up when your order is on its way and when it reaches you.</small></div></div>
-      <div className="ob-acts"><button className="btn ob-primary" onClick={() => next("venue")}>Allow</button><button className="link-inline" onClick={() => next("venue")}>Not now</button></div>
+      <div className="ob-acts"><button className="btn ob-primary" onClick={() => { setLocated(true); onLocated(true); next("venue"); }}>Allow</button><button className="link-inline" onClick={() => { setLocated(false); onLocated(false); next("venue"); }}>Not now</button></div>
     </div>
   );
   if (stage === "venue") return (
     <div className="ob ob-venue">
-      <span className="eyebrow">You're at</span>
+      <span className="eyebrow">{located ? "You're at" : "Events near you tonight"}</span>
       <h2>{BRAND.venue}</h2>
       {EVENT === "concert" ? <div className="ob-event"><div className="ob-teams"><i style={{ background: BRAND.home.color }} />Lumen Rivers: The Tidelines Tour</div><small>Tonight · with Northbound and Paper Kites Club · doors 6:45 PM</small></div>
         : <div className="ob-event"><div className="ob-teams"><i style={{ background: BRAND.home.color }} />{BRAND.home.name}<span>vs</span><i style={{ background: BRAND.away.color }} />{BRAND.away.name}</div><small>Tonight · tip-off 7:30 PM</small></div>}
-      <div className="ob-acts"><button className="btn ob-primary" onClick={() => next("seat")}>That's me</button></div>
+      <div className="ob-acts"><button className="btn ob-primary" onClick={() => next("seat")}>{located ? "Yes, I'm here" : "I'm at this one"}</button></div>
     </div>
   );
   // seat
@@ -100,25 +105,38 @@ function Onboarding({ stage, next, seatChosen }: { stage: Stage; next: (s: Stage
 
 type Beat = { id: string; title: string; body: React.ReactNode };
 
-function beatFor(stage: Stage, v: FanView | null, level: number, seen: Set<string>): Beat {
-  if (stage === "boot" || stage === "welcome") return { id: "arrive", title: "You've just walked into the arena", body: <>It's {EVENT === "concert" ? "concert" : "game"} night at {BRAND.venue}. The crowd is filling in and the {EVENT === "concert" ? "first act" : "tip-off"} is a few minutes away. You open Agape, the way any fan would. It's made for a phone; you can try this same demo on yours at agapetoyourseat.com/try.</> };
+function beatFor(stage: Stage, v: FanView | null, level: number, seen: Set<string>, located = true): Beat {
+  if (stage === "boot" || stage === "welcome") return { id: "arrive", title: "You've just walked into the arena", body: <>It's {EVENT === "concert" ? "concert" : "game"} night at {BRAND.venue}. The crowd is filling in and the {EVENT === "concert" ? "first act" : "tip-off"} is a few minutes away. You open Agape, the way any fan would. {matchMedia("(max-width: 760px)").matches ? null : <>It's made for a phone; you can try this same demo on yours at agapetoyourseat.com/try.</>}</> };
   if (stage === "signup") return { id: "signup", title: "Signing up takes seconds", body: <>A name and an email, or one tap with Apple or Google. How you'll pay is asked when you first order, and age only when something needs it.</> };
-  if (stage === "signin") return { id: "signin", title: "Back again", body: <>A fan who used Agape before signs in and finds their name and saved card ready. A guest can order without an account at all.</> };
+  if (stage === "signin") return { id: "signin", title: "Back again", body: <>A fan who used Agape before signs in and finds their name and saved card ready. Here, any email and password sign you in as Jordan, a returning fan. A guest can order without an account at all.</> };
   if (stage === "perms") return { id: "perms", title: "Two permissions, each with its reason", body: <>Location tells Agape which venue you're in. Notifications tell you when your order is coming. Both are optional.</> };
-  if (stage === "venue") return { id: "venue", title: "Agape knows where you are", body: <>Agape recognizes the venue and tonight's event, so there's nothing to search for.</> };
+  if (stage === "venue") return located ? { id: "venue", title: "Agape knows where you are", body: <>Agape recognizes the venue and tonight's event, so there's nothing to search for.</> }
+    : { id: "venue", title: "Pick your event", body: <>Without location, Agape asks instead: the events on tonight, nearest first. It's one tap either way.</> };
   if (stage === "seat") return { id: "seat", title: "Your seat is your address", body: <>Section, row and seat: that's where everything comes. Scanning the ticket fills it in.</> };
   if (!v) return { id: "wait", title: "", body: null };
   const o = v.orders[0];
-  const done = v.me.receipts.find(r => r.stage === "Settled" && r.delivery);
-  if (o) {
-    if (o.stage === "Accepted" || o.stage === "Preparing") return { id: "kitchen", title: `${o.stand} is making it`, body: <>Your order went straight to the stand's screen. The arrival time you were shown is measured from how fast this stand and its runners are going right now. Keep watching the {EVENT === "concert" ? "show" : "game"}; the bar at the top of your screen follows your order.</> };
+  // once something has reached the fan, the story never goes back to the start
+  const done = v.me.receipts.find(r => r.delivery && (r.stage === "Settled" || r.stage === "Delivered"));
+  const show = EVENT === "concert" ? "show" : "game";
+  if (o && o.stage !== "Settled" && o.stage !== "Delivered") {
+    if (o.stage === "Accepted" || o.stage === "Preparing") return { id: "kitchen", title: `${o.stand} is making it`, body: <>Your order went straight to the stand's screen. The arrival time you were shown is measured from how fast this stand and its runners are going right now. Keep watching the {show}: wherever you go in the app, your order's progress comes with you.</> };
     if (o.stage === "Ready" || o.stage === "Assigned") return { id: "runner", title: "A runner takes the trip", body: <>It's on the ready shelf, and the nearest runner has been offered the trip, with its route and pay shown up front. Runners keep every tip.</> };
-    if (o.stage === "PickedUp") return { id: "walk", title: `${v.runner ? runnerName(v.runner.id) : "Your runner"} is on the way`, body: <>Walking the concourse to section {v.you.seat.slice(1)}. Open Me to watch them come.</> };
+    if (o.stage === "PickedUp") return { id: "walk", title: `${v.runner ? runnerName(v.runner.id) : "Your runner"} is on the way`, body: <>Walking the concourse to section {v.you.seat.slice(1)}. The map under your order shows them coming.</> };
   }
-  if (done && !seen.has("more")) return { id: "here", title: "It's here, and you never left your seat", body: <>Charged only when it arrived, itemized in your history, and the tip went to the runner. That's Agape at its core. {level < LEVELS.length ? <>Everything else is built on top of it: switch the level above to see what comes next.</> : null}</> };
-  if (done) return { id: "more", title: LEVELS[level - 1].name, body: <>{LEVELS[level - 1].line}. {level === 1 ? "This is the launch app: ordering, done completely." : "Each new tab came with a level. Try them."}</> };
-  return { id: "order", title: "You're hungry, and you don't want to miss anything", body: <>Everything on Get shows when it would reach your seat. Pick something and order it. The top of the screen keeps the {EVENT === "concert" ? "show" : "game"} in one line; tap it to open it.</> };
+  if (done && v.clock.t - (done.delivered ?? 0) < 180_000 && !seen.has("more" + level)) return { id: "here", title: "It's here, and you never left your seat", body: <>Charged only when it arrived, itemized in your history, and the tip went to the runner. That's Agape at its core.{level === 1 ? <> Everything else is built on top of it: switch the level at the top to see what comes next.</> : null}</> };
+  if (done) return { id: "more" + level, title: NEXT[level].title, body: NEXT[level].body };
+  if (level > 1) return { id: "lv" + level, title: `Level ${level}: ${LEVELS[level - 1].name}`, body: <>{LEVELS[level - 1].line}. Ordering works exactly as at Level 1, and the new tabs at the bottom are what this level adds. Order something to see it all work together, or go straight to the new tabs.</> };
+  return { id: "order", title: "You're hungry, and you don't want to miss anything", body: <>Everything on Get shows when it would reach your seat. Pick something and order it. The top of the screen keeps the {show} in one line; tap it to open it.</> };
 }
+
+/** What each level asks the fan to try once ordering is understood. */
+const NEXT: Record<number, { title: string; body: React.ReactNode }> = {
+  1: { title: "Order to your seat, done completely", body: <>This is the launch app: ordering, done completely. Switch the level at the top to see what's built on it.</> },
+  2: { title: "Open Deals", body: <>Deals holds this event's offers and sponsor perks, the points you earn on every order, and a better seat when one opens up. A deal shows only during the event it belongs to.</> },
+  3: { title: "Open Play", body: <>Make a call before it locks, follow the section battle, and collect moments as they happen. New calls open through the night, each locking when play starts.</> },
+  4: { title: "Beyond the night", body: <>Deals now carries what happens after tonight: tickets to the next event and reselling yours, a ride home, prepaid parking and perks at places nearby.</> },
+  5: { title: "Open People", body: <>Your section's chat, the crowd, and the people you follow. It's what brings fans back to Agape between events.</> },
+};
 
 // ---------- the crowd around the phone ----------
 
@@ -163,9 +181,11 @@ function Story() {
   const [talk, setTalk] = useState(false);
   const [seen] = useState(() => new Set<string>());
   const [ready, setReady] = useState(false);
-  const beat = beatFor(stage, v, level, seen);
+  const [located, setLocated] = useState(true);
+  const beat = beatFor(stage, v, level, seen, located);
   const waiting = useHoldOnBeat(stage === "app" ? beat.id : "");
   const { full, setFull } = useFull();
+  useTopHeight();
   const [explain, setExplain] = useState(false);
   const [note, setNote] = useState<Note | null>(null);
   const acc = useRef(0);
@@ -237,7 +257,7 @@ function Story() {
             <div className="device-notch" />
             <div className="device-screen">
               {stage === "app" && v ? <FanApp v={v} refresh={refresh} sheet={sheet} setSheet={setSheet} toast={toast} />
-                : <Onboarding stage={stage} next={setStage} seatChosen={async (sec, row, place) => {
+                : <Onboarding stage={stage} next={setStage} onLocated={setLocated} seatChosen={async (sec, row, place) => {
                   if (`s${sec}` !== "s104") { await start(level, `s${sec}`); }
                   kernel.act({ do: "spot", row: `Row ${row}`, place: `seat ${place}` });
                   try { const o = JSON.parse(localStorage.getItem("agape.prefs") || "{}"); o.spot = `Row ${row}, seat ${place}`; localStorage.setItem("agape.prefs", JSON.stringify(o)); } catch { /* fine */ }

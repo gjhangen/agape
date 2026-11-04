@@ -50,7 +50,7 @@ function Station({ s, stage, next, toast, refresh }: { s: StandView | null; stag
       <h2>Tonight at {s?.name}</h2>
       <div className="sx-setup-grid">
         <div className="cw-check"><span className="cw-tick">✓</span><div><b>6 stations</b><small>Grills, fryers and the counter</small></div></div>
-        <div className="cw-check"><span className="cw-tick">✓</span><div><b>Menu confirmed</b><small>Burgers, tenders, the black bean burger and combos</small></div></div>
+        <div className="cw-check"><span className="cw-tick">✓</span><div><b>Menu confirmed</b><small>Cheeseburgers, tenders, the black bean burger and a burger combo</small></div></div>
         <div className="cw-check"><span className="cw-tick">✓</span><div><b>8 on the crew</b><small>You can change who's on any time</small></div></div>
         <div className="cw-check"><span className="cw-tick">✓</span><div><b>{EVENT === "concert" ? "Changeover forecast" : "Halftime forecast"}</b><small>The busiest 15 minutes of the night, starting about 8:29 PM</small></div></div>
       </div>
@@ -77,7 +77,7 @@ function Station({ s, stage, next, toast, refresh }: { s: StandView | null; stag
       <div className="sx-main">
         <header className="sx-top">
           <div><b>{s.name}</b><small>{s.on_shift ? "Open" : "Closed"} · {venueTime(now)}</small></div>
-          <div className="sx-wait"><span className="eyebrow">A new order is ready in</span><b className="num">{Math.max(1, Math.round(s.wait / 60))} min</b></div>
+          <div className="sx-wait"><span className="eyebrow">New orders take about</span><b className="num">{Math.max(1, Math.round(s.wait / 60))} min</b></div>
           <button className={"sx-open" + (s.on_shift ? " on" : "")} onClick={() => act({ do: s.on_shift ? "clock_out" : "clock_in" }, s.on_shift ? "Stopped taking new orders." : "You're open.")}>{s.on_shift ? "Stop new orders" : "Open for orders"}</button>
         </header>
         {tab === "orders" && <div className="sx-cols">
@@ -111,7 +111,7 @@ function beat(stage: Stage, s: StandView | null): Beat {
   if (late) return { id: "late", title: "Something's running late", body: <>A ticket has passed its time. Tap Ready the moment it's done: the fan's arrival time updates, and if it ends up late they get money back without asking.</> };
   if (s.ready.length) return { id: "shelf", title: "Off the shelf in seconds", body: <>As soon as you tap Ready, the nearest runner is offered the trip. You never have to find anyone.</> };
   if (s.stations.some(x => x.order)) return { id: "make", title: "You're cooking", body: <>Each station holds one order with its time. Tap Ready when it's done, and it moves to the shelf for a runner.</> };
-  return { id: "wait", title: "Orders land here", body: <>Orders from every seat in the arena arrive here as fans place them, oldest first.</> };
+  return { id: "wait", title: "Between orders", body: <>Orders from every seat in the arena arrive here as fans place them, oldest first. Pickup orders wait on the shelf until the fan comes to the counter.</> };
 }
 
 function App() {
@@ -127,7 +127,7 @@ function App() {
     setTimeout(() => setStage("pin"), 1600);
   })(); }, []);
   return <Shell tag="Stand · Agape Station" device="tablet" ready={ready} onTick={refresh} toasts={toasts} notes={NOTES} explainable={stage === "app"}
-    beat={beat(stage, s)} meta={s && stage === "app" ? <span>{BRAND.venue} · {s.queue_len} waiting · {s.ready.length} on the shelf</span> : undefined}
+    beat={beat(stage, s)} meta={s && stage === "app" ? <span>{BRAND.venue} · {s.queue_len} waiting · {s.ready.length + (s.pickups?.length ?? 0)} on the shelf</span> : undefined}
     screen={<Station s={s} stage={stage} next={setStage} toast={toast} refresh={refresh} />} />;
 }
 

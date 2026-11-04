@@ -62,8 +62,8 @@ fn a_problem_is_refunded_by_whoever_was_at_fault_and_the_books_still_balance() {
     assert_eq!(n.report_problem("fan9", id, "wrong_item", ""), Err("That isn't your order".into()));
     n.report_problem(YOU, id, "wrong_item", "Got a cheeseburger, ordered a burger").unwrap();
     let b = &o["breakdown"];
-    let back = b["subtotal"].as_i64().unwrap() - b["discount"].as_i64().unwrap() + b["tax"].as_i64().unwrap();
-    assert_eq!(paid - card(&n), back, "the food and its tax come back; the delivery happened, so its fee doesn't");
+    let back = b["subtotal"].as_i64().unwrap() - b["discount"].as_i64().unwrap() + b["tax"].as_i64().unwrap() + b["fee"].as_i64().unwrap();
+    assert_eq!(paid - card(&n), back, "everything but the tip comes back: the food, its tax and the delivery fee");
     assert!(n.ledger.balance(&acct(&stand, "revenue"), &Unit::usd()) < stand_before, "the stand that made it wrong pays");
     assert_eq!(order(&mut n, id)["problem"]["state"]["state"], "refunded");
     assert_eq!(n.report_problem(YOU, id, "quality", ""), Err("You've already reported this one".into()));
