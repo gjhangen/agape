@@ -76,6 +76,9 @@ pub struct WorldDef {
     /// What the venue switches on for its fans. Anything not named is on.
     #[serde(default)]
     pub features: std::collections::BTreeMap<String, bool>,
+    /// What kind of night this is, when it isn't the default: its performers and their program.
+    #[serde(default)]
+    pub event: Option<EventDef>,
 }
 
 #[derive(Clone, Debug, Default, Serialize, Deserialize)]
@@ -188,4 +191,25 @@ impl World {
         }
         Ok(())
     }
+}
+
+/// A night of performances: its performers in order, and the main performer's program.
+#[derive(Clone, Debug, Default, Serialize, Deserialize)]
+pub struct EventDef {
+    #[serde(default)]
+    pub kind: String,
+    #[serde(default)]
+    pub title: String,
+    /// In order of appearance; the last is the main performer.
+    #[serde(default)]
+    pub acts: Vec<String>,
+    /// The main performer's pieces, in the order they're played; the last one closes the night.
+    #[serde(default)]
+    pub songs: Vec<String>,
+    /// Pieces the earlier performers play, in order.
+    #[serde(default)]
+    pub early: Vec<String>,
+    /// Pieces the crowd goes loudest for: each becomes a moment.
+    #[serde(default)]
+    pub favorites: Vec<String>,
 }

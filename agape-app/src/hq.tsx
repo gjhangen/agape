@@ -4,7 +4,7 @@ import { React, ReactDOM, useEffect, useState } from "./r";
 import { boot, kernel, setWorldOverride } from "./kernel";
 import { BRAND, Icon, money, MeasureTile, venueTime } from "./parts";
 import { OpsView, Problems } from "./roles";
-import { Beat, Shell, useToasts } from "./shell";
+import { Beat, Shell, demoWorld, useToasts } from "./shell";
 import { Note } from "./explain";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
@@ -118,7 +118,7 @@ function App() {
   const { toasts, toast } = useToasts();
   const refresh = () => setO(kernel.view("ops") as OpsView);
   useEffect(() => { (async () => {
-    setWorldOverride({ ...AGAPE_WORLD });
+    setWorldOverride(demoWorld());
     const x = await boot(23, "s104"); if (!x.ok) return;
     kernel.step(70 * 6); kernel.act({ do: "drive", party: "ops" }); refresh(); setReady(true);
     setTimeout(() => setStage("signin"), 1500);

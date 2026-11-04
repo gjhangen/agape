@@ -4,7 +4,7 @@ import { boot, kernel, setWorldOverride } from "./kernel";
 import { Icon, money, venueTime, BRAND, countdown } from "./parts";
 import { StandView } from "./roles";
 import { ItemArt } from "./Art";
-import { Beat, Shell, useToasts } from "./shell";
+import { Beat, Shell, EVENT, demoWorld, useToasts } from "./shell";
 import { Note } from "./explain";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
@@ -17,7 +17,7 @@ type Tab = "orders" | "tonight" | "settings";
 const NOTES: Note[] = [
   { sel: ".sx-open", title: "Open for orders", what: "When the stand opens, orders from every seat start landing here.", who: "The stand manager", why: "The venue's own kitchens make everything, so the venue keeps its food quality and most of every sale.", level: 1 },
   { sel: ".sx-col.making", title: "On the stations", what: "Each station shows one order and how long it should take. Bump it when it's ready.", who: "Cooks", why: "Prep times are measured, which is what makes every arrival time fans see honest.", level: 1 },
-  { sel: ".sx-col.next", title: "Coming up", what: "Orders waiting for a free station, oldest first. Orders placed ahead for halftime wait until it's time to start them.", who: "The kitchen", why: "Fans can order ahead for the rush, so the kitchen's busiest minutes are spread out.", level: 1 },
+  { sel: ".sx-col.next", title: "Coming up", what: "Orders waiting for a free station, oldest first. Orders placed ahead for the break wait until it's time to start them.", who: "The kitchen", why: "Fans can order ahead for the rush, so the kitchen's busiest minutes are spread out.", level: 1 },
   { sel: ".sx-col.shelf", title: "The ready shelf", what: "Finished orders waiting for a runner or for the fan to pick up.", who: "Runners and fans picking up", why: "Runners are offered trips the moment orders land here, batched by section.", level: 1 },
   { sel: ".sx-wait", title: "The wait, live", what: "How long a new order takes to reach a seat right now. Fans see the same number.", who: "The stand and every fan", why: "When it climbs, fans are steered to faster stands, so no stand drowns.", level: 1 },
 ];
@@ -45,7 +45,7 @@ function Station({ s, stage, next, toast, refresh }: { s: StandView | null; stag
         <div className="cw-check"><span className="cw-tick">✓</span><div><b>6 stations</b><small>Grills, fryers and the counter</small></div></div>
         <div className="cw-check"><span className="cw-tick">✓</span><div><b>Menu confirmed</b><small>Hot dogs, burgers, fries, drinks</small></div></div>
         <div className="cw-check"><span className="cw-tick">✓</span><div><b>8 on the crew</b><small>You can change who's on any time</small></div></div>
-        <div className="cw-check"><span className="cw-tick">✓</span><div><b>Halftime forecast</b><small>The busiest 15 minutes of the night, starting about 8:20 PM</small></div></div>
+        <div className="cw-check"><span className="cw-tick">✓</span><div><b>{EVENT === "concert" ? "Changeover forecast" : "Halftime forecast"}</b><small>The busiest 15 minutes of the night, starting about 8:20 PM</small></div></div>
       </div>
       <button className="btn ob-primary sx-open" onClick={() => { act({ do: "clock_in" }, "You're open. Orders are coming in."); next("app"); }}>Open for orders</button>
     </div>
@@ -97,8 +97,8 @@ function Station({ s, stage, next, toast, refresh }: { s: StandView | null; stag
 }
 
 function beat(stage: Stage, s: StandView | null): Beat {
-  if (stage === "boot" || stage === "pin") return { id: "a", title: `${s?.name ?? "Grill 104"}, an hour before tip-off`, body: <>This is the stand's screen: a tablet at the counter, or a screen on the wall. The kitchen is the venue's own. Agape sends it orders from every seat and tells fans honestly how long they'll take.</> };
-  if (stage === "setup") return { id: "b", title: "Ready for the night", body: <>Stations, menu and crew are set once and confirmed each night. The halftime forecast says when the rush will come.</> };
+  if (stage === "boot" || stage === "pin") return { id: "a", title: `${s?.name ?? "Grill 104"}, before the ${EVENT === "concert" ? "first act" : "tip-off"}`, body: <>This is the stand's screen: a tablet at the counter, or a screen on the wall. The kitchen is the venue's own. Agape sends it orders from every seat and tells fans honestly how long they'll take.</> };
+  if (stage === "setup") return { id: "b", title: "Ready for the night", body: <>Stations, menu and crew are set once and confirmed each night. The forecast says when the rush will come: at {EVENT === "concert" ? "the changeover before the headliner" : "halftime"}.</> };
   if (!s) return { id: "x", title: "", body: null };
   const late = s.stations.some(x => x.order && x.until < s.clock.t);
   if (late) return { id: "late", title: "Something's running late", body: <>A ticket has passed its time. Bump it the moment it's done: the fan's arrival time updates, and if it ends up late they get money back without asking.</> };
@@ -114,7 +114,7 @@ function App() {
   const { toasts, toast } = useToasts();
   const refresh = () => setS(kernel.view("stand", STAND) as StandView);
   useEffect(() => { (async () => {
-    setWorldOverride({ ...AGAPE_WORLD });
+    setWorldOverride(demoWorld());
     const x = await boot(17, "s104"); if (!x.ok) return;
     kernel.step(START_MINUTE * 6); refresh(); setReady(true);
     setTimeout(() => setStage("pin"), 1600);

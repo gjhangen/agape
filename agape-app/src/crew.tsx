@@ -3,7 +3,7 @@ import { React, ReactDOM, useEffect, useState } from "./r";
 import { boot, kernel, setWorldOverride } from "./kernel";
 import { Icon, money, runnerName, venueTime, countdown, BRAND } from "./parts";
 import { RunnerView } from "./roles";
-import { Beat, Shell, useToasts } from "./shell";
+import { Beat, Shell, EVENT, demoWorld, useToasts } from "./shell";
 import { Note } from "./explain";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
@@ -52,7 +52,7 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
     <div className="ob ob-form">
       <h2>Shifts near you</h2>
       <button className="cw-shift on" onClick={() => next("app")}>
-        <div className="grow"><b>{BRAND.venue}</b><small>{BRAND.home.name} vs {BRAND.away.name} · tonight 6:45 to 10:30 PM</small><small className="cw-hot">Busy night expected · higher pay at halftime</small></div><span className="btn primary sm">Claim</span>
+        <div className="grow"><b>{BRAND.venue}</b><small>{EVENT === "concert" ? "Lumen Rivers: The Tidelines Tour" : `${BRAND.home.name} vs ${BRAND.away.name}`} · tonight 6:45 to 10:30 PM</small><small className="cw-hot">Busy night expected · higher pay at {EVENT === "concert" ? "the changeover" : "halftime"}</small></div><span className="btn primary sm">Claim</span>
       </button>
       <div className="cw-shift"><div className="grow"><b>{BRAND.venue}</b><small>Concert · Saturday 7:00 PM to 11:30 PM</small></div><span className="sub">Opens Thursday</span></div>
     </div>
@@ -159,7 +159,7 @@ function App() {
   const { toasts, toast } = useToasts();
   const refresh = () => setR(kernel.view("runner", RUNNER) as RunnerView);
   useEffect(() => { (async () => {
-    setWorldOverride({ ...AGAPE_WORLD });
+    setWorldOverride(demoWorld());
     const x = await boot(13, "s104"); if (!x.ok) return;
     kernel.step(START_MINUTE * 6); refresh(); setReady(true);
     setTimeout(() => setStage("welcome"), 1700);

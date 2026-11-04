@@ -63,6 +63,7 @@ function Site() {
             </a>
           ))}
         </div>
+        <p className="site-why-demo">Every seat works for a game or a concert. <a href="/try/?event=concert">See a concert night as a fan</a>.</p>
         <a className="site-behind" href="/demo/"><b>Behind the scenes</b><span>Every seat at once: the whole arena, sped up, for anyone who wants to see all of it.</span></a>
       </section>
 

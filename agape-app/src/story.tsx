@@ -8,6 +8,7 @@ import { BRAND, Icon, LEVELS, levelFeatures, momentText, runnerName, venueTime }
 import { applyLook, applyMode, savedLook, savedMode, setVenueColor } from "./themes";
 import { TalkToUs } from "./talk";
 import { ExplainCard, ExplainLayer, FAN_NOTES, Note } from "./explain";
+import { EVENT, EventSwitch, demoWorld, withParam } from "./shell";
 
 declare const AGAPE_WORLD: any;
 const SPEEDS = [{ label: "1×", tps: 0.1 }, { label: "6×", tps: 0.6 }, { label: "30×", tps: 3 }];
@@ -17,7 +18,7 @@ const SEED = 11;
 type Stage = "boot" | "welcome" | "signup" | "perms" | "venue" | "seat" | "app";
 
 function levelFromUrl(): number { const n = Number(new URLSearchParams(location.search).get("level")); return n >= 1 && n <= LEVELS.length ? n : 1; }
-function useWorld(level: number) { setWorldOverride({ ...AGAPE_WORLD, features: levelFeatures(level) }); }
+function useWorld(level: number) { setWorldOverride(demoWorld(levelFeatures(level))); }
 
 // ---------- inside the phone: opening Agape for the first time ----------
 
@@ -58,7 +59,8 @@ function Onboarding({ stage, next, seatChosen }: { stage: Stage; next: (s: Stage
     <div className="ob ob-venue">
       <span className="eyebrow">You're at</span>
       <h2>{BRAND.venue}</h2>
-      <div className="ob-event"><div className="ob-teams"><i style={{ background: BRAND.home.color }} />{BRAND.home.name}<span>vs</span><i style={{ background: BRAND.away.color }} />{BRAND.away.name}</div><small>Tonight · tip-off 7:30 PM</small></div>
+      {EVENT === "concert" ? <div className="ob-event"><div className="ob-teams"><i style={{ background: BRAND.home.color }} />Lumen Rivers: The Tidelines Tour</div><small>Tonight · with Northbound and Paper Kites Club · doors 6:45 PM</small></div>
+        : <div className="ob-event"><div className="ob-teams"><i style={{ background: BRAND.home.color }} />{BRAND.home.name}<span>vs</span><i style={{ background: BRAND.away.color }} />{BRAND.away.name}</div><small>Tonight · tip-off 7:30 PM</small></div>}
       <div className="ob-acts"><button className="btn ob-primary" onClick={() => next("seat")}>That's me</button></div>
     </div>
   );
@@ -85,7 +87,7 @@ function Onboarding({ stage, next, seatChosen }: { stage: Stage; next: (s: Stage
 type Beat = { id: string; title: string; body: React.ReactNode };
 
 function beatFor(stage: Stage, v: FanView | null, level: number, seen: Set<string>): Beat {
-  if (stage === "boot" || stage === "welcome") return { id: "arrive", title: "You've just walked into the arena", body: <>It's game night at {BRAND.venue}. The crowd is filling in and tip-off is a few minutes away. You open Agape, the way any fan would. It's made for a phone; you can try this same demo on yours at agapetoyourseat.com/try.</> };
+  if (stage === "boot" || stage === "welcome") return { id: "arrive", title: "You've just walked into the arena", body: <>It's {EVENT === "concert" ? "concert" : "game"} night at {BRAND.venue}. The crowd is filling in and the {EVENT === "concert" ? "first act" : "tip-off"} is a few minutes away. You open Agape, the way any fan would. It's made for a phone; you can try this same demo on yours at agapetoyourseat.com/try.</> };
   if (stage === "signup") return { id: "signup", title: "Signing up takes seconds", body: <>A name and an email, or one tap with Apple or Google. No birthday, no card yet: Agape asks for those only when they're needed.</> };
   if (stage === "perms") return { id: "perms", title: "Two permissions, each with its reason", body: <>Location tells Agape which venue you're in. Notifications tell you when your order is coming. Both are optional.</> };
   if (stage === "venue") return { id: "venue", title: "Agape knows where you are", body: <>The venue and tonight's game are recognized, so there's nothing to search for.</> };
@@ -94,13 +96,13 @@ function beatFor(stage: Stage, v: FanView | null, level: number, seen: Set<strin
   const o = v.orders[0];
   const done = v.me.receipts.find(r => r.stage === "Settled" && r.delivery);
   if (o) {
-    if (o.stage === "Accepted" || o.stage === "Preparing") return { id: "kitchen", title: `${o.stand} is making it`, body: <>Your order went straight to the kitchen's screen. The arrival time you were shown comes from how long this kitchen and its runners are actually taking right now, not a guess. Keep watching the game; the bar at the top of your screen follows your order.</> };
+    if (o.stage === "Accepted" || o.stage === "Preparing") return { id: "kitchen", title: `${o.stand} is making it`, body: <>Your order went straight to the kitchen's screen. The arrival time you were shown comes from how long this kitchen and its runners are actually taking right now, not a guess. Keep watching the {EVENT === "concert" ? "show" : "game"}; the bar at the top of your screen follows your order.</> };
     if (o.stage === "Ready" || o.stage === "Assigned") return { id: "runner", title: "A runner takes the trip", body: <>It's on the ready shelf, and the nearest runner has been offered the trip, with its route and pay shown up front. Runners keep every tip.</> };
     if (o.stage === "PickedUp") return { id: "walk", title: `${v.runner ? runnerName(v.runner.id) : "Your runner"} is on the way`, body: <>Walking the concourse to section {v.you.seat.slice(1)}. Open Me to watch them come.</> };
   }
   if (done && !seen.has("more")) return { id: "here", title: "It's here, and you never left your seat", body: <>Charged only when it arrived, itemized in your history, and the tip went to the runner. That's Agape at its core. {level < LEVELS.length ? <>Everything else is built on top of it: switch the level above to see what comes next.</> : null}</> };
   if (done) return { id: "more", title: LEVELS[level - 1].name, body: <>{LEVELS[level - 1].line}. {level === 1 ? "This is the launch app: ordering, done completely." : "Each tab arrived at a level: try them."}</> };
-  return { id: "order", title: "You're hungry, and you don't want to miss anything", body: <>Everything on Get shows when it would reach your seat. Pick something and order it. The top of the screen keeps the game in one line; tap it to open the game.</> };
+  return { id: "order", title: "You're hungry, and you don't want to miss anything", body: <>Everything on Get shows when it would reach your seat. Pick something and order it. The top of the screen keeps the {EVENT === "concert" ? "show" : "game"} in one line; tap it to open it.</> };
 }
 
 // ---------- the crowd around the phone ----------
@@ -176,7 +178,7 @@ function Story() {
   useEffect(() => { seen.add(beat.id); if (beat.id !== "arrive") setHint(false); }, [beat.id]);
   const pulse = useCrowd(v, sound);
   const changeLevel = async (n: number) => {
-    setLevel(n); history.replaceState(null, "", `?level=${n}`);
+    setLevel(n); history.replaceState(null, "", withParam("level", String(n)));
     const seat = v?.you.seat ?? "s104";
     const t = v?.clock.t ?? START_MINUTE * 60000;
     useWorld(n); const r = await boot(SEED, seat); if (!r.ok) return;
@@ -190,10 +192,11 @@ function Story() {
     <div className="story" style={{ ["--venue" as any]: BRAND.home.color }}>
       <header className="st-top">
         <a className="st-brand" href="/"><b>agape</b><span>demo</span></a>
-        <nav className="st-seats" aria-label="Other seats">{[["Fan", "/try/"], ["Runner", "/try/runner/"], ["Kitchen", "/try/kitchen/"], ["Venue", "/try/venue/"], ["Partner", "/try/partner/"], ["HQ", "/try/hq/"]].map(([l, h]) => <a key={h} href={h} className={l === "Fan" ? "on" : ""}>{l}</a>)}</nav>
+        <nav className="st-seats" aria-label="Other seats">{[["Fan", "/try/"], ["Runner", "/try/runner/"], ["Kitchen", "/try/kitchen/"], ["Venue", "/try/venue/"], ["Partner", "/try/partner/"], ["HQ", "/try/hq/"]].map(([l, h]) => <a key={h} href={h + (EVENT === "concert" ? "?event=concert" : "")} className={l === "Fan" ? "on" : ""}>{l}</a>)}</nav>
         <div className="st-levels" role="group" aria-label="Level">
           {LEVELS.map(l => <button key={l.n} className={level === l.n ? "on" : ""} onClick={() => changeLevel(l.n)} title={l.line}><b>{l.n}</b><span>{l.name}</span></button>)}
         </div>
+        <EventSwitch />
         <div className="st-ctl">
           <button className="btn h-btn" onClick={() => setPlaying(!playing)}>{playing ? "Pause" : "Play"}</button>
           <div className="seg h-seg" role="group" aria-label="Speed">{SPEEDS.map((s, i) => <button key={s.label} className={speed === i ? "on" : ""} onClick={() => setSpeed(i)}>{s.label}</button>)}</div>
@@ -205,7 +208,8 @@ function Story() {
       <main className="st-stage">
         <div className="st-venue" aria-hidden="true">
           <div key={pulse} className={"st-glow" + (pulse ? " roar" : "")} />
-          {c && <div className="st-board"><span><i style={{ background: BRAND.home.color }} />{BRAND.home.short} <b className="num">{c.home}</b></span><span className="num">{c.label}</span><span><b className="num">{c.away}</b> {BRAND.away.short} <i style={{ background: BRAND.away.color }} /></span></div>}
+          {c && EVENT === "concert" && <div className="st-board"><span>{BRAND.home.name}</span><span>{c.label}</span></div>}
+          {c && EVENT !== "concert" && <div className="st-board"><span><i style={{ background: BRAND.home.color }} />{BRAND.home.short} <b className="num">{c.home}</b></span><span className="num">{c.label}</span><span><b className="num">{c.away}</b> {BRAND.away.short} <i style={{ background: BRAND.away.color }} /></span></div>}
           {moment && c && c.t - moment.t < 120000 && <div key={moment.t} className="st-moment">{momentText(moment.text, moment.team)}</div>}
         </div>
         <div className="st-device">

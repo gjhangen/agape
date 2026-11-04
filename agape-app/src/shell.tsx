@@ -2,7 +2,7 @@
 // person's hands, and the story beside it. The app inside the device never knows it's in a demo.
 import { React, useEffect, useRef, useState } from "./r";
 import { kernel } from "./kernel";
-import { BRAND, LEVELS, momentText } from "./parts";
+import { BRAND, LEVELS, concertWorld, isConcert, momentText } from "./parts";
 import { ExplainCard, ExplainLayer, Note } from "./explain";
 import { TalkToUs } from "./talk";
 
@@ -61,11 +61,12 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
         <a className="st-brand" href="/"><b>agape</b><span>{tag}</span></a>
         <nav className="st-seats" aria-label="Other seats">
           {[["Fan", "/try/"], ["Runner", "/try/runner/"], ["Kitchen", "/try/kitchen/"], ["Venue", "/try/venue/"], ["Partner", "/try/partner/"], ["HQ", "/try/hq/"]].map(([l, h]) =>
-            <a key={h} href={h} className={location.pathname === h ? "on" : ""}>{l}</a>)}
+            <a key={h} href={h + (EVENT === "concert" ? "?event=concert" : "")} className={location.pathname === h ? "on" : ""}>{l}</a>)}
         </nav>
         {level != null && <div className="st-levels" role="group" aria-label="Level">
-          {LEVELS.filter(l => l.n >= minLevel).map(l => <a key={l.n} className={"st-lv" + (level === l.n ? " on" : "")} href={`?level=${l.n}`} title={l.line}><b>{l.n}</b><span>{l.name}</span></a>)}
+          {LEVELS.filter(l => l.n >= minLevel).map(l => <a key={l.n} className={"st-lv" + (level === l.n ? " on" : "")} href={withParam("level", String(l.n))} title={l.line}><b>{l.n}</b><span>{l.name}</span></a>)}
         </div>}
+        <EventSwitch />
         <div className="st-ctl">
           <button className="btn h-btn" onClick={() => setPlaying(!playing)}>{playing ? "Pause" : "Play"}</button>
           <div className="seg h-seg" role="group" aria-label="Speed">{SPEEDS.map((s, i) => <button key={s.label} className={speed === i ? "on" : ""} onClick={() => setSpeed(i)}>{s.label}</button>)}</div>
@@ -76,7 +77,8 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
       <main className="st-stage">
         <div className="st-venue" aria-hidden="true">
           <div key={pulse} className={"st-glow" + (pulse ? " roar" : "")} />
-          {c && <div className="st-board"><span><i style={{ background: BRAND.home.color }} />{BRAND.home.short} <b className="num">{c.home}</b></span><span className="num">{c.label}</span><span><b className="num">{c.away}</b> {BRAND.away.short} <i style={{ background: BRAND.away.color }} /></span></div>}
+          {c && isConcert() && <div className="st-board"><span>{BRAND.home.name}</span><span>{c.label}</span></div>}
+          {c && !isConcert() && <div className="st-board"><span><i style={{ background: BRAND.home.color }} />{BRAND.home.short} <b className="num">{c.home}</b></span><span className="num">{c.label}</span><span><b className="num">{c.away}</b> {BRAND.away.short} <i style={{ background: BRAND.away.color }} /></span></div>}
           {moment && c && c.t - moment.t < 120000 && <div key={moment.t} className="st-moment">{momentText(moment.text, moment.team)}</div>}
         </div>
         <div className="st-device">
@@ -117,3 +119,20 @@ export function useToasts() {
 
 /** The level asked for in the address, kept within what this seat has. */
 export function levelParam(min: number, d: number) { const n = Number(new URLSearchParams(location.search).get("level")); return n >= min && n <= LEVELS.length ? n : d; }
+
+declare const AGAPE_WORLD: any;
+/** Game or concert, from the address. */
+export const EVENT = new URLSearchParams(location.search).get("event") === "concert" ? "concert" : "game";
+/** The world this demo runs: the sample arena, as a game or a concert, with the given features. */
+export function demoWorld(features?: Record<string, boolean>) {
+  const base = EVENT === "concert" ? concertWorld(AGAPE_WORLD) : { ...AGAPE_WORLD };
+  return features ? { ...base, features: { ...features, ...(EVENT === "concert" ? { predictions: false } : {}) } } : base;
+}
+/** A link to this page with one setting changed. */
+export function withParam(k: string, v: string) { const q = new URLSearchParams(location.search); q.set(k, v); return `?${q}`; }
+/** Game or concert, as two links. */
+export function EventSwitch() {
+  return <div className="st-levels st-event" role="group" aria-label="Kind of night">
+    {[["game", "Game"], ["concert", "Concert"]].map(([k, l]) => <a key={k} className={"st-lv" + (EVENT === k ? " on" : "")} href={withParam("event", k)}><span>{l}</span></a>)}
+  </div>;
+}

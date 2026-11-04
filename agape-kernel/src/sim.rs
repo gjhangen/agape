@@ -202,7 +202,7 @@ pub struct Night {
     placed_by_phase: BTreeMap<&'static str, (u64, i64)>,
     batches: (u64, u64),
     pub score: (i64, i64),
-    script: Vec<(i64, &'static str, i64)>,
+    pub(crate) script: Vec<(i64, &'static str, i64)>,
     pub end_min: i64,
     menu: Vec<String>,
     pub t: i64,
@@ -237,6 +237,8 @@ pub struct Night {
     pub live: BTreeSet<String>,
     /// Batches offered to runners who are people, and the trips they've taken on.
     pub trips: BTreeMap<String, Trip>,
+    /// Songs of the headliner's setlist played so far (a concert).
+    pub(crate) songs_played: usize,
     /// Trip offers made, trips taken, taken on the first offer, and total trip pay.
     pub(crate) pay_stats: (u64, u64, u64, i64),
     /// Problems fans reported with orders, and how each was settled.
@@ -387,7 +389,7 @@ impl Night {
             report: Report::default(), placed_by_phase: BTreeMap::new(), batches: (0, 0), score: (0, 0), script, end_min, menu, t: 0,
             feed: vec![], recent: Default::default(), plans: BTreeMap::new(), done: false, chat: Default::default(), predictions: vec![], world,
             league, social: crate::social::Social::default(), last_scorer: BTreeMap::new(), seatmaps: BTreeMap::new(),
-            trade: Default::default(), claimed: BTreeSet::new(), driven: BTreeSet::new(), redeemed: BTreeMap::new(), replies: vec![], replay_check: std::cell::Cell::new((0, true)), live: BTreeSet::new(), trips: BTreeMap::new(), pay_stats: (0, 0, 0, 0), problems: vec![], halt: None, ratings: vec![], names: BTreeMap::new(), wearing: BTreeMap::new(), renames: BTreeMap::new(), spots: BTreeMap::new(), level_offset: BTreeMap::new(), passports: BTreeMap::new(), transfers: BTreeMap::new(),
+            trade: Default::default(), claimed: BTreeSet::new(), driven: BTreeSet::new(), redeemed: BTreeMap::new(), replies: vec![], replay_check: std::cell::Cell::new((0, true)), live: BTreeSet::new(), trips: BTreeMap::new(), songs_played: 0, pay_stats: (0, 0, 0, 0), problems: vec![], halt: None, ratings: vec![], names: BTreeMap::new(), wearing: BTreeMap::new(), renames: BTreeMap::new(), spots: BTreeMap::new(), level_offset: BTreeMap::new(), passports: BTreeMap::new(), transfers: BTreeMap::new(),
         }.seeded_live()
     }
 
@@ -757,12 +759,29 @@ impl Night {
         self
     }
 
+    /// A concert rather than a game.
+    pub fn concert(&self) -> Option<&crate::world::EventDef> { self.world.def.event.as_ref().filter(|e| e.kind == "concert") }
+    /// Which act is on: 0 opener, 1 support, 2 headliner (periods 3 and 4).
+    pub fn act_on(&self, period: i64) -> Option<String> { self.concert().and_then(|c| c.acts.get(((period - 1).clamp(0, 2)) as usize).cloned()) }
+
     /// Whether the venue has this switched on. Anything it hasn't mentioned is on.
     pub fn on(&self, feature: &str) -> bool { self.world.def.features.get(feature).copied().unwrap_or(true) }
 
     /// A moment becomes a card with a fixed supply, collectable for five minutes.
     fn mint_moment(&mut self, kind: &str, side: &str, scorer: &str) -> Option<String> {
         if !self.on("cards") { return None; }
+        if let Some(c) = self.concert().cloned() {
+            // a song the whole building sings becomes a card; the encore is the rarest
+            let (supply, rarity) = if kind == "encore" { (80, "Rare") } else { (180, "Uncommon") };
+            let head = c.acts.get(2).cloned().unwrap_or_default();
+            let id = format!("m{}", self.social.editions.len());
+            let title = format!("{head} · {scorer}");
+            let group = self.group_of("home");
+            self.social.mint(&mut self.ledger, crate::social::Edition { id: id.clone(), kind: kind.into(), title, team: group, party: None, t: self.t,
+                supply, rarity: rarity.into(), open_until: self.t + 5 * 60_000 }).ok()?;
+            self.open_drop(&id);
+            return Some(id);
+        }
         let (supply, rarity) = match kind { "splash" => (60, "Rare"), "run" => (150, "Uncommon"), "lead_change" => (200, "Common"), _ => return None };
         let group = self.group_of(side);
         let who = self.league.member(scorer).map(|(_, m)| last_name(&m.name)).unwrap_or_default();
@@ -917,13 +936,42 @@ impl Night {
                 let f = if kind == "gates.open" || kind == "game.final" { fields!{} } else { fields!{"n" => k} };
                 let by = if kind == "gates.open" { "venue" } else { "keeper" };
                 outs.extend(self.engine.ingest(&mut self.log, kind, f, by, t).unwrap());
-                let text = match kind { "gates.open" => "Gates open".to_string(), "game.final" => "Final".to_string(),
-                    "period.start" => format!("Q{k} underway"), _ => format!("End of Q{k}") };
+                let text = match (kind, self.act_on(k)) {
+                    ("gates.open", Some(_)) => "Doors open".to_string(),
+                    ("game.final", Some(_)) => "That's the show. Thank you, Harbor!".to_string(),
+                    ("period.start", Some(a)) => if k == 4 { format!("{a}, back for the big finish") } else { format!("{a} takes the stage") },
+                    ("period.end", Some(a)) => if k == 3 { format!("{a}: a short break") } else { format!("{a} leaves the stage") },
+                    ("gates.open", None) => "Gates open".to_string(), ("game.final", None) => "Final".to_string(),
+                    ("period.start", None) => format!("Q{k} underway"), _ => format!("End of Q{k}") };
                 self.note("game", "", text);
 
             }
         }
-        if ph == "in play" && self.rng.chance(0.14) {
+        if let Some(c) = self.concert().cloned() {
+            // the music: a new song every few minutes; the crowd's favorites and the encore become moments
+            let period = self.script.iter().filter(|x| x.1 == "period.start" && x.0 * 60_000 <= t).map(|x| x.2).max().unwrap_or(0);
+            let encore_at = self.script.iter().find(|x| x.1 == "period.end" && x.2 == 4).map(|x| (x.0 - 6) * 60_000).unwrap_or(i64::MAX);
+            if ph == "in play" && t == encore_at {
+                let song = c.songs.last().cloned().unwrap_or_else(|| "the encore".into());
+                let ed = self.mint_moment("encore", "home", &song);
+                self.note_about("moment", "home", "encore".into(), "", ed);
+                self.note("song", "home", format!("Encore: {song}"));
+            } else if ph == "in play" && t < encore_at && self.rng.chance(if period >= 3 { 0.03 } else { 0.045 }) && !(period >= 3 && self.songs_played + 1 >= c.songs.len().max(1)) {
+                let act = self.act_on(period).unwrap_or_default();
+                let song = if period >= 3 && !c.songs.is_empty() {
+                    let i = self.songs_played; self.songs_played += 1; c.songs[i].clone()
+                } else {
+                    let n = self.feed.iter().filter(|f| f.kind == "song" && f.text.starts_with(&act)).count();
+                    let k = self.feed.iter().filter(|f| f.kind == "song").count();
+                    match c.early.get(k % c.early.len().max(1)) { Some(x) => format!("{act}: {x}"), None => format!("{act}: song {}", n + 1) } };
+                let fav = c.favorites.contains(&song);
+                if period >= 3 { self.note("song", "home", format!("Now playing: {song}")); } else { self.note("song", "home", song.clone()); }
+                if fav {
+                    let ed = self.mint_moment("favorite", "home", &song);
+                    self.note_about("moment", "home", "favorite".into(), "", ed);
+                }
+            }
+        } else if ph == "in play" && self.rng.chance(0.14) {
             let home = self.rng.chance(0.51);
             let pts = [1, 2, 2, 2, 2, 3, 3][self.rng.below(7) as usize];
             if home { self.score.0 += pts } else { self.score.1 += pts }

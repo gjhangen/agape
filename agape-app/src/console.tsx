@@ -6,7 +6,7 @@ import { BRAND, Icon, money, levelFeatures } from "./parts";
 import { OpsLens, OpsView } from "./roles";
 import { BusinessLens } from "./deals";
 import { SetupLens } from "./setup";
-import { Beat, Shell, levelParam, useToasts } from "./shell";
+import { Beat, Shell, EVENT, demoWorld, levelParam, useToasts } from "./shell";
 import { Note } from "./explain";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
@@ -47,13 +47,13 @@ function Console({ stage, next, toast, o, b, parties, refresh }: { stage: Stage;
     <div className="ob lp-signin">
       <div className="lp-card wide">
         <span className="eyebrow">{PARTNER ? "Dock Pizza · partner of " + BRAND.venue : BRAND.venue}</span>
-        <h2>Tonight: {BRAND.home.name} vs {BRAND.away.name}</h2>
+        <h2>Tonight: {EVENT === "concert" ? "Lumen Rivers: The Tidelines Tour" : `${BRAND.home.name} vs ${BRAND.away.name}`}</h2>
         {PARTNER ? <p className="ob-sub">Your offer for fans tonight: a slice after the game, unlocked with points. You'll see who comes through your door, live.</p>
           : <div className="sx-setup-grid">
             <div className="cw-check"><span className="cw-tick">✓</span><div><b>3,000 fans on Agape</b><small>Expected tonight, from ticket holders</small></div></div>
             <div className="cw-check"><span className="cw-tick">✓</span><div><b>40 runners on shift</b><small>Claimed through Agape Crew</small></div></div>
             <div className="cw-check"><span className="cw-tick">✓</span><div><b>9 stands open</b><small>Every menu confirmed</small></div></div>
-            <div className="cw-check"><span className="cw-tick">✓</span><div><b>Last call at the 4th quarter</b><small>Set for this event</small></div></div>
+            <div className="cw-check"><span className="cw-tick">✓</span><div><b>Last call {EVENT === "concert" ? "before the finale" : "at the 4th quarter"}</b><small>Set for this event</small></div></div>
           </div>}
         <button className="btn ob-primary" onClick={() => next("app")}>{PARTNER ? "Open my dashboard" : "Open tonight's console"}</button>
       </div>
@@ -103,7 +103,7 @@ function App() {
   const { toasts, toast } = useToasts();
   const refresh = () => { if (PARTNER) { setB(kernel.view("business", BIZ)); } else setO(kernel.view("ops") as OpsView); };
   useEffect(() => { (async () => {
-    setWorldOverride({ ...AGAPE_WORLD, features: levelFeatures(LEVEL) });
+    setWorldOverride(demoWorld(levelFeatures(LEVEL)));
     const x = await boot(19, "s104"); if (!x.ok) return;
     kernel.step(START_MINUTE * 6);
     if (PARTNER) { kernel.act({ do: "drive", party: BIZ }); setParties(kernel.view("parties")); } else kernel.act({ do: "drive", party: "ops" });

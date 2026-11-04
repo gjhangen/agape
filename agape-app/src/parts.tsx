@@ -94,6 +94,8 @@ export function momentText(kind: string, t: string) {
     case "lead_change": return `${T} take the lead`;
     case "splash": return t === "home" ? `Splash! ${BRAND.star}` : `${T} hit from deep`;
     case "last_call": return "Last call for beer";
+    case "favorite": return "The whole place is singing";
+    case "encore": return "Encore!";
     default: return kind.replace(/_/g, " ");
   }
 }
@@ -433,4 +435,18 @@ export function Icon({ name, size = 24 }: { name: "get" | "deals" | "play" | "pe
     case "store": return <svg {...p}><path d="M4 9l1.5-4.5h13L20 9M4 9h16v2a3 3 0 0 1-5.3 1.9A3 3 0 0 1 12 14a3 3 0 0 1-2.7-1.1A3 3 0 0 1 4 11zM5.5 13.5V20h13v-6.5" /></svg>;
     case "out": return <svg {...p}><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h10" /></svg>;
   }
+}
+
+/** A concert night rather than a game. */
+export const isConcert = () => world()?.event?.kind === "concert";
+/** The concert Harbor Arena hosts in the demo: three acts, the headliner's setlist, a tour's merch. */
+export function concertWorld(base: any): any {
+  const things = base.things.map((t: any) => t.id === "jersey" ? { ...t, name: "Tour tee" } : t.id === "foam_finger" ? { ...t, name: "Tour poster" } : t.id === "beanie" ? { ...t, name: "Tour hoodie", price: 6500 } : t);
+  return { ...base, things,
+    event: { kind: "concert", title: "Lumen Rivers: The Tidelines Tour", acts: ["Paper Kites Club", "Northbound", "Lumen Rivers"],
+      songs: ["Harbor Lights", "Slow Burn", "Paper Moons", "Northern Static", "Satellite Hearts", "Undertow", "Glasshouse", "Gold in the Water", "Saltwater Radio", "Long Way Home", "Fever Line", "Night Swimmer", "Ember", "Tidelines"],
+      early: ["Kite String", "Summer Static", "Low Tide Radio", "Paper Planes", "Weekend Ghosts", "Blue Hour", "Copper Sky", "Northern Line", "Wildfire Season", "Roads We Took", "Glow", "Afterlight", "Same Old Sea", "Home by Morning"],
+      favorites: ["Satellite Hearts", "Fever Line"] },
+    brand: { home: { name: "Lumen Rivers", short: "Lumen Rivers", abbr: "LR", color: "#6D3FD8", players: [] }, away: { name: "Northbound", short: "Northbound", abbr: "NB", color: "#1F8A8A", players: [] } },
+    features: { ...(base.features ?? {}), predictions: false } };
 }

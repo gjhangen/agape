@@ -7,11 +7,11 @@
 import { React, useEffect, useRef, useState } from "./r";
 import { actWith, Deal, DealCard } from "./deals";
 import { Card, LevelBadge, LevelPanel, MomentCard, Page } from "./pages";
-import { kernel } from "./kernel";
+import { kernel, world } from "./kernel";
 import { wearColor } from "./themes";
 import { cart, useCart } from "./cart";
 import { ItemArt } from "./Art";
-import { feature, Icon, Opt, TeamMark,
+import { feature, Icon, isConcert, Opt, TeamMark,
   BRAND, CommitmentCard, FeedItem, LedgerLine, MapView, Offer, OfferCard, Order, PlaceView, SignalRow,
   countdown, momentText, money, rel, runnerName, team, useSecond, venueTime, whyNot,
 } from "./parts";
@@ -240,6 +240,7 @@ function Welcome({ v, setSheet }: Ctx) {
 
 /** One line of the event, as it happens. */
 function feedLine(f: LiveItem): React.ReactNode {
+  if (f.kind === "song") return f.text;
   if (f.kind === "score") return <>{f.name ?? team(f.team)} <span className={"pts " + f.team}>{f.text}</span></>;
   if (f.kind === "moment") return <b>{momentText(f.text, f.team)}</b>;
   return f.text;
@@ -250,12 +251,12 @@ function EventAnchor({ v, go }: Ctx) {
   const c = v.clock;
   const f = v.live.event[0];
   return (
-    <button className="anchor" onClick={() => go("live")} aria-label="Open the game">
-      <span className="an-score">
+    <button className="anchor" onClick={() => go("live")} aria-label={isConcert() ? "Open the show" : "Open the game"}>
+      {isConcert() ? <span className="an-score show"><span className="an-act">{(world() as any)?.event?.title?.split(":")[0] ?? BRAND.home.name}</span><span className="es-clock">{c.label}</span></span> : <span className="an-score">
         <span className="es-team home"><TeamMark side="home" />{BRAND.home.abbr} <b key={c.home} className="num score-bump">{c.home}</b></span>
         <span className="es-clock num">{c.label}</span>
         <span className="es-team away"><b key={c.away} className="num score-bump">{c.away}</b> {BRAND.away.abbr}<TeamMark side="away" /></span>
-      </span>
+      </span>}
       {f && <span className="an-feed" key={f.t + f.text}><i className="an-dot" aria-hidden="true" /><span className="grow">{feedLine(f)}</span><Icon name="chev" size={16} /></span>}
     </button>
   );
@@ -443,14 +444,16 @@ function LiveSheet(ctx: Ctx & { close: () => void }) {
   const collect = (e: string) => { const r = kernel.act({ do: "collect", edition: e }); toast(r.ok ? "It's yours. Find it in Play, with the rest of your collection." : "That one just closed."); refresh(); };
   return (
     <div className="overlay-page live-page" role="dialog" aria-label="The game">
-      <header className="op-head"><button className="op-back" onClick={close} aria-label="Back"><Icon name="back" /></button><b>{BRAND.home.short} vs {BRAND.away.short}</b><span className="op-sp" /></header>
+      <header className="op-head"><button className="op-back" onClick={close} aria-label="Back"><Icon name="back" /></button><b>{isConcert() ? "The show" : `${BRAND.home.short} vs ${BRAND.away.short}`}</b><span className="op-sp" /></header>
       <div className="op-body">
         <section className="block event">
+          {isConcert() ? <div className="show-head"><span className="eyebrow">{(world() as any)?.event?.title}</span><b>{c.label}</b>
+            <small>{(world() as any)?.event?.acts?.join(" · ")}</small></div> :
           <div className="big-score">
             <button className="bs-team home" onClick={() => open("hbk")}><span><TeamMark side="home" big />{BRAND.home.name}</span><b className="num">{c.home}</b></button>
             <div className="bs-clock num">{c.label}</div>
             <button className="bs-team away" onClick={() => open("msc")}><span><TeamMark side="away" big />{BRAND.away.name}</span><b className="num">{c.away}</b></button>
-          </div>
+          </div>}
           {fresh && (
             <div className={"moment-hero " + latest!.team}>
               <span className="eyebrow">{venueTime(latest!.t)}</span><b>{momentText(latest!.text, latest!.team)}</b>
@@ -461,15 +464,15 @@ function LiveSheet(ctx: Ctx & { close: () => void }) {
           {feature("predictions") && v.live.prediction?.open && !v.live.prediction.yours && <button className="btn block primary" onClick={() => { close(); ctx.go("play"); }}>{v.live.prediction.question} · make your call</button>}
         </section>
         <section className="block">
-          <h2>Play by play</h2>
+          <h2>{isConcert() ? "Tonight so far" : "Play by play"}</h2>
           <ol className="signals">{v.live.event.slice(0, 20).map((f, i) => <LiveRow key={f.t + f.text + i} f={f} open={open} now={c.t} collect={collect} />)}</ol>
         </section>
-        <section className="block">
+        {!isConcert() && <section className="block">
           <h2>Around the league</h2>
           <ul className="league">{v.live.league.map(g => (
             <li key={g.id}><button className="league-row" onClick={() => open(g.id)}>
               <span className="grow"><b>{g.home_name}</b> {g.home_score} · {g.away_score} <b>{g.away_name}</b></span><span className="tag">{g.status}</span></button></li>))}</ul>
-        </section>
+        </section>}
       </div>
     </div>
   );
@@ -526,7 +529,7 @@ function Battle({ v, go }: Ctx) {
   return (
     <section className="block battle-block">
       <div className="block-head"><h2>Section battle</h2><span className="sub">orders in the last 5 min</span></div>
-      <p className="explain">Every order from your section counts. The section on top at the final wins free drinks at the next home game.</p>
+      <p className="explain">Every order from your section counts. The section on top at the end of the night wins free drinks at the next event here.</p>
       <div className="battle">
         <div><b className="big num">{b.rank ? `Section ${sec(v.you.seat)} is #${b.rank} of ${b.of}` : `Section ${sec(v.you.seat)} isn't on the board yet`}</b>
           <small>{b.rank === 1 ? "Leading the arena." : b.ahead ? `${gap} order${gap === 1 ? "" : "s"} to pass section ${sec(b.ahead.section)}` : "One order puts you on it"}</small></div>

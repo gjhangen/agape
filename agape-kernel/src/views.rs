@@ -36,6 +36,15 @@ impl Night {
             if label.is_empty() { if let Some(i) = starts.iter().rposition(|s| m >= *s) { period = i + 1; label = format!("Q{} 0:00", i + 1); } }
         }
         if label.is_empty() { label = "Break".into(); }
+        if self.concert().is_some() {
+            // which act is on comes from the night's running order, not the span (which opens a tick later)
+            let m = self.t / 60_000;
+            let period = self.script.iter().filter(|x| x.1 == "period.start" && x.0 <= m).map(|x| x.2)
+                .filter(|n| self.script.iter().any(|y| y.1 == "period.end" && y.2 == *n && y.0 > m)).max().unwrap_or(0) as usize;
+            label = match self.phase() { "pregame" => "Doors open".into(), "halftime" | "break" => "Changeover".into(), "postgame" => "Show's over".into(),
+                _ if period == 0 => "Changeover".into(),
+                _ => if period == 4 { format!("{} · finale", self.act_on(3).unwrap_or_default()) } else { self.act_on(period as i64).unwrap_or_default() } };
+        }
         let spans: Vec<&str> = self.engine.tpl.spans.iter().map(|s| s.name.as_str()).filter(|s| self.engine.span_open(s)).collect();
         json!({ "t": self.t, "label": label, "period": period, "phase": self.phase(), "spans": spans,
                 "home": self.score.0, "away": self.score.1, "margin": self.engine.measure("margin", self.t) })
@@ -161,7 +170,7 @@ impl Night {
         });
         let neighbours = self.fans.iter().filter(|f| f.seat == seat).count();
         // ---- venue: the event itself and the store ----
-        let event: Vec<Value> = self.feed.iter().rev().filter(|f| matches!(f.kind.as_str(), "moment" | "score" | "game")).take(40)
+        let event: Vec<Value> = self.feed.iter().rev().filter(|f| matches!(f.kind.as_str(), "moment" | "score" | "game" | "song")).take(40)
             .map(|f| self.feed_json(f, fan)).collect();
         // ---- earlier: your night so far ----
         let receipts: Vec<Value> = mine.iter().filter(|&&i| matches!(self.orders[i].c.stage, Stage::Settled | Stage::Closed(_))).rev().map(|&i| self.order_card(i)).collect();
@@ -331,7 +340,7 @@ impl Night {
     pub fn view_glance(&self) -> Value {
         let teams: Vec<Value> = [&self.league.tonight.home, &self.league.tonight.away].iter().filter_map(|id| self.league.team(id))
             .map(|g| json!({ "name": g.name, "short": g.short, "abbr": g.abbr, "color": g.color })).collect();
-        let moments: Vec<Value> = self.feed.iter().rev().filter(|f| matches!(f.kind.as_str(), "moment" | "score" | "game")).take(4)
+        let moments: Vec<Value> = self.feed.iter().rev().filter(|f| matches!(f.kind.as_str(), "moment" | "score" | "game" | "song")).take(4)
             .map(|f| json!({ "t": f.t, "text": f.text, "name": self.party_name(&f.party), "kind": f.kind, "team": f.team })).collect();
         let delivered: Vec<i64> = self.orders.iter().filter(|o| matches!(o.c.stage, Stage::Settled) && o.c.quote.delivery)
             .filter_map(|o| o.delivered_at.map(|d| d - o.accepted_at)).collect();

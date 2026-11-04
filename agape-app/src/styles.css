@@ -1476,3 +1476,11 @@ html.calm *, html.calm *::before, html.calm *::after { animation: none !importan
 .st-levels a.st-lv.on { background: #fff; color: #111; } .st-levels a.st-lv.on b { background: #B8174F; color: #fff; }
 @media (max-width: 1300px) { .st-levels a.st-lv span { display: none; } .st-levels a.st-lv.on span { display: inline; } }
 .story.laptop .st-moment, .story.tablet .st-moment { top: auto; bottom: 18px; font-size: 22px; }
+.an-score.show { justify-content: space-between; }
+.an-act { font: 800 17px/1 var(--display); letter-spacing: .04em; text-transform: uppercase; }
+.show-head { display: grid; gap: 6px; padding: 18px 16px; border-radius: var(--r-lg); background: var(--board); color: var(--board-ink); }
+.show-head .eyebrow { color: color-mix(in srgb, var(--board-ink) 70%, transparent); }
+.show-head b { font: 800 30px/1 var(--display); text-transform: uppercase; }
+.show-head small { color: color-mix(in srgb, var(--board-ink) 75%, transparent); }
+.signal.song .dot { background: #8B6CF0; }
+.st-event { flex: none; }
