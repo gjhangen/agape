@@ -42,7 +42,7 @@ export async function boot(seed: number, youSeat: string) {
   return call(x.init, { world: w, template: AGAPE_TEMPLATE, seed, you_seat: youSeat, fans: w?.pilot?.fans ?? 3000, runners: w?.pilot?.runners ?? 40 });
 }
 
-type Lens = "fan" | "runner" | "stand" | "ops" | "page" | "player" | "business" | "parties";
+type Lens = "fan" | "runner" | "stand" | "ops" | "page" | "player" | "business" | "parties" | "care" | "glance";
 
 // ---------- remote: the same calls, answered by the venue's server ----------
 // Screens read views synchronously while rendering. Remotely, a view is served from a cache that
@@ -87,8 +87,8 @@ export const server = {
 
 export const kernel = {
   step: (ticks: number) => remote.on ? true : x!.step(ticks) === 1,
-  view: (lens: Lens, id = ""): any => {
-    if (!remote.on) return call(x!.view, { lens, id });
+  view: (lens: Lens, id = "", as?: string): any => {
+    if (!remote.on) return call(x!.view, as ? { lens, id, as } : { lens, id });
     const k = `${lens}:${id}`;
     if (!remote.cache.has(k)) remote.cache.set(k, xhr(`/api/v/${remote.venue}/view`, { lens, id }));
     return remote.cache.get(k);

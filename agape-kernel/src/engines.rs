@@ -135,6 +135,34 @@ pub fn dispatch(world: &World, costs: &mut Costs, ready: &[Ready], runners: &[Ru
     out
 }
 
+/// Staging: idle runners walk to the stands that are about to need them, so a runner is already
+/// at the counter when food comes off the line. `load` is, per stand, the deliveries finishing
+/// there soon. Each stand is covered by one runner per `batch_max` of them; runners already
+/// standing at a stand count toward it. Returns (runner, stand, walk seconds).
+pub fn stage(world: &World, costs: &mut Costs, idle: &[Runner], load: &[(String, usize)], now: i64) -> Vec<(PartyId, String, u32)> {
+    let per = world.def.service.batch_max.max(1);
+    let mut need: Vec<(String, usize)> = load.iter().map(|(s, n)| {
+        let want = (n + per - 1) / per;
+        let have = idle.iter().filter(|r| &r.at == s).count();
+        (s.clone(), want.saturating_sub(have))
+    }).filter(|(_, n)| *n > 0).collect();
+    need.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
+    let stands: std::collections::BTreeSet<&str> = load.iter().map(|(s, _)| s.as_str()).collect();
+    // only runners not already waiting at a stand that needs them move
+    let mut free: Vec<&Runner> = idle.iter().filter(|r| r.free_at <= now && !stands.contains(r.at.as_str())).collect();
+    let mut out = vec![];
+    for (stand, n) in need {
+        for _ in 0..n {
+            let Some((i, c)) = free.iter().enumerate().map(|(i, r)| (i, costs.get(world, &r.at, &stand, false))).min_by_key(|(i, c)| (*c, free[*i].id.clone())) else { return out };
+            // nobody crosses the building to wait: a long walk is better spent on a trip
+            if c > 240 { continue; }
+            let r = free.remove(i);
+            out.push((r.id.clone(), stand.clone(), c));
+        }
+    }
+    out
+}
+
 // ---------- attribution ----------
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]

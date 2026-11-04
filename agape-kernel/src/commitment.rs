@@ -140,7 +140,8 @@ impl Commitment {
             let usd = Unit::Money(t.currency.clone());
             let from = if fault == DISPATCHER { acct("agape", "revenue") } else { acct(fault, "revenue") };
             txn.postings.push(posting(from, usd.clone(), -LATE_CREDIT));
-            txn.postings.push(posting(acct(&q.fan, "card"), usd, LATE_CREDIT));
+            // as Agape credit toward the next order, like every remedy by default
+            txn.postings.push(posting(acct(&q.fan, "credit"), usd, LATE_CREDIT));
             txn.memo = "settle+late_credit".into();
         }
         ledger.post(txn).map_err(CommitError::Ledger)
@@ -162,9 +163,11 @@ pub fn fund(ledger: &mut Ledger, payer: &str, cents: i64) -> Result<(), LedgerEr
 }
 
 /// The standard policy: external accounts (cards, banks, the world's supply) may go negative;
-/// revenue accounts may go negative only to absorb a late credit; inventory and budgets may not.
+/// revenue, pay and tips may go negative to absorb a credit or remedy; inventory and budgets may not.
 pub fn standard_policy() -> crate::value::Policy {
     crate::value::Policy { may_go_negative: vec![
         (None, Some("card".into())), (None, Some("bank".into())), (Some("world".into()), None), (None, Some("revenue".into())),
+        // a remedy can take back a runner's pay or tip, or the tax collected on a sale it unwinds
+        (None, Some("pay".into())), (None, Some("tips".into())), (None, Some("payable".into())),
     ]}
 }

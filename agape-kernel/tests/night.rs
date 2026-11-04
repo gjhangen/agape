@@ -74,7 +74,7 @@ fn a_late_backlog_is_batched_not_left_waiting() {
     let runners = vec![Runner { id: "r".into(), at: "grill-104".into(), free_at: 0 }];
     let a = dispatch(&w, &mut costs, &ready, &runners, 0);
     assert_eq!(a.len(), 1);
-    assert_eq!(a[0].orders.len(), 4, "batch_max orders go together");
+    assert_eq!(a[0].orders.len(), 5.min(w.def.service.batch_max), "up to batch_max orders go together");
     assert_eq!(a[0].orders[0], "0", "oldest first");
     assert!(a[0].arrive_s.windows(2).all(|p| p[0] <= p[1]));
     // a step-free fan upstairs is routed by the lift

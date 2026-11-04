@@ -262,7 +262,7 @@
   "offer_cap_bps": 16000
  },
  "service": {
-  "batch_max": 4,
+  "batch_max": 6,
   "max_eta_s": 900,
   "handoff_s": 25
  },

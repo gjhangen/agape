@@ -72,8 +72,10 @@ pub struct Config {
     pub force_mode: Option<Mode>,
     /// A live fan ("you") in this section, acting through `Night::you_*` instead of the simulator.
     pub you_seat: Option<String>,
+    /// Idle runners wait at the stands about to need them (see `engines::stage`).
+    pub staging: bool,
 }
-impl Default for Config { fn default() -> Self { Config { seed: 1, fans: 3000, runners: 40, delivery_share: 0.75, consent_share: 0.7, tap_rate: 0.0015, urgency_lift: 2.0, force_mode: None, you_seat: None } } }
+impl Default for Config { fn default() -> Self { Config { seed: 1, fans: 3000, runners: 40, delivery_share: 0.75, consent_share: 0.7, tap_rate: 0.0015, urgency_lift: 2.0, force_mode: None, you_seat: None, staging: true } } }
 
 #[derive(Debug, Default)]
 pub struct Report {
@@ -93,6 +95,10 @@ pub struct Report {
     pub conserved: bool,
     pub orders_per_min: Vec<(String, f64)>,
     pub runner_hourly: i64,
+    /// Deliveries per runner per hour of the night.
+    pub per_runner_hour: f64,
+    /// Deliveries per runner in the busiest hour of the night.
+    pub peak_per_runner_hour: f64,
     /// Trips offered to runners, how many were taken on the first offer, and the average pay per trip taken.
     pub flows: BTreeMap<String, i64>,
     pub trip_offers: u64,
@@ -142,6 +148,11 @@ pub(crate) struct Order {
     pub(crate) priority_held: bool,
     /// Runners who were offered it and passed (each pass raises the next offer, in offers mode).
     pub(crate) passes: u32,
+    /// Agape credit the fan's earlier remedies paid toward it, taken off the card at settlement.
+    pub(crate) credit_used: i64,
+    /// How far from the seat (metres) the runner's phone was when it was handed over. Agape's
+    /// evidence only: never shown to the runner or the fan.
+    pub(crate) handoff_m: Option<i64>,
 }
 
 pub const TICK: i64 = 10_000;
@@ -246,6 +257,10 @@ pub struct Night {
     pub(crate) pay_stats: (u64, u64, u64, i64),
     /// Problems fans reported with orders, and how each was settled.
     pub problems: Vec<crate::care::Problem>,
+    /// Agape's policy for problems, tips and proof at the handoff; set from Agape's own app.
+    pub policy: crate::remedy::Policy,
+    /// Proof Agape's team has set for a fan by hand, over what their record calls for.
+    pub proof_set: BTreeMap<String, crate::remedy::Proof>,
     /// Service stopped by the venue, and why.
     pub halt: Option<crate::care::Halt>,
     /// (order, who was rated, stars 1-5, by, when), folded from rating signals.
@@ -394,7 +409,7 @@ impl Night {
             report: Report::default(), placed_by_phase: BTreeMap::new(), batches: (0, 0), score: (0, 0), script, end_min, menu, t: 0,
             feed: vec![], recent: Default::default(), plans: BTreeMap::new(), done: false, chat: Default::default(), predictions: vec![], world,
             league, social: crate::social::Social::default(), last_scorer: BTreeMap::new(), seatmaps: BTreeMap::new(),
-            trade: Default::default(), claimed: BTreeSet::new(), driven: BTreeSet::new(), redeemed: BTreeMap::new(), replies: vec![], replay_check: std::cell::Cell::new((0, true)), live: BTreeSet::new(), trips: BTreeMap::new(), songs_played: 0, pay_stats: (0, 0, 0, 0), problems: vec![], halt: None, ratings: vec![], names: BTreeMap::new(), wearing: BTreeMap::new(), renames: BTreeMap::new(), spots: BTreeMap::new(), level_offset: BTreeMap::new(), passports: BTreeMap::new(), transfers: BTreeMap::new(),
+            trade: Default::default(), claimed: BTreeSet::new(), driven: BTreeSet::new(), redeemed: BTreeMap::new(), replies: vec![], replay_check: std::cell::Cell::new((0, true)), live: BTreeSet::new(), trips: BTreeMap::new(), songs_played: 0, pay_stats: (0, 0, 0, 0), problems: vec![], policy: Default::default(), proof_set: BTreeMap::new(), halt: None, ratings: vec![], names: BTreeMap::new(), wearing: BTreeMap::new(), renames: BTreeMap::new(), spots: BTreeMap::new(), level_offset: BTreeMap::new(), passports: BTreeMap::new(), transfers: BTreeMap::new(),
         }.seeded_live()
     }
 
@@ -449,7 +464,7 @@ impl Night {
         let eta = self.estimate(&stand, prep, &fan.seat, q.delivery);
         let id = self.orders.len();
         if source != "menu" { self.report.offer_orders += 1; }
-        self.orders.push(Order { c, source, accepted_at: t, delivered_at: None, started_at: None, ready_at: None, picked_at: None, prep_s: prep, seat: fan.seat.clone(), step_free: fan.step_free, eta, quoted: eta, promise: t + 1_800_000, scheduled_for: None, gift: None, priority: false, priority_held: false, passes: 0 });
+        self.orders.push(Order { c, source, accepted_at: t, delivered_at: None, started_at: None, ready_at: None, picked_at: None, prep_s: prep, seat: fan.seat.clone(), step_free: fan.step_free, eta, quoted: eta, promise: t + 1_800_000, scheduled_for: None, gift: None, priority: false, priority_held: false, passes: 0, credit_used: 0, handoff_m: None });
         if self.orders[id].c.stage == Stage::Accepted { self.queues.entry(stand).or_default().push(id); }
         self.report.orders += 1;
         let ph = phase(t / 60_000).0;
@@ -1240,6 +1255,23 @@ impl Night {
                 for (k, &id) in ids.iter().enumerate() { self.sched(t + a.arrive_s[k] as i64 * 1000, Ev::Arrive(id, a.runner.clone())); }
             }
         }
+        // 7b. staging: simulated runners left idle walk to the stands about to need them
+        if self.cfg.staging {
+            let soon = t + 120_000;
+            let mut load: BTreeMap<String, usize> = BTreeMap::new();
+            for (stand, sts) in &self.stations {
+                let n = sts.iter().filter(|(until, id)| id.map_or(false, |i| self.orders[i].c.quote.delivery && *until <= soon)).count();
+                if n > 0 { *load.entry(stand.clone()).or_insert(0) += n; }
+            }
+            let load: Vec<(String, usize)> = load.into_iter().collect();
+            let idle: Vec<crate::engines::Runner> = self.runners.iter().filter(|r| r.free_at <= t && !self.driven.contains(&r.id) && !self.live.contains(&r.id)).cloned().collect();
+            for (rid, stand, walk) in crate::engines::stage(&self.world, &mut self.costs, &idle, &load, t) {
+                if let Some(r) = self.runners.iter_mut().find(|r| r.id == rid) {
+                    self.plans.insert(rid.clone(), vec![(t, r.at.clone()), (t + walk as i64 * 1000, stand.clone())]);
+                    r.at = stand; r.free_at = t + walk as i64 * 1000;
+                }
+            }
+        }
         // 8. scheduled events due by now
         self.events.sort_by_key(|e| (e.0, e.1));
         while self.events.first().map_or(false, |e| e.0 <= t) {
@@ -1258,6 +1290,7 @@ impl Night {
                     let o = &mut self.orders[id];
                     if t > o.promise { if o.c.late_by.is_none() { o.c.late_by = Some(("agape".into(), (t - o.promise) / 1000)); } self.report.late += 1; }
                     o.c.act(Action::Deliver, &r, &mut self.ledger, &self.terms).unwrap();
+                    o.handoff_m = Some(2 + (id as i64 * 7919) % 14);
                     o.delivered_at = Some(t);
                     self.sched(t + 1000, Ev::Settle(id));
                 }
@@ -1269,7 +1302,8 @@ impl Night {
                 }
                 Ev::Settle(id) => {
                     let fan = self.orders[id].c.quote.fan.clone();
-                    let dispute = !self.live.contains(&fan) && self.rng.chance(0.01);
+                    // fans' complaints go through problems and remedies (care.rs, remedy.rs) now
+                    let dispute = false;
                     let upheld = self.rng.chance(0.3);
                     let o = &mut self.orders[id];
                     let res: Result<(), CommitError> = if dispute {
@@ -1281,6 +1315,8 @@ impl Night {
                         let b = breakdown(&o.c.quote, &self.terms).unwrap();
                         let (src, q) = (o.source.clone(), o.c.quote.clone());
                         self.attr.settled(&src, &q, &b);
+                        self.use_credit(id, b.charge);
+                        self.crowd_claim(id);
                     }
                 }
             }
@@ -1335,6 +1371,10 @@ impl Night {
         report.orders_per_min = self.placed_by_phase.iter().map(|(k, (n, ms))| (k.to_string(), *n as f64 / (*ms as f64 / 60_000.0))).collect();
         let hours = self.end_min as f64 / 60.0;
         report.runner_hourly = ((report.money["runner pay"] + report.money["runner tips"]) as f64 / self.cfg.runners as f64 / hours) as i64;
+        report.per_runner_hour = self.batches.1 as f64 / self.cfg.runners.max(1) as f64 / hours;
+        let done: Vec<i64> = self.orders.iter().filter(|o| o.c.quote.delivery).filter_map(|o| o.delivered_at).collect();
+        let peak = done.iter().map(|&a| done.iter().filter(|&&b| b >= a && b < a + 3_600_000).count()).max().unwrap_or(0);
+        report.peak_per_runner_hour = peak as f64 / self.cfg.runners.max(1) as f64;
         (report.trip_offers, report.trips_taken, report.taken_first) = (self.pay_stats.0, self.pay_stats.1, self.pay_stats.2);
         report.trip_pay_avg = if self.pay_stats.1 > 0 { self.pay_stats.3 / self.pay_stats.1 as i64 } else { 0 };
         report.batch_avg = if self.batches.0 > 0 { self.batches.1 as f64 / self.batches.0 as f64 } else { 0.0 };
@@ -1562,9 +1602,20 @@ impl Night {
         }
     }
 
-    pub fn delivered(&mut self, runner: &str, order: usize) -> Result<(), String> {
+    pub fn delivered(&mut self, runner: &str, order: usize) -> Result<(), String> { self.delivered_with(runner, order, false, "") }
+    /// Handed over, with whatever proof this fan's record calls for: a photo of the handoff, or the
+    /// PIN on the fan's phone. The runner is told what to collect, never why.
+    pub fn delivered_with(&mut self, runner: &str, order: usize, photo: bool, pin: &str) -> Result<(), String> {
         self.trip_order(runner, order)?;
+        match self.proof_of(order) {
+            crate::remedy::Proof::Photo if !photo => return Err("Take a photo of the handoff first".into()),
+            crate::remedy::Proof::Pin if pin.trim() != self.pin_of(order) => return Err(if pin.trim().is_empty() { "Ask the fan for the PIN on their phone".into() } else { "That PIN doesn't match".into() }),
+            _ => {}
+        }
         let t = self.t;
+        // where the runner's phone was: short of the seat by however much of the walk was left
+        let left = (self.orders[order].eta - t).max(0) / 1000;
+        self.orders[order].handoff_m = Some(if left > 20 { left * 13 / 10 } else { 3 + order as i64 % 9 });
         let o = &mut self.orders[order];
         if t > o.promise { if o.c.late_by.is_none() { o.c.late_by = Some(("agape".into(), (t - o.promise) / 1000)); } self.report.late += 1; }
         o.c.act(Action::Deliver, runner, &mut self.ledger, &self.terms).map_err(|e| format!("{e:?}"))?;

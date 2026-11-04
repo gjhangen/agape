@@ -188,7 +188,8 @@ export type Order = {
   delivery: boolean; runner: string | null; eta: number; placed: number; delivered: number | null; source: string; seat: string;
   charge: number | null; breakdown: { subtotal: number; discount: number; tax: number; fee: number; tip: number } | null;
   late_credit: number | null; can_cancel: boolean; scheduled_for?: number | null;
-  late?: boolean; can_report?: boolean; gift?: { to: string; note: string } | null; priority?: boolean; rated?: { who: string; stars: number }[]; problem?: { id: string; words: string; state: { state: "open" | "refunded" | "declined"; amount?: number; why?: string } } | null;
+  late?: boolean; can_report?: boolean; gift?: { to: string; note: string } | null; priority?: boolean; rated?: { who: string; stars: number }[]; problem?: { id: string; words: string; state: { state: "open" | "remedied" | "declined"; amount?: number; form?: "credit" | "refund"; why?: string } } | null;
+  credit_used?: number; proof?: "none" | "photo" | "pin"; pin?: string;
 };
 
 const TRACK = ["Placed", "Making", "Ready", "On the way", "Here"];
@@ -259,13 +260,14 @@ export function CommitmentCard({ o, now, onCancel, compact, as = "fan" }: { o: O
         {o.charge != null && !exit && <b className="num">{money(o.charge)}</b>}
         {o.can_cancel && onCancel && <button className="btn ghost sm" onClick={onCancel}>Cancel</button>}
       </div>
-      {o.late_credit ? <p className="credit">{done ? `Late. ${money(o.late_credit)} back to your card, automatically.` : `Running late. You'll get ${money(o.late_credit)} back automatically, nothing to ask for.`}</p> : null}
-      {o.problem ? <p className={"credit" + (o.problem.state.state === "declined" ? " no" : "")}>{o.problem.words}: {o.problem.state.state === "refunded" ? `${money(o.problem.state.amount)} refunded to your card.` : o.problem.state.state === "open" ? "the venue's team is looking at it." : `not refunded. ${o.problem.state.why}`}</p> : null}
+      {o.late_credit ? <p className="credit">{done ? `Late. ${money(o.late_credit)} in Agape credit, automatically.` : `Running late. You'll get ${money(o.late_credit)} in Agape credit automatically, nothing to ask for.`}</p> : null}
+      {o.pin && !done && !exit ? <p className="pin-line">Your runner may ask for this PIN: <b className="num">{o.pin}</b></p> : null}
+      {o.problem ? <p className={"credit" + (o.problem.state.state === "declined" ? " no" : "")}>{o.problem.words}: {o.problem.state.state === "remedied" ? (o.problem.state.form === "refund" ? `${money(o.problem.state.amount)} refunded to your card.` : `${money(o.problem.state.amount)} in Agape credit, toward your next order.`) : o.problem.state.state === "open" ? "Agape's team is looking at it." : `we couldn't make this one right. ${o.problem.state.why}`}</p> : null}
     </article>
   );
 }
 
-const NAMES = ["Maya", "Dre", "Lena", "Omar", "Priya", "Theo", "Ines", "Kofi", "Sam", "Rosa", "Jules", "Nate", "Ama", "Leo", "Zoe", "Ravi", "Tess", "Marco", "Uma", "Eli"];
+const NAMES = ["Maya", "Dre", "Lena", "Omar", "Cole", "Theo", "Ines", "Kofi", "Sam", "Rosa", "Jules", "Nate", "Ama", "Leo", "Zoe", "Ravi", "Tess", "Marco", "Uma", "Eli"];
 export const runnerName = (id: string) => NAMES[(+id.replace(/\D/g, "") || 0) % NAMES.length] + " " + String.fromCharCode(65 + ((+id.replace(/\D/g, "") || 0) % 26)) + ".";
 
 // ---------- 3. signal row ----------
@@ -307,7 +309,7 @@ export type MapView = {
   you: string | null; your_runner: { id: string; from: string; to: string; progress: number; busy: boolean } | null;
 };
 
-export function PlaceView({ m, onStand, focusStand, showRunners = true, heat = true, selfRunner = false }: { m: MapView; onStand?: (id: string) => void; focusStand?: string | null; showRunners?: boolean; heat?: boolean; selfRunner?: boolean }) {
+export function PlaceView({ m, onStand, focusStand, showRunners = true, heat = true, selfRunner = false, route }: { m: MapView; onStand?: (id: string) => void; focusStand?: string | null; showRunners?: boolean; heat?: boolean; selfRunner?: boolean; route?: string[] }) {
   const max = Math.max(4, ...Object.values(m.heat));
   const secs: React.ReactNode[] = [];
   for (let level = 1; level <= m.levels; level++) {
@@ -333,7 +335,11 @@ export function PlaceView({ m, onStand, focusStand, showRunners = true, heat = t
       {secs}
       {[0, 6, 12, 18].map(r => { const [x, y] = pt((R.c1 + R.l2i) / 2 + 2, ang(r)); return <rect key={r} x={x - 3} y={y - 3} width={6} height={6} className="stairs"><title>Stairs</title></rect>; })}
       {(() => { const [x, y] = pt((R.c1 + R.l2i) / 2 + 2, ang(3)); return <rect x={x - 4} y={y - 4} width={8} height={8} rx={2} className="lift"><title>Elevator</title></rect>; })()}
-      {yrPath.length > 1 && <path d={path(yrPath)} className="route" />}
+      {yrPath.length > 1 && !route && <path d={path(yrPath)} className="route" />}
+      {route && route.length > 1 && <>
+        <path d={path(route.slice(1).reduce<[number, number][]>((acc, to, k) => acc.concat(walk(route[k], to, m.stands)), []))} className="route trip" />
+        {route.slice(1).map((pl, k) => { const [x, y] = placePoint(pl, m.stands); return <g key={k} className={"stop" + (k === 0 ? " pickup" : "")}><circle cx={x} cy={y} r={8} /><text x={x} y={y + 3.5} textAnchor="middle">{k === 0 ? "P" : k}</text></g>; })}
+      </>}
       {m.runners.filter(r => (showRunners || r.id === yr?.id) && !(selfRunner && r.id === yr?.id)).map(r => {
         const p = r.busy ? along(walk(r.from, r.to, m.stands), r.progress) : placePoint(r.from, m.stands);
         return <circle key={r.id} cx={p[0]} cy={p[1]} r={yr?.id === r.id ? 6 : 3.2} className={"runner" + (r.busy ? " busy" : "") + (yr?.id === r.id ? " yours" : "")} />;

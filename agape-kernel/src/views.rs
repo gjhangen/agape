@@ -61,12 +61,13 @@ impl Night {
                 "check_id": q.lines.iter().any(|l| self.world.thing(&l.thing).map_or(false, |t| t.constraints.iter().any(|c| matches!(c, crate::world::Constraint::MinAge(_))))), "delivered": o.delivered_at, "source": o.source, "seat": o.seat,
                 "charge": b.as_ref().map(|b| b.charge), "breakdown": b.map(|b| json!({ "subtotal": b.subtotal, "discount": b.discount, "tax": b.tax, "fee": b.fee, "tip": b.tip })),
                 "late_credit": o.c.late_by.as_ref().map(|_| crate::commitment::LATE_CREDIT), "scheduled_for": o.scheduled_for,
+                "credit_used": o.credit_used, "proof": match self.proof_of(id) { crate::remedy::Proof::Pin => "pin", crate::remedy::Proof::Photo => "photo", _ => "none" },
                 "can_cancel": o.c.stage == Stage::Accepted,
                 "late": o.c.late_by.is_some(),
                 "gift": o.gift.as_ref().map(|(to, note)| json!({ "to": to, "note": note })), "priority": o.priority,
                 "rated": self.ratings.iter().filter(|r| r.0 == id).map(|r| json!({ "who": r.1, "stars": r.2 })).collect::<Vec<_>>(),
                 "can_report": o.c.stage == Stage::Settled && o.delivered_at.map_or(false, |d| self.t - d <= crate::care::REPORT_WINDOW_MS) && !self.problems.iter().any(|p| p.order == id),
-                "problem": self.problems.iter().find(|p| p.order == id).map(|p| json!({ "id": p.id, "reason": p.reason, "words": p.reason.words(), "state": p.state })) })
+                "problem": self.problems.iter().find(|p| p.order == id).map(|p| json!({ "id": p.id, "reason": p.reason, "words": p.words, "state": p.state })) })
     }
 
     fn offer_card(&self, id: &str, fan: &str) -> Option<Value> {
@@ -142,7 +143,11 @@ impl Night {
             Some(c)
         }).take(4).collect();
         let mine: Vec<usize> = (0..self.orders.len()).filter(|&i| self.orders[i].c.quote.fan == fan).collect();
-        let active: Vec<Value> = mine.iter().filter(|&&i| !matches!(self.orders[i].c.stage, Stage::Settled | Stage::Closed(_))).map(|&i| self.order_card(i)).collect();
+        // the fan's own copy of an order carries the PIN their runner may ask for
+        let active: Vec<Value> = mine.iter().filter(|&&i| !matches!(self.orders[i].c.stage, Stage::Settled | Stage::Closed(_))).map(|&i| {
+            let mut c = self.order_card(i);
+            if self.proof_of(i) == crate::remedy::Proof::Pin && self.orders[i].c.quote.delivery { c["pin"] = json!(self.pin_of(i)); }
+            c }).collect();
         let runner = active.iter().find_map(|o| o["runner"].as_str().map(String::from)).map(|r| self.runner_at(&r));
         // ---- section: your neighbours ----
         let mut heat: BTreeMap<String, i64> = BTreeMap::new();
@@ -224,7 +229,7 @@ impl Night {
             let tips: i64 = x.orders.iter().map(|&i| self.orders[i].c.quote.tip).sum();
             let stand = self.world.def.stands.iter().find(|s| s.id == x.stand).map(|s| s.name.clone());
             json!({ "accepted": x.accepted, "picked": x.picked, "stand": x.stand, "stand_name": stand, "expires": x.offered_at + crate::sim::TRIP_OFFER_MS,
-                    "pay": x.pay + tips, "base": x.pay, "tips": tips, "raised": x.pay - x.first, "passes": x.passes, "mode": self.terms.pay_mode, "minutes": (x.done_s as i64 + 59) / 60, "sections": x.orders.iter().map(|&i| self.orders[i].seat.clone()).collect::<Vec<_>>(),
+                    "pay": x.pay + tips, "base": x.pay, "tips": tips, "raised": x.pay - x.first, "passes": x.passes, "mode": self.terms.pay_mode, "minutes": (x.done_s as i64 + 59) / 60, "sections": x.orders.iter().map(|&i| self.orders[i].seat.clone()).collect::<Vec<_>>(), "route": x.route,
                     "orders": x.orders.iter().map(|&i| { let mut c = self.order_card(i); c["handoff_ok_at"] = json!(self.orders[i].picked_at.map(|p| p + 3 * 60_000)); c }).collect::<Vec<_>>() })
         });
         json!({ "clock": self.clock(), "runner": self.runner_at(r), "bag": bag, "plan": plan, "delivered": delivered, "map": self.view_map(None, None),
@@ -285,7 +290,7 @@ impl Night {
 
     fn problems_json(&self) -> Vec<Value> {
         let mut v: Vec<&crate::care::Problem> = self.problems.iter().collect(); v.sort_by_key(|p| (p.state != crate::care::ProblemState::Open, -p.t));
-                    v.into_iter().take(20).map(|p| json!({ "id": p.id, "order": p.order, "who": self.party_name(&p.fan), "stand": self.party_name(&p.stand), "reason": p.reason, "words": p.reason.words(),
+                    v.into_iter().take(20).map(|p| json!({ "id": p.id, "order": p.order, "who": self.party_name(&p.fan), "stand": self.party_name(&p.stand), "reason": p.reason, "words": p.words, "held": p.held, "photo": p.photo, "paid_by": p.paid_by.iter().map(|(w, a)| json!({ "who": if w == "agape" { "Agape".to_string() } else if w == "tax_authority" { "Tax collected".to_string() } else { self.party_name(w).unwrap_or(w.clone()) }, "amount": a })).collect::<Vec<_>>(),
                         "note": p.note, "t": p.t, "fault": if p.fault == "agape" { "Agape (delivery)".to_string() } else { self.party_name(&p.fault).unwrap_or_default() }, "state": p.state,
                         "amount": breakdown(&self.orders[p.order].c.quote, &self.terms).map(|b| b.charge).ok() })).collect::<Vec<_>>()
     }
@@ -337,6 +342,33 @@ impl Night {
     }
 
     /// What anyone may see before signing in: the venue, the game right now, and how the night is going.
+    /// Agape's team: the policy, every problem and how it was made right, what remedies cost each
+    /// party, and the fans whose records call for a look. Never shown to fans or runners.
+    pub fn view_care(&self) -> Value {
+        let mut fans: Vec<String> = self.problems.iter().map(|p| p.fan.clone()).collect();
+        fans.extend(self.proof_set.keys().cloned());
+        fans.sort(); fans.dedup();
+        let mut recs: Vec<(String, crate::care::Record)> = fans.into_iter().map(|f| { let r = self.fan_record(&f); (f, r) }).collect();
+        recs.sort_by_key(|(_, r)| (r.net, -(r.claim_bps)));
+        let settled = self.orders.iter().filter(|o| o.c.stage == Stage::Settled).count();
+        let mut by: BTreeMap<String, i64> = BTreeMap::new();
+        let (mut credit, mut refund) = (0i64, 0i64);
+        for p in &self.problems {
+            for (w, a) in &p.paid_by { *by.entry(if w == "agape" { "Agape".into() } else if w == "tax_authority" { "Tax collected".into() } else if w.starts_with("runner") { "Runners".into() } else { "Stands".into() }).or_insert(0) += a; }
+            if let crate::care::ProblemState::Remedied { amount, form, .. } = &p.state { if *form == crate::remedy::Form::Credit { credit += amount } else { refund += amount } }
+        }
+        json!({ "policy": self.policy, "settled": settled, "claims": self.problems.len(),
+                "claim_bps": self.problems.len() as i64 * 10_000 / settled.max(1) as i64,
+                "open": self.problems.iter().filter(|p| p.state == crate::care::ProblemState::Open).count(),
+                "credit": credit, "refund": refund, "paid_by": by,
+                "problems": self.problems.iter().rev().take(40).map(|p| json!({ "id": p.id, "order": p.order, "fan": p.fan, "who": self.party_name(&p.fan).unwrap_or(p.fan.clone()),
+                    "stand": self.party_name(&p.stand), "reason": p.reason, "words": p.words, "photo": p.photo, "held": p.held, "state": p.state, "t": p.t,
+                    "fault": if p.fault == "agape" { "Agape".to_string() } else { self.party_name(&p.fault).unwrap_or(p.fault.clone()) },
+                    "handoff_m": self.orders[p.order].handoff_m,
+                    "paid_by": p.paid_by.iter().map(|(w, a)| json!({ "who": if w == "agape" { "Agape".to_string() } else if w == "tax_authority" { "Tax collected".to_string() } else { self.party_name(w).unwrap_or(w.clone()) }, "amount": a })).collect::<Vec<_>>() })).collect::<Vec<_>>(),
+                "fans": recs.iter().take(30).map(|(f, r)| { let mut v = serde_json::to_value(r).unwrap(); v["id"] = json!(f); v["name"] = json!(self.party_name(f).unwrap_or(f.clone())); v }).collect::<Vec<_>>() })
+    }
+
     pub fn view_glance(&self) -> Value {
         let teams: Vec<Value> = [&self.league.tonight.home, &self.league.tonight.away].iter().filter_map(|id| self.league.team(id))
             .map(|g| json!({ "name": g.name, "short": g.short, "abbr": g.abbr, "color": g.color })).collect();
@@ -561,6 +593,7 @@ impl Night {
         json!({
             "orders": active, "receipts": receipts, "spent": spent, "holdings": holdings, "tickets": self.tickets_of(fan), "passes": self.passes_of(fan), "rides": self.rides_of(fan),
             "level": level, "tier": tier, "tier_floor": floor, "next_tier": next.map(|(n, f)| json!({ "name": n, "at": f })),
+            "credit": self.ledger.balance(&acct(fan, "credit"), &Unit::usd()), "tip": { "bps": self.policy.tip_bps, "min": self.policy.tip_min },
             "balance": balance, "points": balance, "earned": self.earn_history(fan), "badges": self.badges(fan), "cards": self.cards_of(fan),
             "following": following, "deals": self.deals_of(fan), "passport": self.passport_json(fan),
             "messages": threads.into_iter().map(|(k, v)| json!({ "with": k, "name": self.party_name(&k), "lines": v })).collect::<Vec<_>>(),

@@ -1,7 +1,7 @@
 // Agape Crew: the runner's app, on the runner's phone, inside the demo's story of one runner's night.
 import { React, ReactDOM, useEffect, useState } from "./r";
 import { boot, kernel, setWorldOverride } from "./kernel";
-import { Icon, money, runnerName, venueTime, countdown, BRAND } from "./parts";
+import { Icon, money, runnerName, venueTime, countdown, BRAND, PlaceView } from "./parts";
 import { RunnerView } from "./roles";
 import { Beat, Shell, EVENT, demoWorld, useToasts } from "./shell";
 import { Note } from "./explain";
@@ -24,6 +24,21 @@ const NOTES: Note[] = [
 ];
 
 const crewBase = { set: false, pay: 0, tips: 0, delivered: 0 };
+
+/** The handoff, with whatever this order asks for first: a photo of it in the fan's hands, or the PIN on their phone. */
+function Handoff({ o, act, now }: { o: any; act: (a: Record<string, unknown>, ok: string) => void; now: number }) {
+  const [photo, setPhoto] = useState(false);
+  const [pin, setPin] = useState("");
+  const done = () => act({ do: "delivered", order: o.id, photo, pin }, o.check_id ? "ID checked, handed over." : "Handed over.");
+  return <div className="cw-handoff">
+    {o.proof === "photo" && <label className={"btn block " + (photo ? "ghost" : "primary")}>{photo ? "Photo taken ✓" : "Take a photo of the handoff"}<input type="file" accept="image/*" capture="environment" hidden onChange={e => setPhoto(!!e.target.files?.length)} /></label>}
+    {o.proof === "pin" && <label className="sf wide"><span>The fan's PIN, from their phone</span><input inputMode="numeric" maxLength={4} value={pin} onChange={e => setPin(e.target.value.replace(/\D/g, ""))} placeholder="4 digits" /></label>}
+    <div className="row gap">
+      <button className="btn ghost sm" disabled={!o.handoff_ok_at || now < o.handoff_ok_at} onClick={() => act({ do: "unreachable", order: o.id }, "Marked. You're still paid for the trip.")}>Can't find them</button>
+      <button className="btn primary sm grow" disabled={(o.proof === "photo" && !photo) || (o.proof === "pin" && pin.length !== 4)} onClick={done}>Handed over</button>
+    </div>
+  </div>;
+}
 
 function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage: Stage; next: (s: Stage) => void; toast: (s: string) => void; refresh: () => void }) {
   const [tab, setTab] = useState<Tab>("home");
@@ -82,6 +97,7 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
               <div className="row gap"><span className="eyebrow grow">New trip</span><span className="num cw-timer">{countdown(t.expires - now)}</span></div>
               <b className="cw-pay num">{money(t.pay)}</b>
               <small>{t.tips ? `${money(t.base ?? t.pay)} pay + ${money(t.tips)} in tips, all yours` : "Pay for the trip. Any tip a fan adds is yours on top."}{t.raised > 0 ? ` · up ${money(t.raised)} since ${t.passes === 1 ? "a runner" : `${t.passes} runners`} passed` : ""}</small>
+              {r.map && t.route && <div className="cw-map"><PlaceView m={{ ...r.map, your_runner: r.runner }} showRunners={false} heat={false} route={t.route} /></div>}
               <ol className="cw-route"><li><b>Pick up</b> {t.stand_name}</li>{t.sections.map((s, i) => <li key={i}><b>Hand off</b> section {s.slice(1)}</li>)}</ol>
               <p className="sub">About {t.minutes} min · {t.orders.length} order{t.orders.length === 1 ? "" : "s"}</p>
               <div className="deal-act two">
@@ -104,14 +120,13 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
                   <div className="grow"><b>Section {o.seat.slice(1)}{(o as any).spot ? `, ${(o as any).spot}` : ""}</b>
                     <small>{o.items.map(x => `${x.qty}× ${x.name}`).join(", ")}{o.breakdown?.tip ? ` · ${money(o.breakdown.tip)} tip` : ""}</small>
                     {(o as any).check_id && <span className="id-chip cw-id">Check ID · 21+</span>}
-                    {t.picked && o.stage === "PickedUp" && o.handoff_ok_at && now < o.handoff_ok_at - 3 * 60_000 + Math.max(60_000, t.minutes * 30_000) ? <small className="sub cw-walking">On your way to the seat.</small> : t.picked && o.stage === "PickedUp" && <div className="row gap">
-                      <button className="btn ghost sm" disabled={!o.handoff_ok_at || now < o.handoff_ok_at} onClick={() => act({ do: "unreachable", order: o.id }, "Marked. You're still paid for the trip.")}>Can't find them</button>
-                      <button className="btn primary sm grow" onClick={() => act({ do: "delivered", order: o.id }, (o as any).check_id ? "ID checked, handed over." : "Handed over.")}>Handed over</button></div>}
+                    {t.picked && o.stage === "PickedUp" && o.handoff_ok_at && now < o.handoff_ok_at - 3 * 60_000 + Math.max(60_000, t.minutes * 30_000) ? <small className="sub cw-walking">On your way to the seat.</small> : t.picked && o.stage === "PickedUp" && <Handoff o={o} act={act} now={now} />}
                   </div>
                 </div>
               ))}
             </section>
           )}
+          {t && t.accepted && r.map && t.route && <div className="cw-map"><PlaceView m={{ ...r.map, your_runner: r.runner }} showRunners={false} heat={false} route={t.route} /><small>P is the pickup; numbers are the order you hand off in, the shortest way round.</small></div>}
           <section className="block"><div className="block-head"><h2>Tonight</h2></div>
             <div className="pair"><div><span className="eyebrow">Earned</span><b className="big num">{money(pay + tips)}</b><small>{money(tips)} in tips</small></div>
               <div><span className="eyebrow">Delivered</span><b className="big num">{delivered}</b><small>{r.rating ? `★ ${r.rating.toFixed(1)}` : "no ratings yet"}</small></div></div></section>

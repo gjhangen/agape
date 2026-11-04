@@ -14,9 +14,9 @@ const placeName = (p: string, stands: MapView["stands"]) =>
 
 export type RunnerView = {
   clock: { t: number }; runner: { id: string; from: string; to: string; progress: number; busy: boolean };
-  bag: Order[]; plan: { t: number; place: string; done: boolean }[]; delivered: number; pay: number; tips: number;
+  bag: Order[]; plan: { t: number; place: string; done: boolean }[]; delivered: number; pay: number; tips: number; map?: any;
   human?: boolean; on_shift?: boolean; rating?: number | null; ratings?: number;
-  trip?: { accepted: boolean; picked: boolean; stand: string; stand_name: string; expires: number; pay: number; base?: number; tips?: number; raised: number; passes: number; mode?: string; minutes: number; sections: string[]; orders: (Order & { handoff_ok_at: number | null })[] } | null;
+  trip?: { accepted: boolean; picked: boolean; stand: string; stand_name: string; expires: number; pay: number; base?: number; tips?: number; raised: number; passes: number; mode?: string; minutes: number; sections: string[]; route?: string[]; orders: (Order & { handoff_ok_at: number | null })[] } | null;
 };
 
 /** Acting from a staff screen: as this party, with the answer said back in a toast. */
@@ -182,7 +182,7 @@ export type OpsView = {
     exits: { kind: string; exit: string; owner: string; count: number }[]; replays: boolean };
   attribution: { source: string; shown: number; accepted: number; settled: number; gross: number; spend: number }[]; signals: number;
   halt: { reason: string; since: number } | null; provenance: { crowd: string; simulated_fans: number; people: number };
-  problems: { id: string; order: number; who: string; stand: string; words: string; note: string; t: number; fault: string; amount: number | null; state: { state: string; amount?: number; why?: string } }[];
+  problems: { id: string; order: number; who: string; stand: string; words: string; note: string; t: number; fault: string; amount: number | null; state: { state: string; amount?: number; form?: string; why?: string } }[];
 };
 
 const mins = (s: number | null) => (s == null ? "–" : `${Math.round(s / 60)} min`);
@@ -208,18 +208,15 @@ function ServiceControl({ o, x }: { o: OpsView; x: StaffActs }) {
   );
 }
 
-export function Problems({ o, x }: { o: OpsView; x: StaffActs }) {
+export function Problems({ o }: { o: OpsView; x?: StaffActs }) {
   if (o.problems.length === 0) return null;
   return (
     <section className="block">
-      <div className="block-head"><h2>Problems reported</h2><span className="sub">{o.problems.filter(p => p.state.state === "open").length} to decide</span></div>
+      <div className="block-head"><h2>Problems reported</h2><span className="sub">Made right by Agape's policy; Agape's team decides the rest</span></div>
       {o.problems.map(p => (
         <div key={p.id} className="handoff">
-          <div className="grow"><b>{p.words}</b><small>{p.who} · order {p.order} from {p.stand} · {money(p.amount ?? 0)} · on {p.fault}{p.note ? ` · “${p.note}”` : ""}</small></div>
-          {p.state.state === "open" ? <>
-            <button className="btn ghost sm" onClick={() => staffAct("ops", x, { do: "resolve", problem: p.id, refund: false, why: "Operations looked into it" }, "Declined. The fan sees why.")}>Decline</button>
-            <button className="btn primary sm" onClick={() => staffAct("ops", x, { do: "resolve", problem: p.id, refund: true }, "Refunded.")}>Refund</button>
-          </> : <span className={"tag " + (p.state.state === "refunded" ? "good" : "")}>{p.state.state === "refunded" ? `Refunded ${money(p.state.amount ?? 0)}` : "Declined"}</span>}
+          <div className="grow"><b>{p.words}</b><small>{p.who} · order {p.order} from {p.stand} · on {p.fault}{p.note ? ` · “${p.note}”` : ""}</small></div>
+          <span className={"tag " + (p.state.state === "remedied" ? "good" : "")}>{p.state.state === "remedied" ? `${p.state.form === "refund" ? "Refunded" : "Credit"} ${money(p.state.amount ?? 0)}` : p.state.state === "open" ? "With Agape" : "Declined"}</span>
         </div>
       ))}
     </section>

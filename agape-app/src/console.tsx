@@ -91,7 +91,7 @@ function beat(stage: Stage, o: OpsView | null): Beat {
   }
   if (stage !== "app") return { id: "v0", title: `Operations at ${BRAND.venue}`, body: <>You run operations here. The whole night runs on Agape: every stand, every runner and every dollar, on one screen. Tonight was set up before the doors opened.</> };
   if (!o) return { id: "x", title: "", body: null };
-  if ((o.problems?.length ?? 0) > 0) return { id: "v2", title: "A fan reported a problem", body: <>Problems land here with their likely cause. One tap refunds the fan, and the refund is charged to whoever caused it, as your agreement sets out.</> };
+  if ((o.problems?.length ?? 0) > 0) return { id: "v2", title: "A fan reported a problem", body: <>Problems at your stands land here as they're made right. Agape settles them by its policy, at the cost of whoever was at fault: a stand's food is the stand's to make right; getting it there is Agape's.</> };
   return { id: "v1", title: "The whole night, as it happens", body: <>Orders, seat waits and runners, the floor as it happens, and further down, every dollar to the cent. Switch to Events to set up the next night: {EVENT === "concert" ? "the lineup" : "the teams"}, menu, terms and what fans get.</> };
 }
 

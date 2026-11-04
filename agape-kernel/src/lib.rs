@@ -27,6 +27,7 @@ pub mod points;
 pub mod sim;
 pub mod views;
 pub mod care;
+pub mod remedy;
 pub mod setup;
 pub mod passport;
 pub mod api;

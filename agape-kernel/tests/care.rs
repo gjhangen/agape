@@ -48,43 +48,129 @@ fn a_late_order_says_so_while_you_wait_and_the_slow_kitchen_pays_the_credit() {
     assert!(balanced(&n));
 }
 
+fn credit(n: &Night) -> i64 { n.ledger.balance(&acct(YOU, "credit"), &Unit::usd()) }
+fn rev(n: &Night, who: &str) -> i64 { n.ledger.balance(&acct(who, "revenue"), &Unit::usd()) }
+
 #[test]
-fn a_problem_is_refunded_by_whoever_was_at_fault_and_the_books_still_balance() {
+fn a_wrong_order_needs_a_photo_and_is_made_right_as_credit_by_the_stand_that_got_it_wrong() {
     let mut n = night();
     until(&mut n, 50);
     let id = delivered(&mut n, "burger");
     let o = order(&mut n, id);
     assert_eq!(o["can_report"], true);
-    let paid = card(&n);
-    let stand = n.world.thing("burger").unwrap().stand.clone();
-    let stand_before = n.ledger.balance(&acct(&stand, "revenue"), &Unit::usd());
+    let (paid, stand) = (card(&n), n.world.thing("burger").unwrap().stand.clone());
+    let (stand_before, agape_before) = (rev(&n, &stand), rev(&n, "agape"));
     assert!(n.report_problem(YOU, id, "nope", "").is_err());
-    assert_eq!(n.report_problem("fan9", id, "wrong_item", ""), Err("That isn't your order".into()));
-    n.report_problem(YOU, id, "wrong_item", "Got a cheeseburger, ordered a burger").unwrap();
+    assert_eq!(n.report_with("fan9", id, "wrong_item", "", true), Err("That isn't your order".into()));
+    assert!(n.report_with(YOU, id, "wrong_item", "", false).unwrap_err().contains("photo"), "a wrong order needs a photo");
+    n.report_with(YOU, id, "wrong_item", "Got a cheeseburger, ordered a burger", true).unwrap();
     let b = &o["breakdown"];
-    let back = b["subtotal"].as_i64().unwrap() - b["discount"].as_i64().unwrap() + b["tax"].as_i64().unwrap() + b["fee"].as_i64().unwrap();
-    assert_eq!(paid - card(&n), back, "everything but the tip comes back: the food, its tax and the delivery fee");
-    assert!(n.ledger.balance(&acct(&stand, "revenue"), &Unit::usd()) < stand_before, "the stand that made it wrong pays");
-    assert_eq!(order(&mut n, id)["problem"]["state"]["state"], "refunded");
+    let (items, tax, fee) = (b["subtotal"].as_i64().unwrap() - b["discount"].as_i64().unwrap(), b["tax"].as_i64().unwrap(), b["fee"].as_i64().unwrap());
+    assert_eq!(card(&n), paid, "credit, not a refund, by default");
+    assert_eq!(credit(&n), items + tax + fee, "the food, its tax and the delivery fee, as Agape credit");
+    assert_eq!(stand_before - rev(&n, &stand), items + fee, "the stand that got it wrong pays for the food and the wasted delivery");
+    assert_eq!(rev(&n, "agape"), agape_before, "Agape pays nothing for a stand's mistake");
+    assert_eq!(order(&mut n, id)["problem"]["state"]["state"], "remedied");
     assert_eq!(n.report_problem(YOU, id, "quality", ""), Err("You've already reported this one".into()));
     assert!(balanced(&n));
 }
 
 #[test]
-fn repeat_claims_go_to_a_person_and_old_orders_cant_be_reported() {
+fn not_to_your_taste_is_the_stands_to_make_right_and_agape_keeps_its_fee() {
     let mut n = night();
     until(&mut n, 50);
-    let ids: Vec<usize> = (0..3).map(|_| delivered(&mut n, "nachos")).collect();
-    let p1 = n.report_problem(YOU, ids[0], "never_arrived", "").unwrap();
+    let id = delivered(&mut n, "burger");
+    let stand = n.world.thing("burger").unwrap().stand.clone();
+    let (s0, a0, t0) = (rev(&n, &stand), rev(&n, "agape"), n.ledger.balance(&acct("tax_authority", "payable"), &Unit::usd()));
+    n.report_problem(YOU, id, "quality", "Cold").unwrap();
+    let items = order(&mut n, id)["breakdown"]["subtotal"].as_i64().unwrap();
+    assert_eq!(credit(&n), items);
+    assert_eq!(s0 - rev(&n, &stand), items);
+    assert_eq!(rev(&n, "agape"), a0, "delivery wasn't the problem");
+    assert_eq!(n.ledger.balance(&acct("tax_authority", "payable"), &Unit::usd()), t0, "a goodwill credit doesn't unwind the sale's tax");
+    assert!(balanced(&n));
+}
+
+#[test]
+fn credit_goes_toward_the_next_order_before_the_card() {
+    let mut n = night();
+    until(&mut n, 50);
+    let id = delivered(&mut n, "burger");
+    n.report_problem(YOU, id, "quality", "").unwrap();
+    let have = credit(&n);
+    let before = card(&n);
+    let next = delivered(&mut n, "nachos");
+    let charge = order(&mut n, next)["charge"].as_i64().unwrap();
+    let used = have.min(charge);
+    assert_eq!(order(&mut n, next)["credit_used"], used);
+    assert_eq!(card(&n) - before, charge - used, "only the rest reaches the card");
+    assert_eq!(credit(&n), have - used);
+    assert!(balanced(&n));
+}
+
+#[test]
+fn agapes_team_can_switch_to_refunds_and_say_who_pays_for_any_part() {
+    let mut n = night();
+    until(&mut n, 50);
+    let mut p = n.policy.clone();
+    p.form = agape_kernel::remedy::Form::Refund;
+    // a ruined delivery, paid in full by the runner who carried it, tip included
+    p.rules.get_mut("damaged").unwrap().covers = vec![
+        agape_kernel::remedy::Cover { part: agape_kernel::remedy::Part::Items, from: agape_kernel::remedy::Source::Runner, bps: 10_000 },
+        agape_kernel::remedy::Cover { part: agape_kernel::remedy::Part::Tip, from: agape_kernel::remedy::Source::Runner, bps: 10_000 }];
+    n.set_policy(p.clone()).unwrap();
+    let mut bad = p.clone();
+    bad.rules.get_mut("damaged").unwrap().covers.push(agape_kernel::remedy::Cover { part: agape_kernel::remedy::Part::Tip, from: agape_kernel::remedy::Source::Agape, bps: 1 });
+    assert!(n.set_policy(bad).is_err(), "never more than all of a part");
+    let id: usize = n.you_order("burger", 1, true, 200).unwrap().parse().unwrap();
+    for _ in 0..600 { n.step(); if order(&mut n, id)["stage"] == "Settled" { break; } }
+    let o = order(&mut n, id);
+    let runner = o["runner"].as_str().unwrap().to_string();
+    let (pay0, tips0, paid) = (n.ledger.balance(&acct(&runner, "pay"), &Unit::usd()), n.ledger.balance(&acct(&runner, "tips"), &Unit::usd()), card(&n));
+    n.report_with(YOU, id, "damaged", "", true).unwrap();
+    let items = o["breakdown"]["subtotal"].as_i64().unwrap();
+    assert_eq!(paid - card(&n), items + 200, "back to the card");
+    assert_eq!(pay0 - n.ledger.balance(&acct(&runner, "pay"), &Unit::usd()), items);
+    assert_eq!(tips0 - n.ledger.balance(&acct(&runner, "tips"), &Unit::usd()), 200);
+    assert!(balanced(&n));
+}
+
+#[test]
+fn never_arrived_is_held_for_a_person_when_the_runners_phone_was_at_the_seat() {
+    let mut n = night();
+    until(&mut n, 50);
+    let id = delivered(&mut n, "burger");
+    let p = n.report_problem(YOU, id, "never_arrived", "").unwrap();
+    let pr = n.problems.iter().find(|x| x.id == p).unwrap();
+    assert_eq!(pr.state, agape_kernel::care::ProblemState::Open);
+    assert!(pr.held.as_deref().unwrap().contains("of the seat"));
+    assert_eq!(n.view_care()["problems"][0]["handoff_m"].as_i64().map(|m| m < 40), Some(true), "Agape's team sees the evidence");
+    assert!(n.view_fan(YOU).to_string().find("handoff_m").is_none(), "the fan never does");
+}
+
+#[test]
+fn repeat_claims_go_to_a_person_and_records_call_for_proof() {
+    let mut n = night();
+    until(&mut n, 50);
+    let ids: Vec<usize> = (0..5).map(|_| delivered(&mut n, "nachos")).collect();
+    let p1 = n.report_with(YOU, ids[0], "damaged", "", true).unwrap();
     let p2 = n.report_problem(YOU, ids[1], "quality", "").unwrap();
     let p3 = n.report_problem(YOU, ids[2], "quality", "").unwrap();
     let state = |n: &Night, p: &str| n.problems.iter().find(|x| x.id == p).unwrap().state.clone();
-    assert!(matches!(state(&n, &p1), agape_kernel::care::ProblemState::Refunded { .. }));
-    assert!(matches!(state(&n, &p2), agape_kernel::care::ProblemState::Refunded { .. }));
-    assert_eq!(state(&n, &p3), agape_kernel::care::ProblemState::Open, "a third in one night waits for operations");
-    assert!(n.view_ops()["problems"].as_array().unwrap().iter().any(|x| x["id"] == p3.as_str() && x["state"]["state"] == "open"));
-    n.resolve_problem("ops", &p3, false, "Photos show it was fine").unwrap();
-    assert_eq!(n.resolve_problem("ops", &p3, true, ""), Err("Already decided".into()));
+    assert!(matches!(state(&n, &p1), agape_kernel::care::ProblemState::Remedied { .. }));
+    assert!(matches!(state(&n, &p2), agape_kernel::care::ProblemState::Remedied { .. }));
+    assert_eq!(state(&n, &p3), agape_kernel::care::ProblemState::Open, "a third in one night waits for a person");
+    n.resolve_problem("hq", &p3, false, "Photos show it was fine").unwrap();
+    assert_eq!(n.resolve_problem("hq", &p3, true, ""), Err("Already decided".into()));
+    // three claims on five orders: past the PIN line
+    let r = n.fan_record(YOU);
+    assert_eq!((r.orders, r.claims), (5, 3));
+    assert_eq!(r.proof, agape_kernel::remedy::Proof::Pin);
+    assert!(r.cost > 0, "the ruined delivery came out of Agape's pocket");
+    let next: usize = n.you_order("burger", 1, true, 0).unwrap().parse().unwrap();
+    assert_eq!(n.view_fan(YOU)["orders"].as_array().unwrap().iter().find(|o| o["id"] == next).unwrap()["pin"].as_str().map(|p| p.len()), Some(4), "the fan sees the PIN to give their runner");
+    n.set_proof(YOU, Some(agape_kernel::remedy::Proof::None));
+    assert_eq!(n.proof_of(next), agape_kernel::remedy::Proof::None, "Agape's team can override it");
     let late = delivered(&mut n, "nachos");
     for _ in 0..200 { n.step(); }
     assert!(n.report_problem(YOU, late, "quality", "").unwrap_err().contains("30 minutes"));

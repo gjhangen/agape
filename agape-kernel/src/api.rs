@@ -19,6 +19,8 @@ pub fn view(n: &mut Night, who: &str, v: &Value) -> Value {
         Some("business") => n.view_business(id),
         Some("parties") => n.parties(),
         Some("glance") => n.view_glance(),
+        // problems, remedies and every fan's record: Agape's own team only
+        Some("care") if who == "agape" || who == "hq" => n.view_care(),
         _ => json!({ "error": "unknown lens" }),
     }
 }
@@ -76,7 +78,7 @@ pub fn act(n: &mut Night, who: &str, v: &Value) -> Value {
         Some("accept_trip") => n.accept_trip(who).map(|_| String::new()),
         Some("decline_trip") => n.decline_trip(who).map(|_| String::new()),
         Some("picked_up") => n.picked_up(who).map(|_| String::new()),
-        Some("delivered") => n.delivered(who, v["order"].as_u64().unwrap_or(u64::MAX) as usize).map(|_| String::new()),
+        Some("delivered") => n.delivered_with(who, v["order"].as_u64().unwrap_or(u64::MAX) as usize, v["photo"].as_bool().unwrap_or(false), &s("pin")).map(|_| String::new()),
         Some("unreachable") => n.unreachable(who, v["order"].as_u64().unwrap_or(u64::MAX) as usize).map(|_| String::new()),
         Some("gift") => n.gift(who, &s("thing"), v["qty"].as_i64().unwrap_or(1), &s("to"), &s("note"), v["tip"].as_i64().unwrap_or(0)),
         Some("prioritize") => n.prioritize(who, v["order"].as_u64().unwrap_or(u64::MAX) as usize).map(|_| String::new()),
@@ -90,8 +92,18 @@ pub fn act(n: &mut Night, who: &str, v: &Value) -> Value {
         Some("install_rule") if who == "agape" => n.install_rule(v["rule"].clone(), &s("payer"), v["budget"].as_i64().unwrap_or(0)).map(|_| String::new()),
         Some("rate") => n.rate(who, v["order"].as_u64().unwrap_or(u64::MAX) as usize, &s("who"), v["stars"].as_i64().unwrap_or(0)).map(|_| String::new()),
         Some("reorder") => n.reorder(who, v["order"].as_u64().unwrap_or(u64::MAX) as usize),
-        Some("report") => n.report_problem(who, v["order"].as_u64().unwrap_or(u64::MAX) as usize, &s("reason"), &s("note")),
-        Some("resolve") => n.resolve_problem(who, &s("problem"), v["refund"].as_bool().unwrap_or(false), &s("why")).map(|_| String::new()),
+        Some("report") => n.report_with(who, v["order"].as_u64().unwrap_or(u64::MAX) as usize, &s("reason"), &s("note"), v["photo"].as_bool().unwrap_or(false)),
+        Some("resolve") => {
+            let form = match s("form").as_str() { "credit" => Some(crate::remedy::Form::Credit), "refund" => Some(crate::remedy::Form::Refund), _ => None };
+            let fault = s("fault");
+            n.decide(who, &s("problem"), v["refund"].as_bool().or(v["remedy"].as_bool()).unwrap_or(false), if fault.is_empty() { None } else { Some(fault.as_str()) }, form, &s("why")).map(|_| String::new())
+        }
+        // Agape's own team: the policy for problems, tips and proof, and proof for one fan by hand
+        Some("set_policy") if who == "agape" || who == "hq" => serde_json::from_value::<crate::remedy::Policy>(v["policy"].clone()).map_err(|e| format!("That policy doesn't read: {e}")).and_then(|p| n.set_policy(p)).map(|_| String::new()),
+        Some("set_proof") if who == "agape" || who == "hq" => {
+            let p = match s("proof").as_str() { "none" => Some(crate::remedy::Proof::None), "photo" => Some(crate::remedy::Proof::Photo), "pin" => Some(crate::remedy::Proof::Pin), _ => None };
+            n.set_proof(&s("fan"), p); Ok(String::new())
+        }
         Some("halt") => n.halt(&s("reason")).map(|_| String::new()),
         Some("resume") => n.resume().map(|_| String::new()),
         Some("join") => n.join_named(who, &s("seat"), &s("name"), v["welcome"].as_bool().unwrap_or(true)).and_then(|_| n.set_spot(who, &s("row"), &s("place"))).map(|_| String::new()),

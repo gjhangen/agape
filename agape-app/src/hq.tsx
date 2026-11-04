@@ -3,7 +3,8 @@
 import { React, ReactDOM, useEffect, useState } from "./r";
 import { boot, kernel, setWorldOverride } from "./kernel";
 import { BRAND, Icon, money, MeasureTile, venueTime } from "./parts";
-import { OpsView, Problems } from "./roles";
+import { OpsView } from "./roles";
+import { CareDesk, CareView } from "./care";
 import { Beat, Invite, Shell, demoWorld, useToasts } from "./shell";
 import { Note } from "./explain";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
@@ -18,7 +19,7 @@ const NOTES: Note[] = [
   { sel: ".hq-crew", title: "Crew supply", what: "Runners online against the orders waiting, and how often offers are taken first time.", who: "Agape operations", why: "If too few runners take offers, pay rises and more come online. This is where that's watched.", level: 1 },
 ];
 
-function HQ({ o, stage, next, toast, refresh }: { o: OpsView | null; stage: Stage; next: (s: Stage) => void; toast: (t: string) => void; refresh: () => void }) {
+function HQ({ o, c, stage, next, toast, refresh }: { o: OpsView | null; c: CareView | null; stage: Stage; next: (s: Stage) => void; toast: (t: string) => void; refresh: () => void }) {
   const [tab, setTab] = useState<Tab>("venues");
   if (stage === "boot") return <div className="ob ob-boot"><div className="ob-mark"><b>agape</b><small>hq</small></div></div>;
   if (stage === "signin") return (
@@ -32,7 +33,7 @@ function HQ({ o, stage, next, toast, refresh }: { o: OpsView | null; stage: Stag
   if (!o) return null;
   const L = o.ledger as any; const f = L.flows ?? {};
   const take = (f.agape ?? 0) + (f.agape_processing ?? 0);
-  const open = o.problems.filter(p => p.state.state === "Open").length;
+  const open = c?.open ?? 0;
   const venues = [
     { name: BRAND.venue, city: "Harbor City", state: "Live now", orders: Object.values(o.stages).reduce((a: number, b: any) => a + (b as number), 0), wait: o.wait_p50, runners: `${o.runners.busy}/${o.runners.total}`, problems: open },
     { name: "Mesa Dome", city: "Mesa", state: "Opens Dec 12", orders: null, wait: null, runners: "28 signed up", problems: 0 },
@@ -42,7 +43,7 @@ function HQ({ o, stage, next, toast, refresh }: { o: OpsView | null; stage: Stag
     <div className="lp-app">
       <aside className="lp-nav">
         <b className="sx-logo">agape</b>
-        {([["venues", "store", "Venues"], ["support", "help", "Support"], ["crew", "people", "Crew"], ["money", "chart", "Money"], ["people", "user", "Staff"]] as [Tab, any, string][]).map(([id, ic, l]) =>
+        {([["venues", "store", "Venues"], ["support", "help", "Care"], ["crew", "people", "Crew"], ["money", "chart", "Money"], ["people", "user", "Staff"]] as [Tab, any, string][]).map(([id, ic, l]) =>
           <button key={id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}><Icon name={ic} /><small>{l}{id === "support" && open ? ` · ${open}` : ""}</small></button>)}
       </aside>
       <div className="lp-main"><div className="role">
@@ -60,9 +61,9 @@ function HQ({ o, stage, next, toast, refresh }: { o: OpsView | null; stage: Stag
               <td className="num">{v.orders ?? "–"}</td><td className="num">{v.wait != null ? `${Math.round(v.wait / 60)} min` : "–"}</td><td className="num">{v.runners}</td><td className="num">{v.problems || "–"}</td></tr>)}</tbody>
           </table></div></section>
         </>}
-        {tab === "support" && <>
-          <header className="role-head"><h2 className="hq-h">Support</h2><span className="sub">Fans' problems from every venue. Settle them here or leave them to the venue.</span></header>
-          {o.problems.length ? <Problems o={o} x={{ toast, refresh }} /> : <p className="empty">No problems reported tonight. When a fan reports one, it shows up here and at the venue at the same moment.</p>}
+        {tab === "support" && c && <>
+          <header className="role-head"><h2 className="hq-h">Care</h2><span className="sub">Fans' problems from every venue, made right by Agape's policy, and the records behind them. Only Agape sees this.</span></header>
+          <CareDesk c={c} toast={toast} refresh={refresh} />
         </>}
         {tab === "crew" && <>
           <header className="role-head"><h2 className="hq-h">Crew</h2><span className="sub">Independent runners across every venue</span></header>
@@ -105,18 +106,20 @@ function HQ({ o, stage, next, toast, refresh }: { o: OpsView | null; stage: Stag
   );
 }
 
-function beat(stage: Stage, o: OpsView | null): Beat {
+function beat(stage: Stage, o: OpsView | null, c: CareView | null): Beat {
+  void c;
   if (stage !== "app") return { id: "a", title: "Agape's own team", body: <>This is the app you'd use if you worked at Agape: every venue at once, the support queue, the crew, partners, payouts and Agape's own money. It's separate from the apps venues and runners use.</> };
-  if (o && o.problems.some(p => p.state.state === "Open")) return { id: "p", title: "A fan needs help", body: <>A problem reported anywhere shows up here as well as at the venue. One tap refunds the fan, and the party at fault covers it.</> };
+  if (o && o.problems.some(p => p.state.state === "open")) return { id: "p", title: "A claim waits for a person", body: <>Most problems are made right automatically by Agape's policy: as credit by default, paid by whoever was at fault. The rest wait in Care, with the photo and where the runner's phone was at the handoff. Agape delivers; a stand's food is the stand's to make right.</> };
   return { id: "b", title: "One team, many venues", body: <>You're on Agape's operations team. Harbor Arena is live; Mesa Dome and Riverside are examples of venues on the way, not real ones. Every number here comes from the same books as the venue's own, so there's nothing to reconcile.</> };
 }
 
 function App() {
   const [stage, setStage] = useState<Stage>("boot");
   const [o, setO] = useState<OpsView | null>(null);
+  const [c, setC] = useState<CareView | null>(null);
   const [ready, setReady] = useState(false);
   const { toasts, toast } = useToasts();
-  const refresh = () => setO(kernel.view("ops") as OpsView);
+  const refresh = () => { setO(kernel.view("ops") as OpsView); setC(kernel.view("care", "", "hq") as CareView); };
   useEffect(() => { (async () => {
     setWorldOverride(demoWorld());
     const x = await boot(23, "s104"); if (!x.ok) return;
@@ -124,7 +127,7 @@ function App() {
     setTimeout(() => setStage("signin"), 1500);
   })(); }, []);
   return <Shell tag="HQ · Agape HQ" device="laptop" ready={ready} onTick={refresh} toasts={toasts} notes={NOTES} explainable={stage === "app"}
-    beat={beat(stage, o)} screen={<HQ o={o} stage={stage} next={setStage} toast={toast} refresh={refresh} />} />;
+    beat={beat(stage, o, c)} screen={<HQ o={o} c={c} stage={stage} next={setStage} toast={toast} refresh={refresh} />} />;
 }
 
 applyLook(savedLook()); applyMode(savedMode());

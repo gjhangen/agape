@@ -1,40 +1,38 @@
 //! Looking after people when things go wrong: an order running late is flagged (and its credit
 //! promised) the moment it misses its promise, not when it finally arrives; a fan can report a
-//! problem with an order and get their money back from whoever was at fault; and the venue can
-//! stop everything at once.
+//! problem with an order and have it made right by Agape's policy (remedy.rs), at the cost of
+//! whoever was at fault; and the venue can stop everything at once.
 
 use crate::commitment::{Action, Stage, DISPATCHER};
 use crate::economy::breakdown;
 use crate::sim::Night;
-use crate::value::{acct, posting, Txn, Unit};
+use crate::remedy::{Form, Part, Proof, Source};
+use crate::value::{acct, bps, posting, Txn, Unit};
 use serde::Serialize;
 
 /// How long after delivery a fan can still report a problem.
 pub const REPORT_WINDOW_MS: i64 = 30 * 60_000;
-/// Refunds approved without a person looking, per fan per night. Beyond this, operations decides
-/// (a velocity rule against abuse).
-pub const AUTO_REFUNDS_PER_FAN: usize = 2;
-/// The most a stand refunds in a night before operations looks at every further claim on it
-/// (a venue term: a bad night is investigated, not silently absorbed).
-pub const AUTO_REFUNDS_PER_STAND: usize = 10;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize)]
-#[serde(rename_all = "snake_case")]
-pub enum Reason { NeverArrived, WrongItem, Quality }
-
-impl Reason {
-    pub fn parse(s: &str) -> Option<Reason> { match s { "never_arrived" => Some(Reason::NeverArrived), "wrong_item" => Some(Reason::WrongItem), "quality" => Some(Reason::Quality), _ => None } }
-    pub fn words(&self) -> &'static str { match self { Reason::NeverArrived => "It never arrived", Reason::WrongItem => "Wrong or missing item", Reason::Quality => "Cold, spilled or not right" } }
-}
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case", tag = "state")]
-pub enum ProblemState { Open, Refunded { amount: i64, by: String }, Declined { why: String } }
+pub enum ProblemState { Open, Remedied { amount: i64, form: Form, by: String }, Declined { why: String } }
 
 #[derive(Clone, Debug, Serialize)]
-pub struct Problem { pub id: String, pub order: usize, pub fan: String, pub stand: String, pub reason: Reason, pub note: String, pub t: i64,
-    /// Whose doing it was: the stand for what it made, Agape for getting it there.
-    pub fault: String, pub state: ProblemState }
+pub struct Problem { pub id: String, pub order: usize, pub fan: String, pub stand: String, pub reason: String, pub words: String, pub note: String, pub t: i64,
+    /// The fan's photo of it, when they added one.
+    pub photo: bool,
+    /// Whose doing it was: a stand, a runner, or Agape.
+    pub fault: String, pub state: ProblemState,
+    /// Who paid what toward the remedy: (party, cents).
+    pub paid_by: Vec<(String, i64)>,
+    /// Why it waits for a person, when it does.
+    pub held: Option<String> }
+
+/// What Agape knows about a fan, for Agape's team only.
+#[derive(Clone, Debug, Serialize)]
+pub struct Record { pub orders: usize, pub spent: i64, pub claims: usize, pub claim_bps: i64, pub remedied: i64,
+    /// What this fan has earned Agape (its share, fees and processing margin, less runner pay) and what their claims cost it.
+    pub earned: i64, pub cost: i64, pub net: i64, pub ratings_given: usize, pub avg_given: Option<f64>, pub proof: Proof, pub proof_set: bool }
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Halt { pub reason: String, pub since: i64 }
@@ -56,69 +54,158 @@ impl Night {
         }
     }
 
-    // ---------------- problems and refunds ----------------
+    // ---------------- problems and remedies ----------------
 
-    pub fn report_problem(&mut self, fan: &str, order: usize, reason: &str, note: &str) -> Result<String, String> {
-        let reason = Reason::parse(reason).ok_or("Pick what went wrong")?;
+    pub fn report_problem(&mut self, fan: &str, order: usize, reason: &str, note: &str) -> Result<String, String> { self.report_with(fan, order, reason, note, false) }
+
+    /// A fan reports what went wrong. Settled at once by the policy when it allows, or held for a person.
+    pub fn report_with(&mut self, fan: &str, order: usize, reason: &str, note: &str, photo: bool) -> Result<String, String> {
+        let rule = self.policy.rules.get(reason).cloned().ok_or("Pick what went wrong")?;
         let o = self.orders.get(order).ok_or("Unknown order")?;
         if o.c.quote.fan != fan { return Err("That isn't your order".into()); }
         if o.c.stage != Stage::Settled { return Err("You can report a problem once it's been delivered".into()); }
         let delivered = o.delivered_at.unwrap_or(0);
         if self.t - delivered > REPORT_WINDOW_MS { return Err("Problems can be reported up to 30 minutes after delivery".into()); }
         if self.problems.iter().any(|p| p.order == order) { return Err("You've already reported this one".into()); }
+        if rule.photo && !photo { return Err("Add a photo of it so we can make it right".into()); }
         let stand = o.c.quote.stand.clone();
-        let fault = if reason == Reason::NeverArrived { DISPATCHER.to_string() } else { stand.clone() };
+        let fault = self.party_for(order, &rule.fault);
         let id = format!("p{}", self.problems.len() + 1);
-        self.problems.push(Problem { id: id.clone(), order, fan: fan.into(), stand: stand.clone(), reason, note: note.trim().chars().take(280).collect(), t: self.t, fault, state: ProblemState::Open });
-        // operations decides when a person runs it, or past the velocity and venue limits
-        let fan_refunds = self.problems.iter().filter(|p| p.fan == fan && matches!(p.state, ProblemState::Refunded { .. })).count();
-        let stand_refunds = self.problems.iter().filter(|p| p.stand == stand && matches!(p.state, ProblemState::Refunded { .. })).count();
-        if !self.human("ops") && fan_refunds < AUTO_REFUNDS_PER_FAN && stand_refunds < AUTO_REFUNDS_PER_STAND {
-            self.resolve_problem("agape", &id, true, "")?;
-        }
+        // the policy settles it unless: a person runs operations, the fan or stand is past tonight's
+        // limits, or Agape's evidence disagrees (the runner's phone was at the seat when it was handed over)
+        let fan_auto = self.problems.iter().filter(|p| p.fan == fan && matches!(p.state, ProblemState::Remedied { .. })).count();
+        let stand_auto = self.problems.iter().filter(|p| p.stand == stand && matches!(p.state, ProblemState::Remedied { .. })).count();
+        let at_seat = o.handoff_m.map_or(false, |m| m < self.policy.handoff_radius_m);
+        let held = if !rule.auto { Some("This kind is always looked at".to_string()) }
+            else if self.human("ops") { Some("Operations decides tonight".into()) }
+            else if fan_auto >= self.policy.auto_per_fan { Some("Past this fan's claims for the night".into()) }
+            else if stand_auto >= self.policy.auto_per_stand { Some("Past this stand's claims for the night".into()) }
+            else if reason == "never_arrived" && at_seat { Some(format!("Handed over within {} m of the seat", self.policy.handoff_radius_m)) }
+            else { None };
+        self.problems.push(Problem { id: id.clone(), order, fan: fan.into(), stand, reason: reason.into(), words: rule.words.clone(), note: note.trim().chars().take(280).collect(),
+            t: self.t, photo, fault, state: ProblemState::Open, paid_by: vec![], held: held.clone() });
+        if held.is_none() { self.remedy(&id, "agape", None, None)?; }
         Ok(id)
     }
 
-    /// Refund what the fan paid for the order, delivery fee included; the tip stays with the runner. The sale is
-    /// unwound in the shares it was made in; whoever was at fault also bears the card processing
-    /// already paid. Tips stay with whoever earned them unless operations decides otherwise.
-    pub fn resolve_problem(&mut self, by: &str, id: &str, refund: bool, why: &str) -> Result<(), String> {
+    /// The party a rule's "stand", "runner" or "agape" means on this order.
+    fn party_for(&self, order: usize, who: &str) -> String {
+        let q = &self.orders[order].c.quote;
+        match who { "stand" => q.stand.clone(), "runner" => q.runner.clone().unwrap_or_else(|| DISPATCHER.into()), _ => DISPATCHER.into() }
+    }
+
+    /// A person decides: make it right (optionally against someone else, or as a refund instead of credit), or decline.
+    pub fn resolve_problem(&mut self, by: &str, id: &str, remedy: bool, why: &str) -> Result<(), String> { self.decide(by, id, remedy, None, None, why) }
+    pub fn decide(&mut self, by: &str, id: &str, remedy: bool, fault: Option<&str>, form: Option<Form>, why: &str) -> Result<(), String> {
         let i = self.problems.iter().position(|p| p.id == id).ok_or("Unknown problem")?;
         if self.problems[i].state != ProblemState::Open { return Err("Already decided".into()); }
-        if !refund {
+        if !remedy {
             self.problems[i].state = ProblemState::Declined { why: if why.trim().is_empty() { "Operations looked into it".into() } else { why.trim().into() } };
             return Ok(());
         }
+        self.remedy(id, by, fault, form)
+    }
+
+    /// Post the remedy: each part the rule covers, from whoever it names, to the fan as credit or to their card. One balanced transaction.
+    fn remedy(&mut self, id: &str, by: &str, fault: Option<&str>, form: Option<Form>) -> Result<(), String> {
+        let i = self.problems.iter().position(|p| p.id == id).ok_or("Unknown problem")?;
         let p = self.problems[i].clone();
+        let rule = self.policy.rules.get(&p.reason).cloned().ok_or("That kind of problem isn't in the policy any more")?;
+        if let Some(f) = fault { self.problems[i].fault = self.party_for(p.order, f); }
+        let fault = self.problems[i].fault.clone();
         let q = self.orders[p.order].c.quote.clone();
         let b = breakdown(&q, &self.terms).map_err(|e| format!("{e:?}"))?;
+        let form = form.or(rule.form).unwrap_or(self.policy.form);
         let usd = Unit::usd();
-        // the fan gets everything back but the tip: the delivery fee too, since a ruined order wasn't delivered
-        let fee = b.fee;
-        let back = b.subtotal - b.discount + b.tax + fee;
-        let fault_acct = if p.fault == DISPATCHER { acct("agape", "revenue") } else { acct(&p.fault, "revenue") };
-        let mut post = vec![
-            posting(acct(&p.fan, "card"), usd.clone(), back),
-            posting(acct("tax_authority", "payable"), usd.clone(), -b.tax),
-            posting(acct(&q.stand, "revenue"), usd.clone(), -b.stand_net),
-            posting(acct("agape", "revenue"), usd.clone(), -b.agape_share),
-            // the stand paid processing out of the sale and the fan gets it all back, with the delivery fee:
-            // whoever was at fault covers both
-            posting(fault_acct, usd.clone(), -(b.processing + fee)),
-        ];
-        for d in &q.discounts { post.push(posting(acct(&d.payer, "promo_budget"), usd.clone(), d.amount)); }
-        if q.points_redeemed > 0 {
-            post.push(posting(acct("agape", "revenue"), usd.clone(), q.points_redeemed * crate::economy::POINT_VALUE_CENTS));
-            let pts = Unit::Points("agape".into());
-            post.push(posting(acct("agape", "issued"), pts.clone(), -q.points_redeemed));
-            post.push(posting(acct(&p.fan, "points"), pts, q.points_redeemed));
+        let to = acct(&p.fan, match form { Form::Credit => "credit", Form::Refund => "card" });
+        let mut post = vec![];
+        let mut paid: Vec<(String, i64)> = vec![];
+        let mut total = 0;
+        for cv in &rule.covers {
+            let whole = match cv.part { Part::Items => b.subtotal - b.discount, Part::Tax => b.tax, Part::Fee => b.fee, Part::Tip => b.tip };
+            let amount = bps(whole, cv.bps);
+            if amount <= 0 { continue; }
+            let who = match cv.from { Source::Fault => fault.clone(), Source::Stand => q.stand.clone(), Source::Runner => q.runner.clone().unwrap_or_else(|| DISPATCHER.into()),
+                                      Source::Agape => DISPATCHER.into(), Source::Tax => "tax_authority".into() };
+            // where that party's share of this order sits: a stand's sale, a runner's pay or tips, Agape's revenue, the tax collected
+            let from = if who == "tax_authority" { acct("tax_authority", "payable") }
+                else if who == DISPATCHER { acct("agape", "revenue") }
+                else if Some(&who) == q.runner.as_ref() { acct(&who, if cv.part == Part::Tip { "tips" } else { "pay" }) }
+                else if cv.part == Part::Tip && q.runner.is_none() { acct(&who, "tips") }
+                else { acct(&who, "revenue") };
+            post.push(posting(from, usd.clone(), -amount));
+            match paid.iter_mut().find(|x| x.0 == who) { Some(x) => x.1 += amount, None => paid.push((who, amount)) }
+            total += amount;
         }
-        self.ledger.post(Txn { memo: format!("refund {} {id}", p.order), postings: post }).map_err(|e| format!("{e:?}"))?;
-        self.problems[i].state = ProblemState::Refunded { amount: back, by: by.into() };
+        if total == 0 { return Err("Nothing to return under this policy".into()); }
+        post.push(posting(to, usd, total));
+        self.ledger.post(Txn { memo: format!("remedy {} {id}", p.order), postings: post }).map_err(|e| format!("{e:?}"))?;
+        self.problems[i].state = ProblemState::Remedied { amount: total, form, by: by.into() };
+        self.problems[i].paid_by = paid;
         Ok(())
     }
 
-    // ---------------- the venue stops ----------------
+    /// Agape credit the fan holds goes toward an order before their card does.
+    pub(crate) fn use_credit(&mut self, order: usize, charge: i64) {
+        let fan = self.orders[order].c.quote.fan.clone();
+        let have = self.ledger.balance(&acct(&fan, "credit"), &Unit::usd());
+        let x = have.min(charge);
+        if x <= 0 { return; }
+        if self.ledger.post(Txn { memo: format!("credit {order}"), postings: vec![posting(acct(&fan, "credit"), Unit::usd(), -x), posting(acct(&fan, "card"), Unit::usd(), x)] }).is_ok() {
+            self.orders[order].credit_used = x;
+        }
+    }
+
+    /// The simulated crowd complains now and then; a few fans complain about nearly everything.
+    pub(crate) fn crowd_claim(&mut self, order: usize) {
+        let fan = self.orders[order].c.quote.fan.clone();
+        if self.live.contains(&fan) || !self.orders[order].c.quote.delivery { return; }
+        let n: u64 = fan.trim_start_matches("fan").parse().unwrap_or(1);
+        let serial = n % 211 == 7;
+        if !self.rng.chance(if serial { 0.6 } else { 0.012 }) { return; }
+        let reason = ["quality", "wrong_item", "missing_item", "damaged", "never_arrived"][(self.rng.below(100) as usize * if serial { 3 } else { 1 }) % 5];
+        let _ = self.report_with(&fan, order, reason, "", true);
+    }
+
+    /// The handoff proof an order needs, from its fan's record (or what Agape's team set for them).
+    pub fn proof_of(&self, order: usize) -> Proof {
+        let fan = &self.orders[order].c.quote.fan;
+        self.proof_set.get(fan).copied().unwrap_or_else(|| { let r = self.fan_record(fan); r.proof })
+    }
+    /// The PIN on the fan's phone for this order.
+    pub fn pin_of(&self, order: usize) -> String {
+        let fan = &self.orders[order].c.quote.fan;
+        let h = fan.bytes().fold(order as u64 * 2_654_435_761, |a, b| a.wrapping_mul(31).wrapping_add(b as u64));
+        format!("{:04}", h % 10_000)
+    }
+
+    /// Everything Agape knows about how a fan orders and complains. Agape's team only.
+    pub fn fan_record(&self, fan: &str) -> Record {
+        let mine: Vec<usize> = (0..self.orders.len()).filter(|&i| self.orders[i].c.quote.fan == fan && self.orders[i].c.stage == Stage::Settled).collect();
+        let (mut spent, mut earned) = (0, 0);
+        for &i in &mine {
+            let q = &self.orders[i].c.quote;
+            if let Ok(b) = breakdown(q, &self.terms) {
+                spent += b.charge;
+                earned += b.agape_share + b.fee + b.processing - b.interchange - if q.delivery { q.runner_pay.unwrap_or(self.terms.runner_pay) } else { 0 };
+            }
+        }
+        let claims: Vec<&Problem> = self.problems.iter().filter(|p| p.fan == fan).collect();
+        let remedied: i64 = claims.iter().filter_map(|p| match p.state { ProblemState::Remedied { amount, .. } => Some(amount), _ => None }).sum();
+        let cost: i64 = claims.iter().flat_map(|p| p.paid_by.iter()).filter(|x| x.0 == DISPATCHER).map(|x| x.1).sum();
+        let given: Vec<i64> = self.ratings.iter().filter(|r| r.3 == fan).map(|r| r.2).collect();
+        let avg = if given.is_empty() { None } else { Some(given.iter().sum::<i64>() as f64 / given.len() as f64) };
+        let claim_bps = claims.len() as i64 * 10_000 / mine.len().max(1) as i64;
+        let auto = self.policy.proof_for(mine.len(), claims.len());
+        Record { orders: mine.len(), spent, claims: claims.len(), claim_bps, remedied, earned, cost, net: earned - cost, ratings_given: given.len(), avg_given: avg,
+                 proof: self.proof_set.get(fan).copied().unwrap_or(auto), proof_set: self.proof_set.contains_key(fan) }
+    }
+
+    /// Agape's team sets the policy (checked before it takes effect), or a fan's proof by hand.
+    pub fn set_policy(&mut self, p: crate::remedy::Policy) -> Result<(), String> { p.check()?; self.policy = p; Ok(()) }
+    pub fn set_proof(&mut self, fan: &str, proof: Option<Proof>) { match proof { Some(p) => { self.proof_set.insert(fan.into(), p); } None => { self.proof_set.remove(fan); } } }
+
+// ---------------- the venue stops ----------------
 
     /// Stop service everywhere: nothing new can be ordered or bought, and every order
     /// not yet being made is closed with nobody charged. What's already cooking or on its way

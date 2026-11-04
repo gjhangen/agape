@@ -43,7 +43,7 @@ export type FanView = {
     battle: { orders_5m: number; rank: number | null; of: number; ahead: { section: string; orders: number } | null };
   };
   me: {
-    orders: Order[]; receipts: Order[]; points: number; spent: number; holdings: { thing: string; name: string; qty: number }[];
+    orders: Order[]; receipts: Order[]; points: number; spent: number; credit?: number; tip?: { bps: number; min: number }; holdings: { thing: string; name: string; qty: number }[];
     level: number; tier: string; tier_floor: number; next_tier: { name: string; at: number } | null; balance: number;
     earned: { t: number; points: number; why: string }[]; badges: { id: string; name: string; how: string; earned: boolean }[];
     cards: { card: Card; count: number; listing: { id: string; price: number } | null }[];
@@ -702,6 +702,7 @@ function Me({ v, refresh, toast, open, settings, setting }: Ctx) {
           {feature("points") ? <div><span className="eyebrow">Points</span><b className="big num">{m.balance.toLocaleString()}</b><small>{m.tier} status</small></div>
             : <div><span className="eyebrow">Paying with</span><b className="pay-name">{pref<string>("pay", "") || "Not set"}</b><small>{pref<string>("pay", "") ? "change in Payment" : "asked when you first order"}</small></div>}
         </div>
+        {(m.credit ?? 0) > 0 && <p className="credit-line"><b className="num">{money(m.credit!)}</b> Agape credit · goes toward your next order before your card</p>}
       </section>
       <section className="block">
         <div className="block-head"><h2>History</h2><span className="sub">tap a receipt for its details</span></div>
@@ -717,8 +718,9 @@ function Me({ v, refresh, toast, open, settings, setting }: Ctx) {
                 {o.breakdown.fee > 0 && <LedgerLine label="Delivery" amount={o.breakdown.fee} />}
                 {o.breakdown.tip > 0 && <LedgerLine label="Tip" amount={o.breakdown.tip} />}
                 <LedgerLine label={o.stage === "Settled" ? "Charged" : "Not charged"} amount={o.stage === "Settled" ? o.charge : 0} strong />
-                {o.stage === "Settled" && o.late && o.late_credit ? <LedgerLine label="Back for being late" amount={-o.late_credit} /> : null}
-                {o.problem?.state.state === "refunded" && <LedgerLine label={`Refunded · ${o.problem.words.toLowerCase()}`} amount={-(o.problem.state.amount ?? 0)} />}
+                {o.stage === "Settled" && o.late && o.late_credit ? <LedgerLine label="Agape credit for being late" amount={-o.late_credit} /> : null}
+                {o.problem?.state.state === "remedied" && <LedgerLine label={`${o.problem.state.form === "refund" ? "Refunded to your card" : "Agape credit"} · ${o.problem.words.toLowerCase()}`} amount={-(o.problem.state.amount ?? 0)} />}
+                {(o.credit_used ?? 0) > 0 && <LedgerLine label="Paid with Agape credit" amount={-(o.credit_used ?? 0)} />}
                 {o.problem?.state.state === "open" && <small className="sub">Your report is with the venue. You'll hear back here.</small>}
                 {o.problem?.state.state === "declined" && <small className="sub">Report reviewed: {o.problem.state.why}</small>}
               </div>
@@ -824,7 +826,7 @@ function SettingsPage({ which, v, toast, refresh, go, close }: Ctx & { which: st
         {which === "help" && !thread && <>
           <button className="set-row" onClick={() => { close(); go("me"); }}><Icon name="help" size={20} /><span className="grow"><b>A problem with an order</b><small>Report it from the order itself; most are settled on the spot</small></span><Icon name="chev" size={18} /></button>
           {[["When will my order arrive?", "Every time you see is when it reaches your seat, measured from how long the kitchen and runners are actually taking right now. If anything changes, the time on your order changes with it."],
-            ["What if it's late?", `If an order takes more than 30 minutes, or a scheduled one is more than 10 minutes past its time, ${money(300)} comes back to you automatically. You don't need to ask.`],
+            ["What if it's late?", `If an order takes more than 30 minutes, or a scheduled one is more than 10 minutes past its time, you get ${money(300)} in Agape credit automatically. You don't need to ask.`],
             ["Who gets my tip?", "Your runner keeps all of it."],
             ["Ordering drinks", "Drinks with alcohol are for people 21 and older. The first time you order one, we'll ask you to confirm, and your runner checks ID at your seat."],
             ["What if I move seats?", "Change your seat in Settings and anything not yet on its way follows you."]].map(([q, a]) =>
@@ -834,7 +836,7 @@ function SettingsPage({ which, v, toast, refresh, go, close }: Ctx & { which: st
         {which === "about" && <>
           <div className="about-mark"><b>agape</b><small>to your seat</small></div>
           <p className="explain">Agape brings what you want to your seat at live events, made by the venue's own kitchens and carried by runners, so you never miss the moment.</p>
-          <details className="faq"><summary>Terms of service</summary><p>You order from the venue's stands through Agape. You're charged when your order reaches you or is ready to pick up. If it's late, money comes back automatically, as described in Help. Drinks with alcohol are for people 21 and older, and your runner checks ID. Points have no cash value and can't be bought or sold for money.</p></details>
+          <details className="faq"><summary>Terms of service</summary><p>You order from the venue's stands through Agape. You're charged when your order reaches you or is ready to pick up. If it's late, you get Agape credit automatically, as described in Help. Drinks with alcohol are for people 21 and older, and your runner checks ID. Points have no cash value and can't be bought or sold for money.</p></details>
           <details className="faq"><summary>Privacy policy</summary><p>Agape keeps your name, email, seat and orders to run the service, and uses your location only while the app is open, to find your venue. You can download or delete your data from Privacy in Settings.</p></details>
           <p className="sub center">Version 1.0</p>
         </>}
@@ -859,7 +861,8 @@ function Search({ q, v, setSheet }: Ctx & { q: string }) {
 
 // ---------- sheets ----------
 
-const TIPS = [0, 100, 200, 300, 500];
+/** The tip offered first: Agape's policy (a share of the items, or a minimum, whichever is more), rounded to a dollar. */
+export function tipFor(items: number, p?: { bps: number; min: number }) { const pol = p ?? { bps: 2000, min: 300 }; return Math.ceil(Math.max(items * pol.bps / 10000, pol.min) / 100) * 100; }
 
 function useQuote(args: Record<string, unknown>, deps: unknown[]) {
   const [q, setQ] = useState<any>(null);
@@ -918,7 +921,9 @@ function CartBar({ v, open }: { v: FanView; open: () => void }) {
 function CartSheet({ v, refresh, setSheet, toast, go }: Ctx) {
   const lines = useCart();
   const [delivery, setDelivery] = useState(true);
-  const [tip, setTip] = useState(200);
+  const [tipPick, setTip] = useState<number | null>(null);
+  const tipD = tipFor(lines.reduce((a, l) => a + l.qty * (v.items.find(i => i.id === l.thing)?.price ?? 0), 0), v.me.tip);
+  const tip = tipPick ?? tipD;
   const [busy, setBusy] = useState(false);
   const key = JSON.stringify(lines) + delivery + tip;
   const [q, setQ] = useState<any>(null);
@@ -949,13 +954,13 @@ function CartSheet({ v, refresh, setSheet, toast, go }: Ctx) {
           <button className={delivery ? "on" : ""} onClick={() => setDelivery(true)}>Bring it to my seat</button>
           <button className={!delivery ? "on" : ""} onClick={() => setDelivery(false)}>I'll pick it up</button>
         </div>
-        {delivery && <Tips tip={tip} setTip={setTip} />}
+        {delivery && <Tips tip={tip} setTip={setTip} d={tipD} />}
         <p className="promise">{delivery ? `At section ${sec(v.you.seat)} by about ${venueTime(latest)}.${q?.stands > 1 ? ` It comes from ${q.stands} stands, so it may arrive in parts; you pay one delivery fee.` : ""}` : `Each part is ready at its stand. We'll tell you the moment it's ready to pick up.`}</p>
         {q && <div className="lines">
           <LedgerLine label="Items" amount={q.items} /><LedgerLine label="Tax" amount={q.tax} />
           {q.fee > 0 && <LedgerLine label="Delivery" amount={q.fee} note="once for the cart" />}{q.tip > 0 && <LedgerLine label="Tip" amount={q.tip} />}
           <LedgerLine label="You pay" amount={q.charge} strong />
-          <small className="pilot-note">{delivery ? `Charged when it reaches you. If it takes more than 30 minutes, ${money(300)} comes back automatically.` : "Charged when it's ready to pick up."}</small>
+          <small className="pilot-note">{delivery ? `Charged when it reaches you. If it takes more than 30 minutes, you get ${money(300)} in Agape credit automatically.` : "Charged when it's ready to pick up."}</small>
         </div>}
         <button className="btn ghost sm" onClick={() => { cart.clear(); setSheet(null); }}>Empty the cart</button>
         <PayButton toast={toast} adult={items.some(x => x.it.adult)} disabled={busy || !!v.halt || blocked.length > 0} onPay={place} label={v.halt ? "Service is paused" : blocked.length ? "Remove what's unavailable" : `Place order · ${money(q?.charge)}`} />
@@ -976,12 +981,12 @@ function SheetFrame({ title, onClose, children }: { title: string; onClose: () =
   );
 }
 
-function Tips({ tip, setTip }: { tip: number; setTip: (n: number) => void }) {
+function Tips({ tip, setTip, d }: { tip: number; setTip: (n: number) => void; d: number }) {
   return (
     <div className="tips">
       <span className="eyebrow">Tip your runner · all of it goes to them</span>
       <div className="seg fill" role="group" aria-label="Tip">
-        {TIPS.map(t => <button key={t} className={tip === t ? "on" : ""} onClick={() => setTip(t)}>{t ? money(t).replace(".00", "") : "None"}</button>)}
+        {[0, d, d + 100, d + 300].map(t => <button key={t} className={tip === t ? "on" : ""} onClick={() => setTip(t)}>{t ? money(t).replace(".00", "") : "None"}</button>)}
       </div>
     </div>
   );
@@ -997,7 +1002,9 @@ function ItemSheet({ v, refresh, setSheet, toast, go, id, at: preset }: Ctx & { 
   const [at, setAt] = useState<number | null>(preset ?? null);
   const [qty, setQty] = useState(1);
   const [delivery, setDelivery] = useState(true);
-  const [tip, setTip] = useState(200);
+  const [tipPick, setTip] = useState<number | null>(null);
+  const tipD = tipFor((v.items.find(i => i.id === id)?.price ?? 0) * qty, v.me.tip);
+  const tip = tipPick ?? tipD;
   const [giftTo, setGiftTo] = useState<string | null>(null);
   const [giftNote, setGiftNote] = useState("");
   const [first, setFirst] = useState(false);
@@ -1042,7 +1049,7 @@ function ItemSheet({ v, refresh, setSheet, toast, go, id, at: preset }: Ctx & { 
         </div>
         <div className="qty"><span className="eyebrow">How many</span>
           <div className="stepper"><button onClick={() => setQty(Math.max(1, qty - 1))} aria-label="One fewer">−</button><b className="num">{qty}</b><button onClick={() => { if (qty >= 4) toast("Up to 4 at a time. Add more to your cart."); setQty(Math.min(4, qty + 1)); }} aria-label="One more">+</button></div></div>
-        {delivery && <Tips tip={tip} setTip={setTip} />}
+        {delivery && <Tips tip={tip} setTip={setTip} d={tipD} />}
         {feature("gifting") && delivery && !item.adult && at == null && <div className="gift">
           <label className="check"><input type="checkbox" checked={giftTo != null} onChange={e => setGiftTo(e.target.checked ? (friends[0]?.id ?? "s101") : null)} /> Send it to someone else</label>
           {giftTo != null && <>
@@ -1054,7 +1061,7 @@ function ItemSheet({ v, refresh, setSheet, toast, go, id, at: preset }: Ctx & { 
           </>}
         </div>}
         {feature("priority") && at == null && delivery && v.me.balance >= 200 && <label className="check first"><input type="checkbox" checked={first} disabled={v.me.balance < 200} onChange={e => setFirst(e.target.checked)} /> Go first · 200 pts, taken only if it arrives <small>{v.me.balance < 200 ? `you have ${v.me.balance}` : `you have ${v.me.balance.toLocaleString()}`}</small></label>}
-        <p className="promise">{giftTo ? `It goes to ${/^s\d+$/.test(giftTo) ? `section ${sec(giftTo)}` : friends.find(f => f.id === giftTo)?.name ?? "them"}, with your note. Their runner brings it straight there.` : at && !delivery ? `We start it so it's ready at ${item.stand} around ${venueTime(at)}.` : at ? `We hold it now and start it so it reaches section ${sec(v.you.seat)} around ${venueTime(at)}. If it's more than 10 minutes late, ${money(300)} comes back to you automatically.` : delivery ? `At section ${sec(v.you.seat)} around ${venueTime(item.eta)}. If it takes more than 30 minutes, ${money(300)} comes back to you automatically.` : `Ready at ${item.stand}. We'll tell you the moment it's ready to pick up.`}</p>
+        <p className="promise">{giftTo ? `It goes to ${/^s\d+$/.test(giftTo) ? `section ${sec(giftTo)}` : friends.find(f => f.id === giftTo)?.name ?? "them"}, with your note. Their runner brings it straight there.` : at && !delivery ? `We start it so it's ready at ${item.stand} around ${venueTime(at)}.` : at ? `We hold it now and start it so it reaches section ${sec(v.you.seat)} around ${venueTime(at)}. If it's more than 10 minutes late, you get ${money(300)} in Agape credit automatically.` : delivery ? `At section ${sec(v.you.seat)} around ${venueTime(item.eta)}. If it takes more than 30 minutes, you get ${money(300)} in Agape credit automatically.` : `Ready at ${item.stand}. We'll tell you the moment it's ready to pick up.`}</p>
         {quote && <div className="lines">
           <LedgerLine label="Items" amount={quote.subtotal} /><LedgerLine label="Tax" amount={quote.tax} />
           {quote.fee > 0 && <LedgerLine label="Delivery" amount={quote.fee} />}{quote.tip > 0 && <LedgerLine label="Tip" amount={quote.tip} />}
@@ -1073,7 +1080,9 @@ function ItemSheet({ v, refresh, setSheet, toast, go, id, at: preset }: Ctx & { 
 function CheckoutSheet({ v, refresh, setSheet, toast, offer, claim }: Ctx & { offer: Offer; claim: string }) {
   const live = v.get.offers.find(o => o.id === offer.id);
   const until = live?.claim?.until ?? offer.claim?.until ?? v.clock.t + 120000;
-  const [tip, setTip] = useState(200);
+  const [tipPick, setTip] = useState<number | null>(null);
+  const tipD = tipFor(offer.price ?? 0, v.me.tip);
+  const tip = tipPick ?? tipD;
   const quote = useQuote({ claim, tip }, [claim, tip]);
   const place = () => {
     const r = kernel.act({ do: "checkout", claim, tip });
@@ -1085,7 +1094,7 @@ function CheckoutSheet({ v, refresh, setSheet, toast, offer, claim }: Ctx & { of
       <div className="build">
         <div className="build-item"><ItemArt name={offer.name} size={72} /><div><h3>{offer.name}</h3><p className="sub">{offer.stand}</p></div></div>
         <p className="hold"><b className="num">{countdown(until - v.clock.t)}</b> Held for you. Nobody else can take it while you check out.</p>
-        <Tips tip={tip} setTip={setTip} />
+        <Tips tip={tip} setTip={setTip} d={tipD} />
         {quote && <div className="lines">
           <LedgerLine label="Price" amount={quote.subtotal} />
           {quote.discount > 0 && <LedgerLine label="Deal" amount={-quote.discount} note={quote.payer ? `paid by ${BRAND.sponsors[quote.payer] ?? quote.payer}` : ""} />}
@@ -1103,26 +1112,41 @@ function CheckoutSheet({ v, refresh, setSheet, toast, offer, claim }: Ctx & { of
 export { team, LevelBadge };
 
 /** Something wrong with an order: say what, and the money comes back from whoever was at fault. */
+/** What went wrong, in the fan's words, and whether a photo is needed to make it right. */
+const REASONS: [string, string, boolean, string][] = [
+  ["wrong_item", "Wrong item", true, "Take a photo of what came. We'll make it right with the stand, or with whoever got it wrong."],
+  ["missing_item", "Something was missing", true, "Take a photo of what came, so we can see what's missing."],
+  ["damaged", "Spilled or ruined on the way", true, "Take a photo of it. Getting it to you in one piece is on us."],
+  ["never_arrived", "It never arrived", false, "We'll check the trip, then make it right."],
+  ["quality", "Not up to standard", false, "We'll pass it to the stand. They make their food, and they'll make it right."],
+];
+
 function Report({ id, toast, refresh }: { id: number; toast: (s: string) => void; refresh: () => void }) {
   const [open, setOpen] = useState(false);
   const [note, setNote] = useState("");
   const [sure, setSure] = useState<string | null>(null);
+  const [photo, setPhoto] = useState<string | null>(null);
+  const need = REASONS.find(x => x[0] === sure);
   const send = (reason: string) => {
-    const r = kernel.act({ do: "report", order: id, reason, note });
+    const r = kernel.act({ do: "report", order: id, reason, note, photo: !!photo });
     if (!r.ok) { toast(r.error); return; }
-    toast("Thanks for telling us. Check the receipt for what happens next.");
+    toast("Thanks for telling us. The receipt shows what happens next.");
     setOpen(false); refresh();
   };
   if (!open) return <button className="link-inline small report-link" onClick={() => setOpen(true)}>Something wrong with this order?</button>;
   return (
     <div className="report">
-      <input value={note} maxLength={280} onChange={e => setNote(e.target.value)} placeholder="Anything we should know (optional)" aria-label="Details" />
       <div className="report-reasons">
-        {([["never_arrived", "It never arrived"], ["wrong_item", "Wrong or missing item"], ["quality", "Cold, spilled or not right"]] as [string, string][]).map(([k, l]) =>
-          <button key={k} className={"btn sm " + (sure === k ? "primary" : "ghost")} onClick={() => setSure(k)}>{l}</button>)}
+        {REASONS.map(([k, l]) => <button key={k} className={"btn sm " + (sure === k ? "primary" : "ghost")} aria-pressed={sure === k} onClick={() => { setSure(k); }}>{l}</button>)}
       </div>
-      {sure && <div className="row gap"><span className="grow sub">{sure === "never_arrived" ? "Your runner marked it handed over. We'll check the trip before refunding." : "We'll look at it and settle it with the stand."}</span><button className="btn primary sm" onClick={() => send(sure)}>Send report</button></div>}
-      <small className="sub">You can report up to 30 minutes after it arrives. Refunds go back to {pref<string>("pay", "") || "how you paid"}.</small>
+      {need && <>
+        <small className="sub">{need[3]}</small>
+        {need[2] && (photo ? <div className="report-photo"><img src={photo} alt="Your photo" /><button className="link-inline small" onClick={() => setPhoto(null)}>Retake</button></div>
+          : <label className="btn ghost block report-cam">Take a photo<input type="file" accept="image/*" capture="environment" hidden onChange={e => { const f = e.target.files?.[0]; if (f) setPhoto(URL.createObjectURL(f)); }} /></label>)}
+        <input value={note} maxLength={280} onChange={e => setNote(e.target.value)} placeholder="Anything we should know (optional)" aria-label="Details" />
+        <button className="btn primary block" disabled={need[2] && !photo} onClick={() => send(need[0])}>{need[2] && !photo ? "Add a photo to send" : "Send report"}</button>
+      </>}
+      <small className="sub">You can report up to 30 minutes after it arrives. What's made right comes back as Agape credit, which goes toward your next order first.</small>
     </div>
   );
 }
