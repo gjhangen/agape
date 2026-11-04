@@ -8,10 +8,10 @@ type Glance = { home: string; away: string; home_score: number; away_score: numb
 
 const SEATS: { id: string; who: string; line: string; time: string; href: string; ready: boolean }[] = [
   { id: "fan", who: "Fan", line: "Open the app, take your seat, order a hot dog and watch it reach you.", time: "3 min", href: "/try/", ready: true },
-  { id: "runner", who: "Runner", line: "See trips offered with the pay up front, then carry them to the seats.", time: "2 min", href: "/demo/?as=runner", ready: false },
-  { id: "kitchen", who: "Kitchen", line: "Watch orders land on the stand's screen and leave on time.", time: "2 min", href: "/demo/?as=stand", ready: false },
-  { id: "venue", who: "Venue", line: "Run the whole night: every order, every runner, every dollar.", time: "3 min", href: "/demo/?as=ops", ready: false },
-  { id: "partner", who: "Partner", line: "Reach fans in the moment, and see exactly what it brought in.", time: "2 min", href: "/demo/?as=business", ready: false },
+  { id: "runner", who: "Runner", line: "See trips offered with the pay up front, then carry them to the seats.", time: "2 min", href: "/try/runner/", ready: true },
+  { id: "kitchen", who: "Kitchen", line: "Watch orders land on the stand's screen and leave on time.", time: "2 min", href: "/try/kitchen/", ready: true },
+  { id: "venue", who: "Venue", line: "Run the whole night: every order, every runner, every dollar.", time: "3 min", href: "/try/venue/", ready: true },
+  { id: "partner", who: "Partner", line: "Reach fans in the moment, and see exactly what it brought in.", time: "2 min", href: "/try/partner/", ready: true },
 ];
 
 function Site() {
@@ -56,9 +56,9 @@ function Site() {
         <p className="site-why-demo">Agape isn't at a venue near you yet, so we built a whole night you can step into: a full arena, a game in progress and thousands of fans, running in your browser. Choose a seat. Each one is a short story about one person's night.</p>
         <div className="site-seats">
           {SEATS.map(s => (
-            <a key={s.id} className={"site-seat" + (s.ready ? " ready" : "")} href={s.href}>
+            <a key={s.id} className={"site-seat" + (s.id === "fan" ? " ready" : "")} href={s.href}>
               <span className="ss-who">{s.who}</span><span className="ss-line">{s.line}</span>
-              <span className="ss-meta">{s.ready ? s.time : "Story coming · open the scene now"}</span>
+              <span className="ss-meta">{s.time}</span>
             </a>
           ))}
         </div>

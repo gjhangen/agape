@@ -80,6 +80,17 @@ const storyPage = head("Agape · a fan's night", "Open Agape at a game, take you
   `<div id="root"><div class="story"><div class="ob ob-boot"><div class="ob-mark"><b>agape</b></div></div></div></div>${REACT}<script>var AGAPE_WASM="${wasm}";var AGAPE_WORLD=${world};var AGAPE_TEMPLATE=${tpl};</script><script>${storyJs}</script></body></html>`;
 writeFileSync("dist/server/try/index.html", storyPage);
 console.log("dist/server/try/index.html", (storyPage.length / 1024).toFixed(0) + " KB");
+for (const [dir, entry, title, desc] of [
+  ["runner", "src/crew.tsx", "Agape · a runner's night", "See trips offered with the pay up front, and carry them to the seats."],
+  ["kitchen", "src/station.tsx", "Agape · a kitchen's night", "Watch orders land on the stand's screen and leave on time."],
+  ["venue", "src/console.tsx", "Agape · the venue's night", "Run the whole night: every order, every runner, every dollar."],
+  ["partner", "src/console.tsx", "Agape · a partner's night", "Reach fans in the moment, and see what it brought in."],
+]) {
+  const js = await bundle(entry);
+  mkdirSync(`dist/server/try/${dir}`, { recursive: true });
+  writeFileSync(`dist/server/try/${dir}/index.html`, head(title, desc) + `<div id="root"><div class="story"><div class="ob ob-boot"><div class="ob-mark"><b>agape</b></div></div></div></div>${REACT}<script>var AGAPE_WASM="${wasm}";var AGAPE_WORLD=${world};var AGAPE_TEMPLATE=${tpl};</script><script>${js}</script></body></html>`);
+  console.log(`dist/server/try/${dir}/index.html`);
+}
 
 // the icons, share image and manifest that make it feel like an app on a phone
 import { copyFileSync } from "fs";

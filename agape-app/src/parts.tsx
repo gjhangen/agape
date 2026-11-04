@@ -408,7 +408,7 @@ export function levelFeatures(n: number): Record<string, boolean> {
 }
 
 /** The app's own icons: simple strokes, drawn in the current color. */
-export function Icon({ name, size = 24 }: { name: "get" | "deals" | "play" | "people" | "me" | "back" | "chev" | "close" | "card" | "bell" | "access" | "lock" | "help" | "info" | "seat" | "user" | "out"; size?: number }) {
+export function Icon({ name, size = 24 }: { name: "get" | "deals" | "play" | "people" | "me" | "back" | "chev" | "close" | "card" | "bell" | "access" | "lock" | "help" | "info" | "seat" | "user" | "out" | "home" | "cash" | "list" | "chart" | "store"; size?: number }) {
   const p = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
   switch (name) {
     case "get": return <svg {...p}><path d="M4 11h16" /><path d="M5 11a7 7 0 0 1 14 0" /><path d="M3.5 15h17l-1.2 3.2a2 2 0 0 1-1.9 1.3H6.6a2 2 0 0 1-1.9-1.3z" /><path d="M12 4V2.5" /></svg>;
@@ -426,6 +426,11 @@ export function Icon({ name, size = 24 }: { name: "get" | "deals" | "play" | "pe
     case "help": return <svg {...p}><circle cx="12" cy="12" r="9" /><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6" /><circle cx="12" cy="17" r=".6" fill="currentColor" /></svg>;
     case "info": return <svg {...p}><circle cx="12" cy="12" r="9" /><path d="M12 11v6" /><circle cx="12" cy="7.8" r=".6" fill="currentColor" /></svg>;
     case "seat": return <svg {...p}><path d="M6 4h12v8H6zM4 12h16v3H4zM7 15v5M17 15v5" /></svg>;
+    case "home": return <svg {...p}><path d="M4 11l8-7 8 7v8.5a1.5 1.5 0 0 1-1.5 1.5H15v-6H9v6H5.5A1.5 1.5 0 0 1 4 19.5z" /></svg>;
+    case "cash": return <svg {...p}><rect x="3" y="6.5" width="18" height="11" rx="2" /><circle cx="12" cy="12" r="2.6" /><path d="M6.5 9.5v5M17.5 9.5v5" /></svg>;
+    case "list": return <svg {...p}><path d="M8 6h12M8 12h12M8 18h12" /><circle cx="4" cy="6" r=".8" fill="currentColor" /><circle cx="4" cy="12" r=".8" fill="currentColor" /><circle cx="4" cy="18" r=".8" fill="currentColor" /></svg>;
+    case "chart": return <svg {...p}><path d="M4 20V10M10 20V4M16 20v-7M21 20H3" /></svg>;
+    case "store": return <svg {...p}><path d="M4 9l1.5-4.5h13L20 9M4 9h16v2a3 3 0 0 1-5.3 1.9A3 3 0 0 1 12 14a3 3 0 0 1-2.7-1.1A3 3 0 0 1 4 11zM5.5 13.5V20h13v-6.5" /></svg>;
     case "out": return <svg {...p}><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h10" /></svg>;
   }
 }

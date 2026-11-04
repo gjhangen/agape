@@ -203,19 +203,21 @@ export function BusinessLens({ b, businesses, pick, toast, refresh }: { b: any; 
   const talent = b.talent.find((t: any) => t.id === who);
   return (
     <div className="role">
-      <header className="role-head">
+      {businesses.length > 1 && <header className="role-head">
         <span className="eyebrow">Signed in as</span>
         <select id="biz-pick" value={b.id} onChange={e => pick(e.target.value)} aria-label="Business">
           {businesses.map(x => <option key={x.id} value={x.id}>{x.name}</option>)}
         </select>
-      </header>
-      <div className="tiles four">
+      </header>}
+      <div className={"tiles " + (feature("players") ? "four" : "two")}>
         {b.kind === "partner"
           ? <MeasureTile label="Fans sent your way" value={perks.reduce((a: number, x: any) => a + x.out, 0)} sub={`${perks.reduce((a: number, x: any) => a + x.used, 0)} came in so far`} />
           : <MeasureTile label="Revenue tonight" value={money(b.money.revenue)} sub="after Agape's share" />}
-        <MeasureTile label="Deal budget" value={money(b.money.budget)} sub="free to offer" />
-        <MeasureTile label="Offered, not yet paid" value={money(b.money.in_escrow)} sub="held in escrow" />
-        <MeasureTile label="Paid to players" value={money(b.money.spent_on_deals)} />
+        {feature("players") ? <>
+          <MeasureTile label="Deal budget" value={money(b.money.budget)} sub="free to offer" />
+          <MeasureTile label="Offered, not yet paid" value={money(b.money.in_escrow)} sub="held in escrow" />
+          <MeasureTile label="Paid to players" value={money(b.money.spent_on_deals)} /></>
+          : <MeasureTile label="Redeemed tonight" value={perks.reduce((a: number, x: any) => a + x.used, 0)} sub="fans who came in with a code" />}
       </div>
       <div className="role-grid">
         {perks.map((x: any) => (
@@ -241,7 +243,7 @@ export function BusinessLens({ b, businesses, pick, toast, refresh }: { b: any; 
             {b.rides.length > 0 && <><h3 className="eyebrow">Booked through Agape</h3><ul className="earned">{b.rides.map((r: any) => <li key={r.id}><span className="grow">{r.who}{r.driver ? ` · ${r.driver}` : ""}</span><time className="num">{venueTime(r.at)}</time><b className="num">{money(r.fare)}</b></li>)}</ul></>}
           </section>
         )}
-        <section className="block">
+        {feature("players") && <><section className="block">
           <div className="block-head"><h2>Deals</h2><span className="sub">{needs.length ? `${needs.length} need you` : ""}</span></div>
           {needs.map((d: Deal) => <DealCard key={d.id} d={d} as={b.id} act={act} now={0} />)}
           {rest.slice(0, 8).map((d: Deal) => <DealCard key={d.id} d={d} as={b.id} act={act} now={0} />)}
@@ -262,7 +264,7 @@ export function BusinessLens({ b, businesses, pick, toast, refresh }: { b: any; 
                 <span className="num sub">from {money(Math.min(...t.rates.map((r: Rate) => r.price)))}</span>
               </button></li>))}</ul>
           )}
-        </section>
+        </section></>}
       </div>
     </div>
   );

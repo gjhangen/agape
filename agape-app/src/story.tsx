@@ -7,6 +7,7 @@ import { FanApp, FanView, Sheet, profileName } from "./fan";
 import { BRAND, Icon, LEVELS, levelFeatures, momentText, runnerName, venueTime } from "./parts";
 import { applyLook, applyMode, savedLook, savedMode, setVenueColor } from "./themes";
 import { TalkToUs } from "./talk";
+import { ExplainCard, ExplainLayer, FAN_NOTES, Note } from "./explain";
 
 declare const AGAPE_WORLD: any;
 const SPEEDS = [{ label: "1×", tps: 0.1 }, { label: "6×", tps: 0.6 }, { label: "30×", tps: 3 }];
@@ -145,6 +146,8 @@ function Story() {
   const [talk, setTalk] = useState(false);
   const [seen] = useState(() => new Set<string>());
   const [ready, setReady] = useState(false);
+  const [explain, setExplain] = useState(false);
+  const [note, setNote] = useState<Note | null>(null);
   const acc = useRef(0);
   const toast = (text: string) => { const id = Date.now() + Math.random(); setToasts(t => [...t, { id, text }]); setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4200); };
   const refresh = () => setV(kernel.view("fan") as FanView);
@@ -187,12 +190,14 @@ function Story() {
     <div className="story" style={{ ["--venue" as any]: BRAND.home.color }}>
       <header className="st-top">
         <a className="st-brand" href="/"><b>agape</b><span>demo</span></a>
+        <nav className="st-seats" aria-label="Other seats">{[["Fan", "/try/"], ["Runner", "/try/runner/"], ["Kitchen", "/try/kitchen/"], ["Venue", "/try/venue/"], ["Partner", "/try/partner/"]].map(([l, h]) => <a key={h} href={h} className={l === "Fan" ? "on" : ""}>{l}</a>)}</nav>
         <div className="st-levels" role="group" aria-label="Level">
           {LEVELS.map(l => <button key={l.n} className={level === l.n ? "on" : ""} onClick={() => changeLevel(l.n)} title={l.line}><b>{l.n}</b><span>{l.name}</span></button>)}
         </div>
         <div className="st-ctl">
           <button className="btn h-btn" onClick={() => setPlaying(!playing)}>{playing ? "Pause" : "Play"}</button>
           <div className="seg h-seg" role="group" aria-label="Speed">{SPEEDS.map((s, i) => <button key={s.label} className={speed === i ? "on" : ""} onClick={() => setSpeed(i)}>{s.label}</button>)}</div>
+          <button className={"btn h-btn" + (explain ? " lit" : "")} aria-pressed={explain} disabled={stage !== "app"} onClick={() => { setExplain(!explain); setNote(null); }}>{explain ? "Explaining" : "Explain"}</button>
           <button className="btn h-btn" aria-pressed={sound} onClick={() => setSound(!sound)}>{sound ? "Crowd on" : "Crowd off"}</button>
           <button className="btn h-btn" onClick={restart}>Start over</button>
         </div>
@@ -214,12 +219,15 @@ function Story() {
                   try { const o = JSON.parse(localStorage.getItem("agape.prefs") || "{}"); o.spot = `Row ${row}, seat ${place}`; localStorage.setItem("agape.prefs", JSON.stringify(o)); } catch { /* fine */ }
                   refresh(); setStage("app");
                 }} />}
-              <div className="toasts in-phone" aria-live="polite">{toasts.map(t => <p key={t.id} className="toast">{t.text}</p>)}</div>
+              <ExplainLayer on={explain && stage === "app"} root={() => document.querySelector(".device-screen")} notes={FAN_NOTES} pick={setNote} picked={note} />
+              <div className="toasts in-phone" aria-live="polite">{toasts.slice(-1).map(t => <p key={t.id} className="toast">{t.text}</p>)}</div>
             </div>
           </div>
           {hint && <p className="st-hint">Made for your phone. On a computer, it's shown at phone size.</p>}
         </div>
         <aside className="st-story" aria-live="polite">
+          {note ? <ExplainCard n={note} close={() => setNote(null)} /> : <>
+          {explain && stage === "app" && <p className="st-tip">Explain is on: tap anything glowing on the phone.</p>}
           <span className="eyebrow">{stage === "app" ? `Level ${level} · ${LEVELS[level - 1].name}` : "Opening Agape"}</span>
           <h2 key={beat.id}>{beat.title}</h2>
           <p key={beat.id + "b"}>{beat.body}</p>
@@ -227,6 +235,7 @@ function Story() {
             <span>{profileName() || "You"} · section {v.you.seat.slice(1)}</span>
             {v.orders[0] && <span>Order: {v.orders[0].items[0]?.name} · {v.orders[0].stage === "PickedUp" ? "on the way" : v.orders[0].stage.toLowerCase()} · here by {venueTime(v.orders[0].eta)}</span>}
           </div>}
+          </>}
           <div className="st-more">
             <a className="btn ghost sm" href="/">What is Agape?</a>
             <a className="btn ghost sm" href="/demo/">Behind the scenes</a>
