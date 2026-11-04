@@ -1758,6 +1758,13 @@ body { margin: 0; }
 .site-levels li.lv-card { display: flex; flex-direction: column; align-items: flex-start; }
 .site-levels li.lv-card .lv-go { margin-top: auto; }
 .site-levels li.lv-card details { margin-bottom: 8px; }
+/* a clear status bar under the notch: nothing scrolls up against it */
+.story:not(.tablet):not(.laptop):not(.full) .device-screen > .phone { padding-top: 56px; }
+.story:not(.tablet):not(.laptop):not(.full) .device-screen .overlay-page { padding-top: 56px; }
+@media (max-width: 760px) {
+  .story:not(.tablet):not(.laptop):not(.full) .device-screen > .phone { padding-top: 44px; }
+  .story:not(.tablet):not(.laptop):not(.full) .device-screen .overlay-page { padding-top: 44px; }
+}
 </style>
 <div id="root"><div class="landing"><header class="l-top"><span class="l-mark">agape</span><span class="l-tag">to your seat</span></header><p class="l-sub">Opening the doors…</p></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
