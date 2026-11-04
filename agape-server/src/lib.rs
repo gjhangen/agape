@@ -202,6 +202,10 @@ async fn lead(State(app): State<S>, Json(b): Json<Value>) -> Response {
     let get = |k: &str, n: usize| b[k].as_str().unwrap_or("").trim().chars().take(n).collect::<String>();
     let (name, contact) = (get("name", 80), get("contact", 120));
     if name.is_empty() || contact.is_empty() { return err(StatusCode::BAD_REQUEST, "Add your name and an email or phone number"); }
+    // something we can actually answer: an email address, or a phone number
+    let email = { let p: Vec<&str> = contact.split('@').collect(); p.len() == 2 && !p[0].is_empty() && p[1].contains('.') && !p[1].starts_with('.') && !p[1].ends_with('.') && !contact.contains(' ') };
+    let phone = contact.chars().filter(|c| c.is_ascii_digit()).count() >= 10;
+    if !email && !phone { return err(StatusCode::BAD_REQUEST, "Add an email address or a phone number we can reach you on"); }
     let at = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
     let rec = json!({ "at": at, "name": name, "contact": contact, "org": get("org", 120), "role": get("role", 40), "note": get("note", 1000), "version": get("version", 20) });
     let mut line = rec.to_string(); line.push('\n');

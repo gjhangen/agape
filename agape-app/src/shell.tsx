@@ -76,7 +76,7 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
         <div className="st-ctl">
           <button className="btn h-btn" onClick={() => setPlaying(!playing)}>{playing ? "Pause" : "Play"}</button>
           <div className="seg h-seg" role="group" aria-label="Speed">{SPEEDS.map((s, i) => <button key={s.label} className={speed === i ? "on" : ""} onClick={() => setSpeed(i)}>{s.label}</button>)}</div>
-          <button className={"btn h-btn" + (explain ? " lit" : "")} aria-pressed={explain} disabled={!explainable} onClick={() => { setExplain(!explain); setNote(null); }}>{explain ? "Explaining" : "Explain"}</button>
+          <button className={"btn h-btn" + (explain ? " lit" : "")} aria-pressed={explain} disabled={!explainable} title={explainable ? "Tap parts of the app to see what they are and why they're there" : "Available once the app is open"} onClick={() => { setExplain(!explain); setNote(null); }}>{explain ? "Explaining" : "Explain"}</button>
           <button className="btn h-btn" onClick={() => setFull(true)}>Full screen</button>
           <button className="btn h-btn" onClick={() => location.reload()}>Start over</button>
         </div>
@@ -137,7 +137,7 @@ export const EVENT = new URLSearchParams(location.search).get("event") === "conc
 /** The world this demo runs: the sample arena, as a game or a concert, with the given features. */
 export function demoWorld(features?: Record<string, boolean>) {
   const base = EVENT === "concert" ? concertWorld(AGAPE_WORLD) : { ...AGAPE_WORLD };
-  return features ? { ...base, features: { ...features, ...(EVENT === "concert" ? { predictions: false, colors: false } : {}) } } : base;
+  return features ? { ...base, features: { ...features, ...(EVENT === "concert" ? { predictions: false, colors: false, players: false } : {}) } } : base;
 }
 /** A link to this page with one setting changed. */
 export function withParam(k: string, v: string) { const q = new URLSearchParams(location.search); q.set(k, v); return `?${q}`; }
@@ -175,7 +175,7 @@ export function useTopHeight() {
   useEffect(() => {
     const el = document.querySelector(".st-top") as HTMLElement | null; if (!el) return;
     // a phone is drawn at a real phone's size (390 × 844) and scaled to fit, so what's inside lays out as on a phone
-    const set = () => { const r = document.documentElement.style; r.setProperty("--st-top", el.offsetHeight + "px"); r.setProperty("--dz", String(Math.min(1, Math.max(0.5, (innerHeight - el.offsetHeight - 92) / 868)))); };
+    const set = () => { const r = document.documentElement.style; r.setProperty("--st-top", el.offsetHeight + "px"); r.setProperty("--dz", String(Math.min(1, Math.max(0.6, (innerHeight - el.offsetHeight - 92) / 868)))); };
     set(); const o = new ResizeObserver(set); o.observe(el); addEventListener("resize", set); return () => { o.disconnect(); removeEventListener("resize", set); };
   }, []);
 }

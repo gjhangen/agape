@@ -1776,3 +1776,18 @@ body { margin: 0; }
 html.standalone .full-exit { display: none; }
 .site-seat { display: flex; flex-direction: column; }
 @media (min-width: 761px) { .story.full:not(.tablet):not(.laptop) .device-frame { width: min(100vw, 480px) !important; inset: 0 auto 0 50% !important; transform: translateX(-50%); box-shadow: 0 0 0 100vmax #0E0F13 !important; } }
+.talk-form .btn.big, .talk-done .btn.big { font-family: var(--body); text-transform: none; letter-spacing: 0; font-weight: 800; }
+.talk-q { font-weight: 700; font-size: 14px; margin-bottom: -6px; }
+/* phones: roles, levels and game/concert each get their own row, so nothing is hidden off the side */
+@media (max-width: 760px) {
+  .st-strip { flex-wrap: wrap !important; overflow: visible !important; -webkit-mask-image: none !important; mask-image: none !important; padding-right: 0 !important; row-gap: 8px; }
+  .st-strip > .st-seats, .st-strip > .st-levels:not(.st-event) { flex: 1 1 100% !important; width: 100% !important; overflow-x: auto; scrollbar-width: none; -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); mask-image: linear-gradient(to right, #000 calc(100% - 28px), transparent); }
+  .st-strip > *::-webkit-scrollbar { display: none; }
+  .st-ctl .h-seg { display: inline-flex !important; }
+}
+/* tablet widths: the device sits below the scoreboard, not on it */
+@media (min-width: 761px) and (max-width: 1100px) { .story.tablet .st-device, .story.laptop .st-device { margin-top: 56px; } }
+.st-moment { z-index: 3; }
+.story.laptop .st-moment, .story.tablet .st-moment { display: none; }
+@media (min-width: 600px) and (max-width: 980px) { .site-why { grid-template-columns: repeat(2, 1fr); } .site-levels { grid-template-columns: repeat(2, 1fr); } }
+.site-steps li { align-content: start; }

@@ -49,7 +49,7 @@ function Console({ stage, next, toast, o, b, parties, refresh }: { stage: Stage;
       <div className="lp-card wide">
         <span className="eyebrow">{PARTNER ? "Dock Street Pizza · partner of " + BRAND.venue : BRAND.venue}</span>
         <h2>Tonight: {EVENT === "concert" ? "Lumen Rivers: The Tidelines Tour" : `${BRAND.home.name} vs ${BRAND.away.name}`}</h2>
-        {PARTNER ? <p className="ob-sub">Your perk for fans tonight: 20% off after the event, unlocked with points. You'll see who comes through your door, live.</p>
+        {PARTNER ? <p className="ob-sub">Your perk for fans tonight: 20% off after the event, unlocked with points. You'll see how many fans come through your door, live.</p>
           : <div className="sx-setup-grid">
             <div className="cw-check"><span className="cw-tick">✓</span><div><b>3,000 fans on Agape</b><small>Expected tonight, from ticket holders</small></div></div>
             <div className="cw-check"><span className="cw-tick">✓</span><div><b>40 runners on shift</b><small>Claimed through Agape Crew</small></div></div>
@@ -123,7 +123,7 @@ function App() {
     refresh(); setReady(true);
     setTimeout(() => setStage("signin"), 1500);
   })(); }, []);
-  return <Shell tag={PARTNER ? "Partner · Agape Venue" : "Venue · Agape Venue"} device="laptop" ready={ready} onTick={refresh} toasts={toasts} notes={PARTNER ? PARTNER_NOTES : VENUE_NOTES} explainable={stage === "app"} level={LEVEL} minLevel={PARTNER ? 4 : 1}
+  return <Shell tag={PARTNER ? "Partner · Agape for partners" : "Venue · Agape Venue"} device="laptop" ready={ready} onTick={refresh} toasts={toasts} notes={PARTNER ? PARTNER_NOTES : VENUE_NOTES} explainable={stage === "app"} level={LEVEL} minLevel={PARTNER ? 4 : 1}
     beat={beat(stage, o)} screen={<Console stage={stage} next={setStage} toast={toast} o={o} b={b} parties={parties} refresh={refresh} />} />;
 }
 

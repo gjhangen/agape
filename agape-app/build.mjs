@@ -88,7 +88,7 @@ writeFileSync("dist/server/try/index.html", storyPage);
 console.log("dist/server/try/index.html", (storyPage.length / 1024).toFixed(0) + " KB");
 for (const [dir, entry, title, desc, app] of [
   ["runner", "src/crew.tsx", "Agape · a runner's night", "See trips offered with the pay up front, and carry them to the seats.", "Agape Crew"],
-  ["kitchen", "src/station.tsx", "Agape · a kitchen's night", "Watch orders land on the stand's screen and leave on time.", "Agape Station"],
+  ["kitchen", "src/station.tsx", "Agape · a stand's night", "Watch orders land on the stand's screen and leave on time.", "Agape Station"],
   ["venue", "src/console.tsx", "Agape · the venue's night", "Run the whole night: every order, every runner, every dollar.", "Agape Venue"],
   ["partner", "src/console.tsx", "Agape · a partner's night", "Reach fans in the moment, and see what it brought in.", "Agape Partner"],
   ["hq", "src/hq.tsx", "Agape · HQ", "Where Agape's own team runs every venue at once.", "Agape HQ"],

@@ -240,7 +240,7 @@ function Story() {
         <div className="st-ctl">
           <button className="btn h-btn" onClick={() => setPlaying(!playing)}>{playing ? "Pause" : "Play"}</button>
           <div className="seg h-seg" role="group" aria-label="Speed">{SPEEDS.map((s, i) => <button key={s.label} className={speed === i ? "on" : ""} onClick={() => setSpeed(i)}>{s.label}</button>)}</div>
-          <button className={"btn h-btn" + (explain ? " lit" : "")} aria-pressed={explain} disabled={stage !== "app"} onClick={() => { setExplain(!explain); setNote(null); }}>{explain ? "Explaining" : "Explain"}</button>
+          <button className={"btn h-btn" + (explain ? " lit" : "")} aria-pressed={explain} disabled={stage !== "app"} title={stage === "app" ? "Tap parts of the app to see what they are and why they're there" : "Available once you've taken your seat"} onClick={() => { setExplain(!explain); setNote(null); }}>{explain ? "Explaining" : "Explain"}</button>
           <button className="btn h-btn snd" aria-pressed={sound} onClick={() => setSound(!sound)}>{sound ? "Crowd on" : "Crowd off"}</button>
           <button className="btn h-btn" onClick={() => setFull(true)}>Full screen</button>
           <button className="btn h-btn" onClick={restart}>Start over</button>

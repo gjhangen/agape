@@ -330,8 +330,9 @@ export function PlaceView({ m, onStand, focusStand, showRunners = true, heat = t
     <svg className="place" viewBox="-222 -222 444 444" role="img" aria-label="Arena map">
       <circle r={R.c2 + 10} className="ground" />
       <circle r={R.c2} className="conc" /><circle r={R.l2i - 6} className="ground" /><circle r={R.c1} className="conc" /><circle r={R.l1i - 6} className="ground" />
-      <rect x={-50} y={-30} width={100} height={60} rx={6} className="court" />
-      <line x1={0} y1={-30} x2={0} y2={30} className="courtline" /><circle r={9} className="courtline" fill="none" />
+      {isConcert() ? <><rect x={-60} y={-46} width={120} height={30} rx={4} className="court" /><rect x={-52} y={-8} width={104} height={56} rx={6} className="courtline" fill="none" /></>
+        : <><rect x={-50} y={-30} width={100} height={60} rx={6} className="court" />
+      <line x1={0} y1={-30} x2={0} y2={30} className="courtline" /><circle r={9} className="courtline" fill="none" /></>}
       {secs}
       {[0, 6, 12, 18].map(r => { const [x, y] = pt((R.c1 + R.l2i) / 2 + 2, ang(r)); return <rect key={r} x={x - 3} y={y - 3} width={6} height={6} className="stairs"><title>Stairs</title></rect>; })}
       {(() => { const [x, y] = pt((R.c1 + R.l2i) / 2 + 2, ang(3)); return <rect x={x - 4} y={y - 4} width={8} height={8} rx={2} className="lift"><title>Elevator</title></rect>; })()}
@@ -464,7 +465,7 @@ export function concertWorld(base: any): any {
       early: ["Kite String", "Summer Static", "Low Tide Radio", "Paper Planes", "Weekend Ghosts", "Blue Hour", "Copper Sky", "Northern Line", "Wildfire Season", "Roads We Took", "Glow", "Afterlight", "Same Old Sea", "Home by Morning"],
       favorites: ["Satellite Hearts", "Fever Line"] },
     brand: { home: { name: "Lumen Rivers", short: "Lumen Rivers", abbr: "LR", color: "#6D3FD8", players: [] }, away: { name: "Northbound", short: "Northbound", abbr: "NB", color: "#1F8A8A", players: [] } },
-    features: { ...(base.features ?? {}), predictions: false, colors: false } };
+    features: { ...(base.features ?? {}), predictions: false, colors: false, players: false } };
 }
 
 /** The night's words, for a game or a concert: one place, so nothing says "halftime" at a show. */

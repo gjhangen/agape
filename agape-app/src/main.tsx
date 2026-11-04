@@ -23,18 +23,20 @@ const PERSPECTIVES: [Persp, string, string][] = [["fan", "Fan", "Section 104, on
   ["ops", "Venue", "The whole night, live"], ["business", "Partner", "Sponsors and nearby businesses"], ["player", "Player", "Level 5 · requests and fans"], ["setup", "Studio", "Make it yours"]];
 
 /** A walk through the night, one seat at a time. */
-const TOUR: { persp: Persp; title: string; body: string }[] = [
-  { persp: "fan", title: "A fan's phone", body: "This is Agape as a fan sees it in section 104. Tap any food or drink: the time shown is when it reaches the seat, measured, not guessed. Add a few things to the cart and order." },
-  { persp: "fan", title: "The game, live", body: "On the phone, tap Live at the bottom. Call the quarter for points, chat with your section, and collect the night's big plays as limited cards the moment they happen." },
-  { persp: "stand", title: "The kitchen", body: "Every order lands here the second it's placed: stations, the queue, the ready shelf. Start a shift and you're the one cooking; the simulation steps aside." },
+const TOUR_ALL: { persp: Persp; title: string; body: string }[] = [
+  { persp: "fan", title: "A fan's phone", body: "This is Agape as a fan sees it in section 104. Tap any food or drink: the time shown is when it reaches the seat, estimated from how fast that stand and its runners are going right now. Add a few things to the cart and order." },
+  { persp: "fan", title: "The game, live", body: "The line at the top of the phone is the game: tap it to open the score and everything that's happened. At higher levels, Play and People tabs add calls for points, your section's chat and the night's big plays as cards to collect." },
+  { persp: "stand", title: "The stand", body: "Every order lands here the second it's placed: stations, the queue, the ready shelf. Start a shift and you're the one cooking; the simulation steps aside." },
   { persp: "runner", title: "The runner", body: "Runners are offered trips batched by section, with the route and the pay up front. Pass on one and it goes to the next runner for a little more, until someone takes it. Tips go entirely to them." },
   { persp: "ops", title: "The whole venue", body: "Operations sees every order, every runner and every dollar. The ledger balances to the cent all night, and one tap pauses service everywhere if something goes wrong." },
-  { persp: "ops", title: "Where the money goes", body: "Scroll Venue ops to Money tonight: every dollar fans paid, split between the stands, runners, sales tax, the card networks and Agape. Agape processes the cards itself, so processing is income, not a cost. Every term is set per event in the Studio." },
-  { persp: "business", title: "Businesses and sponsors", body: "Nearby businesses offer perks fans unlock with points, and sponsors can back players. They see exactly which fans came through their door." },
+  { persp: "ops", title: "Where the money goes", body: "Further down the Venue screen, Money tonight: every dollar fans paid, split between the stands, runners, sales tax, the card networks and Agape. Agape plans to process the cards itself, so card processing becomes income rather than a cost. Every term is set per event in the Studio." },
+  { persp: "business", title: "Businesses and sponsors", body: "Nearby businesses offer perks fans unlock with points, and sponsors can back players. They see how many fans came through their door, and what it brought in." },
   { persp: "player", title: "Players", body: "Optional, not in the launch set: players see their following and can take paid promotions from fans and businesses, only inside the rules their team and league set. A venue switches it on in the Studio." },
-  { persp: "setup", title: "Make it yours", body: "Put your own teams, logos, colors, players and menu on it, switch off what you don't want, choose how runners are paid, and run a whole night before you open. Nothing here touches anyone else." },
-  { persp: "fan", title: "Speed it up", body: "Use the speed buttons to run the night at 6×, 30× or 120×, or skip to halftime or the final. Everything stays consistent: same night, every seat." },
+  { persp: "setup", title: "Make it yours", body: "Put your own venue, teams or acts, colors and menu on it, switch off what you don't want, choose how runners are paid, and run a whole night before you open. Nothing here touches anyone else." },
+  { persp: "fan", title: "Speed it up", body: "Use the speed buttons to run the night at 6×, 30× or 120×, or skip ahead to the busiest moment or the end. Everything stays consistent: same night, every seat." },
 ];
+/** On a concert night there are no players, so the tour skips them. */
+const tourList = () => TOUR_ALL.filter(t => !(t.persp === "player" && isConcert()));
 
 const START_MINUTE = 47; // a couple of minutes into the first quarter
 const YOU_SEAT = "s104";
@@ -63,7 +65,7 @@ function App() {
   const [intro, setIntro] = useState(() => { if (new URLSearchParams(location.search).get("as")) return false; try { return localStorage.getItem("agape.sim.intro") !== "seen"; } catch { return true; } });
   const closeIntro = () => { setIntro(false); try { localStorage.setItem("agape.sim.intro", "seen"); } catch { /* shown again next visit */ } };
   useEffect(() => { try { if (sessionStorage.getItem("agape.badlink")) { sessionStorage.removeItem("agape.badlink"); setTimeout(() => toast("That link didn't open a saved version, so this is the sample venue."), 600); } } catch { /* fine */ } }, []);
-  const goTour = (i: number | null) => { setTour(i); if (i != null) setPersp(TOUR[i].persp); };
+  const goTour = (i: number | null) => { setTour(i); if (i != null) setPersp(tourList()[i].persp); };
   const acc = useRef(0);
   const st = useRef({ persp, runnerId, standId, wide, playerId, bizId });
   st.current = { persp, runnerId, standId, wide, playerId, bizId };
@@ -145,7 +147,7 @@ function App() {
         </div>
         <nav className="persp" aria-label="Whose screen">
           <span className="eyebrow">See it as</span>
-          {PERSPECTIVES.map(([id, label, hint]) => (
+          {PERSPECTIVES.filter(([id]) => !(id === "player" && isConcert())).map(([id, label, hint]) => (
             <button key={id} className={(persp === id ? "on" : "") + (id === "setup" ? " studio" : "")} aria-current={persp === id} title={hint} onClick={() => { setPersp(id); setTour(null); }}><b>{label}</b><small>{hint}</small></button>
           ))}
         </nav>
@@ -167,14 +169,14 @@ function App() {
       {talk && <TalkToUs close={() => setTalk(false)} version={sessionStorage.getItem("agape.shared")} />}
       {tour != null && (
         <aside className="tour" role="dialog" aria-label="Tour">
-          <span className="eyebrow">Tour · {tour + 1} of {TOUR.length}</span>
-          <b>{TOUR[tour].title}</b>
-          <p>{TOUR[tour].body}</p>
+          <span className="eyebrow">Tour · {tour + 1} of {tourList().length}</span>
+          <b>{tourList()[tour].title}</b>
+          <p>{tourList()[tour].body}</p>
           <div className="tour-acts">
             <button className="link-inline small" onClick={() => setTour(null)}>End tour</button>
             <span className="grow" />
             {tour > 0 && <button className="btn sm" onClick={() => goTour(tour - 1)}>Back</button>}
-            {tour < TOUR.length - 1 ? <button className="btn primary sm" onClick={() => goTour(tour + 1)}>Next</button> : <button className="btn primary sm" onClick={() => setTour(null)}>Done</button>}
+            {tour < tourList().length - 1 ? <button className="btn primary sm" onClick={() => goTour(tour + 1)}>Next</button> : <button className="btn primary sm" onClick={() => setTour(null)}>Done</button>}
           </div>
         </aside>
       )}

@@ -23,7 +23,7 @@ function OrderGlance() {
   const at = Math.min(i, steps.length - 1);
   return (
     <div className="glance" aria-hidden="true">
-      <div className="glance-head"><span className="eyebrow">Section 104 · Row F · Seat 7</span><b>Hot dog</b><small>At your seat by <b>7:42 PM</b></small></div>
+      <div className="glance-head"><span className="eyebrow">Section 104 · Row F · Seat 7</span><b>Hot dog</b><small>{at === steps.length - 1 ? <>At your seat, <b>7:41 PM</b></> : <>At your seat by <b>7:42 PM</b></>}</small></div>
       <ol className="glance-steps">{steps.map((x, k) => <li key={x} className={k < at ? "done" : k === at ? "now" : ""}><i />{x}</li>)}</ol>
       <div className="glance-foot"><span>Charged when it arrives</span><span>Your runner keeps every tip</span></div>
     </div>
@@ -33,8 +33,10 @@ function OrderGlance() {
 function Site() {
   const [talk, setTalk] = useState(() => location.hash === "#talk");
   const [kind, setKind] = useState<"game" | "concert">("game");
-  const open = () => { setTalk(true); history.replaceState(null, "", "#talk"); };
-  const close = () => { setTalk(false); history.replaceState(null, "", location.pathname); };
+  // Talk to us is its own page in the history: Back closes it
+  const open = () => { setTalk(true); history.pushState({ talk: 1 }, "", "#talk"); };
+  const close = () => { if (location.hash === "#talk" && history.state?.talk) history.back(); else { setTalk(false); history.replaceState(null, "", location.pathname); } };
+  useEffect(() => { const f = () => setTalk(location.hash === "#talk"); addEventListener("popstate", f); return () => removeEventListener("popstate", f); }, []);
   const q = kind === "concert" ? "?event=concert" : "";
   return (
     <div className="site">
@@ -106,14 +108,14 @@ function Site() {
           <b>{l.name}</b>
           <span>{l.line}</span>
           <em className={"lv-tag lv-" + l.status.toLowerCase().replace(" ", "-")}>{l.status}</em>
-          <details><summary>What's done</summary><small>{l.gaps}</small></details>
-          <a className="lv-go" href={`/try/?level=${l.n}`}>Try Level {l.n} <b aria-hidden="true">→</b></a>
+          <details><summary>What works, and what's next</summary><small>{l.gaps}</small></details>
+          <a className="lv-go" href={`/try/?level=${l.n}${kind === "concert" ? "&event=concert" : ""}`}>Try Level {l.n} <b aria-hidden="true">→</b></a>
         </li>)}</ol>
       </section>
 
       <section className="site-cta">
         <div><h2>See it for yourself</h2><p>Three minutes as a fan is the fastest way to understand Agape. If you run a venue, partner with one or invest, talk to us.</p></div>
-        <div className="site-acts"><a className="btn primary big" href="/try/">Start as a fan <b aria-hidden="true">→</b></a><button className="btn big" onClick={open}>Talk to us</button></div>
+        <div className="site-acts"><a className="btn primary big" href={"/try/" + q}>Start as a fan <b aria-hidden="true">→</b></a><button className="btn big" onClick={open}>Talk to us</button></div>
       </section>
 
       <footer className="site-foot">

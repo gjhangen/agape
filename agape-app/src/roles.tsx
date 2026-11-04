@@ -231,13 +231,14 @@ export function OpsLens({ o, compact, x }: { o: OpsView; compact?: boolean; x?: 
     <div className={"role ops" + (compact ? " compact" : "")}>
       {!compact && o.provenance?.crowd === "simulated" && <p className="provenance">Includes a simulated crowd of {o.provenance.simulated_fans.toLocaleString()} fans{o.provenance.people ? ` and ${o.provenance.people} real ${o.provenance.people === 1 ? "person" : "people"}` : ""}. Money figures are the ledger's; arrival times are estimates.</p>}
       {compact && o.halt && <p className="banner warn">Service stopped: {o.halt.reason}</p>}
-      {!compact && x && (o.halt || o.problems.length > 0) && <div className="role-grid">{o.halt && <ServiceControl o={o} x={x} />}<Problems o={o} x={x} /></div>}
+      {!compact && x && o.halt && <div className="role-grid"><ServiceControl o={o} x={x} /></div>}
       <div className={"tiles " + (compact ? "two" : "four")}>
         <MeasureTile label="Orders, last 5 min" value={o.orders_5m} sub={`${inFlight} in flight`} />
         <MeasureTile label="Seat waits" value={mins(o.wait_p50)} sub={`90% within ${mins(o.wait_p90)}`} tone={(o.wait_p90 ?? 0) > 1800 ? "bad" : (o.wait_p90 ?? 0) > 1200 ? "warn" : "good"} />
         <MeasureTile label="Runners out" value={`${o.runners.busy}/${o.runners.total}`} sub={(o.ledger as any).trips_taken ? `${Math.round(100 * (o.ledger as any).taken_first / (o.ledger as any).trips_taken)}% of trips taken on the first offer` : undefined} />
         <MeasureTile label="Ledger" value={o.ledger.conserved ? "Balanced" : "Out of balance"} sub={`${o.ledger.txns.toLocaleString()} entries, to the cent`} tone={o.ledger.conserved ? "good" : "bad"} />
       </div>
+      {!compact && x && o.problems.length > 0 && <Problems o={o} x={x} />}
       <div className="role-grid">
         <section className="block">
           <div className="block-head"><h2>Floor</h2><span className="sub">{o.signals.toLocaleString()} updates recorded tonight</span></div>
