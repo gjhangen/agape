@@ -27,7 +27,7 @@ function Onboarding({ stage, next, seatChosen, onLocated }: { stage: Stage; next
   const [email, setEmail] = useState("");
   const [sec, setSec] = useState(""); const [row, setRow] = useState(""); const [seat, setSeat] = useState("");
   const [scanning, setScanning] = useState(false);
-  const [pw, setPw] = useState(""); const [tried, setTried] = useState(false);
+  const [pw, setPw] = useState(""); const [tried, setTried] = useState(false); const [keepPosted, setKeepPosted] = useState(true);
   const [located, setLocated] = useState(true);
   // Apple and Google hand over the name and email they have
   const social = (n: string, e: string) => { try { localStorage.setItem("agape.profile", JSON.stringify({ name: n, email: e })); } catch { /* fine */ } };
@@ -42,7 +42,10 @@ function Onboarding({ stage, next, seatChosen, onLocated }: { stage: Stage; next
     </div>
   );
   if (stage === "signup") return (
-    <form className="ob ob-form" onSubmit={e => { e.preventDefault(); if (!name.trim() || !/.+@.+\..+/.test(email) || pw.length < 8) { setTried(true); return; } try { localStorage.setItem("agape.profile", JSON.stringify({ name: name.trim(), email: email.trim() })); } catch { /* fine */ } next("perms"); }}>
+    <form className="ob ob-form" onSubmit={e => { e.preventDefault(); if (!name.trim() || !/.+@.+\..+/.test(email) || pw.length < 8) { setTried(true); return; } try { localStorage.setItem("agape.profile", JSON.stringify({ name: name.trim(), email: email.trim() })); } catch { /* fine */ }
+      // the demo's accounts live on this device; if they said yes, Agape's team hears who tried it (never the password)
+      if (keepPosted) fetch("/api/leads", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: name.trim(), contact: email.trim(), role: "Fan (tried the demo)", note: "Created an account in the fan demo.", version: "" }) }).catch(() => {});
+      next("perms"); }}>
       <h2>Create your account</h2>
       <button type="button" className="btn ob-social" onClick={() => { social("Jordan Lee", "jordan@icloud.com"); next("perms"); }}> Continue with Apple</button>
       <button type="button" className="btn ob-social light" onClick={() => { social("Jordan Lee", "jordan.lee@gmail.com"); next("perms"); }}>Continue with Google</button>
@@ -51,8 +54,9 @@ function Onboarding({ stage, next, seatChosen, onLocated }: { stage: Stage; next
       <label className="sf wide"><span>Email</span><input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@example.com" autoComplete="email" /></label>
       <label className="sf wide"><span>Password</span><input type="password" value={pw} onChange={e => setPw(e.target.value)} placeholder="8 or more characters" autoComplete="new-password" /></label>
       {tried && <small className="ob-warn">{!name.trim() ? "Add your name." : !email.trim() ? "Add your email." : !/.+@.+\..+/.test(email) ? "That email doesn't look right." : "Choose a password of 8 or more characters."}</small>}
+      <label className="ob-check"><input type="checkbox" checked={keepPosted} onChange={e => setKeepPosted(e.target.checked)} /> <span>Tell me when Agape comes to my venue. Agape's team gets your name and email (not your password) and can contact you.</span></label>
       <button className="btn ob-primary">Continue</button>
-      <small className="ob-fine">By continuing you agree to Agape's terms and privacy policy.</small>
+      <small className="ob-fine">This is a demo: your account lives on this device. By continuing you agree to Agape's terms and privacy policy.</small>
     </form>
   );
   if (stage === "signin") return (

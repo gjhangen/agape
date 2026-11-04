@@ -29,7 +29,8 @@ pub const PERMS: &[(&str, &str)] = &[
     ("merchants_view", "See merchants and print VAR sheets"),
     ("merchants_edit", "Add and change merchants"),
     ("merchants_delete", "Delete merchants"),
-    ("leads", "See leads from the website"),
+    ("leads", "See leads from the website and demo sign-ups"),
+    ("accounts", "See everyone with an Agape app account: fans, runners, stands, partners"),
     ("invite", "Invite people to report to them or to someone below them"),
     ("people", "Change the role, reporting line and access of people below them"),
     ("structure", "Create and edit roles, templates and groups below them"),
@@ -88,10 +89,10 @@ struct State {
 fn starting_templates() -> Vec<Template> {
     let t = |id: &str, name: &str, about: &str, p: &[&str]| Template { id: id.into(), name: name.into(), about: about.into(), perms: p.iter().map(|x| x.to_string()).collect() };
     vec![
-        t("t-admin", "Admin", "Runs the company day to day: merchants, people, structure", &["merchants_view", "merchants_edit", "leads", "invite", "people", "structure"]),
+        t("t-admin", "Admin", "Runs the company day to day: merchants, people, structure", &["merchants_view", "merchants_edit", "leads", "accounts", "invite", "people", "structure"]),
         t("t-manager", "Manager", "Runs a team", &["merchants_view", "invite", "people"]),
         t("t-member", "Team member", "Does the work; sees their own messages", &[]),
-        t("t-board", "Board member", "Oversees the company; sees merchants and leads", &["merchants_view", "leads"]),
+        t("t-board", "Board member", "Oversees the company; sees merchants, leads and accounts", &["merchants_view", "leads", "accounts"]),
         t("t-holder", "Shareholder", "Owns part of the company", &[]),
     ]
 }
@@ -157,6 +158,11 @@ impl Admin {
         if self.s.templates.is_empty() && self.s.roles.is_empty() {
             self.s.templates = starting_templates();
             for t in self.s.templates.clone().iter().take(3) { self.s.roles.push(Role { id: t.id.replacen("t-", "r-", 1), name: t.name.clone(), about: t.about.clone(), perms: t.perms.clone(), template: t.id.clone() }); }
+        }
+        // "accounts" came later: the starting admin and board templates, and the admin role, get it once
+        if !self.s.templates.iter().any(|t| t.perms.iter().any(|p| p == "accounts")) {
+            for t in self.s.templates.iter_mut().filter(|t| t.id == "t-admin" || t.id == "t-board") { t.perms.push("accounts".into()); }
+            for r in self.s.roles.iter_mut().filter(|r| r.id == "r-admin") { if !r.perms.iter().any(|p| p == "accounts") { r.perms.push("accounts".into()); } }
         }
         let map = |l: &str| match l { "owner" | "host" => HOST, "admin" | "editor" => "r-admin", "manager" => "r-manager", _ => "r-member" }.to_string();
         for u in self.s.users.iter_mut() { if u.role.is_empty() { u.role = map(u.legacy.as_deref().unwrap_or("member")); } }

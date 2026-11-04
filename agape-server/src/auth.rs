@@ -101,6 +101,9 @@ impl Auth {
         Ok((token, acc))
     }
 
+    /// Every account, without password hashes: for Agape's own team in Admin.
+    pub fn all(&self) -> Vec<Account> { let mut v: Vec<Account> = self.accounts.values().map(|a| a.public()).collect(); v.sort_by_key(|a| a.id[1..].parse::<u64>().unwrap_or(0)); v }
+
     pub fn party_of(&self, account: &str) -> Option<String> { self.accounts.get(account).map(|a| a.party.clone()) }
 
     pub fn session(&self, token: &str) -> Option<&Account> { self.sessions.get(token).and_then(|id| self.accounts.get(id)) }

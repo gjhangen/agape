@@ -243,3 +243,4 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
 .ox-row select { min-height: 34px; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; background: var(--card); }
 .ox-row.between { flex-wrap: wrap; gap: 10px; }
 .ox-node.host { border-left-color: var(--brand); }
+.ox-table td > b + small { display: block; }

@@ -205,7 +205,7 @@ function Accept({ code, enter, toSignin }: { code: string; enter: (t: string, m:
 
 // ---------------- signed in ----------------
 
-type Tab = "inbox" | "merchants" | "team" | "leads" | "activity" | "account";
+type Tab = "inbox" | "merchants" | "team" | "leads" | "accounts" | "activity" | "account";
 
 function Shell({ me, out }: { me: Me; out: () => void }) {
   const [tab, setTab] = useState<Tab>(() => (location.hash.slice(1) as Tab) || "merchants");
@@ -214,7 +214,7 @@ function Shell({ me, out }: { me: Me; out: () => void }) {
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 3200); return () => clearTimeout(t); }, [toast]);
   const [unread, setUnread] = useState(0);
   useEffect(() => { const f = () => api("me").then(r => { if (r.ok) setUnread(r.unread ?? 0); }); f(); const t = setInterval(f, 30000); return () => clearInterval(t); }, [tab]);
-  const tabs: [Tab, string][] = [["inbox", "Messages"], ...(me.perms.includes("merchants_view") ? [["merchants", "Merchants"]] as [Tab, string][] : []), ["team", "Team"], ...(me.perms.includes("leads") ? [["leads", "Leads"]] as [Tab, string][] : []), ["activity", "Activity"], ["account", "Your account"]];
+  const tabs: [Tab, string][] = [["inbox", "Messages"], ...(me.perms.includes("merchants_view") ? [["merchants", "Merchants"]] as [Tab, string][] : []), ["team", "Team"], ...(me.perms.includes("leads") ? [["leads", "Leads"]] as [Tab, string][] : []), ...(me.perms.includes("accounts") ? [["accounts", "App accounts"]] as [Tab, string][] : []), ["activity", "Activity"], ["account", "Your account"]];
   return <div className="ox-app">
     <header className="ox-top">
       <Mark />
@@ -227,6 +227,7 @@ function Shell({ me, out }: { me: Me; out: () => void }) {
       {tab === "team" && <Team me={me} toast={setToast} />}
       {tab === "leads" && <Leads />}
       {tab === "activity" && <Activity me={me} />}
+      {tab === "accounts" && <Accounts />}
       {tab === "account" && <Account me={me} toast={setToast} out={out} />}
     </main>
     {toast && <div className="ox-toast" role="status">{toast}</div>}
@@ -654,6 +655,28 @@ function Leads() {
       <a href={String(x.contact).includes("@") ? `mailto:${x.contact}` : `tel:${String(x.contact).replace(/[^\d+]/g, "")}`}>{x.contact}</a>
       {x.note && <p>{x.note}</p>}
     </div>)}</div>}
+  </>;
+}
+
+const ROLE_NAMES: Record<string, string> = { fan: "Fan", runner: "Runner", stand: "Stand", business: "Partner business", player: "Player", ops: "Venue operations" };
+/** Everyone with an account in the Agape apps themselves. People trying the demo show up under Leads when they ask to hear from Agape. */
+function Accounts() {
+  const [list, setList] = useState<any[] | null>(null);
+  const [q, setQ] = useState("");
+  const [kind, setKind] = useState("");
+  useEffect(() => { api("accounts").then(r => setList(r.ok ? r.accounts : [])); }, []);
+  const shown = (list ?? []).filter(a => (!kind || a.role === kind) && (!q.trim() || JSON.stringify(a).toLowerCase().includes(q.trim().toLowerCase())));
+  const counts = (list ?? []).reduce((m: Record<string, number>, a) => ({ ...m, [a.role]: (m[a.role] ?? 0) + 1 }), {});
+  return <>
+    <Head title="App accounts" sub="Everyone with an account in the Agape apps: fans who signed up, and the runners, stands, partners and venue staff Agape set up. Passwords are never shown or kept readable. People who try the demo and ask to hear from Agape are under Leads.">
+      <input className="ox-search" type="search" placeholder="Search accounts" aria-label="Search accounts" value={q} onChange={e => setQ(e.target.value)} />
+    </Head>
+    {list && <div className="ox-seg" role="group" aria-label="Kind of account"><button className={!kind ? "on" : ""} onClick={() => setKind("")}>All {list.length}</button>{Object.entries(counts).map(([k, n]) => <button key={k} className={kind === k ? "on" : ""} onClick={() => setKind(k)}>{ROLE_NAMES[k] ?? k} {String(n)}</button>)}</div>}
+    {list === null ? <p className="ox-empty">Loading…</p> : !shown.length ? <p className="ox-empty">{q || kind ? "No accounts match." : "No app accounts yet."}</p> : <div className="ox-table-wrap"><table className="ox-table">
+      <thead><tr><th>Name</th><th>Kind</th><th>Venue</th><th>Points</th><th>Nights</th><th>Been to</th></tr></thead>
+      <tbody>{shown.map(a => <tr key={a.id}><td><b>{a.handle}</b><small className="mono">{a.id}{a.party && a.party !== a.id ? ` · ${a.party}` : ""}</small></td><td>{ROLE_NAMES[a.role] ?? a.role}</td>
+        <td>{a.venue_name ?? a.at ?? "—"}</td><td className="mono">{a.points ?? "—"}{a.level != null && <small>Level {a.level}</small>}</td><td>{a.nights ?? "—"}</td><td><small>{(a.visited ?? []).join(", ") || "—"}</small></td></tr>)}</tbody>
+    </table></div>}
   </>;
 }
 

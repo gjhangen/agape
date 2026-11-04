@@ -322,6 +322,7 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/leads", get(office_leads))
         .route("/api/office/activity", get(office_activity))
         .route("/api/office/inbox", get(office_inbox))
+        .route("/api/office/accounts", get(office_accounts))
         .route("/api/office/role", post(office_role))
         .route("/api/office/role/delete", post(office_role_delete))
         .route("/api/office/template", post(office_template))
@@ -544,4 +545,20 @@ async fn office_group(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) 
 async fn office_group_delete(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
     let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
     done(app.office.lock().unwrap().delete_group(&u, &s(&b, "id")))
+}
+
+/// Everyone with an app account (fans, runners, stands, businesses, players), with where their points are.
+async fn office_accounts(State(app): State<S>, h: HeaderMap) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    if !app.office.lock().unwrap().can(&u, "accounts") { return err(StatusCode::FORBIDDEN, "Your role doesn't include app accounts"); }
+    let all = app.auth.lock().unwrap().all();
+    let ps = app.passports.lock().await;
+    let venues: BTreeMap<String, String> = app.venues.lock().unwrap().values().map(|v| (v.id.clone(), v.name.clone())).collect();
+    let list: Vec<Value> = all.iter().map(|a| {
+        let p = ps.all.get(&a.id);
+        json!({ "id": a.id, "handle": a.handle, "role": a.role, "party": a.party, "venue": a.venue, "venue_name": a.venue.as_ref().and_then(|v| venues.get(v)),
+                "points": p.map(|p| p.points), "level": p.map(|p| p.level), "nights": p.map(|p| p.nights), "visited": p.map(|p| p.venues.iter().map(|v| venues.get(v).cloned().unwrap_or(v.clone())).collect::<Vec<_>>()),
+                "at": p.and_then(|p| p.at.as_ref()).map(|v| venues.get(v).cloned().unwrap_or(v.clone())) })
+    }).collect();
+    Json(json!({ "ok": true, "accounts": list })).into_response()
 }
