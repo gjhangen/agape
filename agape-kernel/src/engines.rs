@@ -48,7 +48,7 @@ pub fn present(world: &World, spec: &OfferSpec, fans: &[Fan], open_span: &dyn Fn
                 (d, Some(p)) => vec![Discount { amount: d, payer: p.into(), reason: spec.source.into() }],
                 (_, None) => { attr.refuse(spec.source, Refusal::Loses("no payer".into())); continue; }
             },
-            points_redeemed: 0, tip: 0, delivery: true, fee_waived: false };
+            points_redeemed: 0, tip: 0, delivery: true, fee_waived: false, runner_pay: None };
         let mut values = BTreeMap::new();
         values.insert(fan.id.clone(), ValueFn::Floor(-fan.ceiling));
         values.insert(thing.stand.clone(), ValueFn::Floor(0));

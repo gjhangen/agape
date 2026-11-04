@@ -73,30 +73,25 @@ pub fn ride_fare(at: i64, final_t: i64) -> i64 {
 
 pub fn ride_settlement(r: &Ride, t: &Terms) -> Txn {
     let usd = Unit::Money(t.currency.clone());
-    let processing = bps(r.fare, t.proc_bps) + t.proc_fixed;
     let driver = bps(r.fare, DRIVER_BPS);
     let provider = bps(r.fare, PROVIDER_BPS);
-    let agape = r.fare - driver - provider - processing;
-    Txn { memo: format!("ride {}", r.id), postings: vec![
-        posting(acct(&r.fan, "card"), usd.clone(), -r.fare),
-        posting(acct(r.driver.as_deref().unwrap_or("unassigned"), "earnings"), usd.clone(), driver),
-        posting(acct(&r.provider, "revenue"), usd.clone(), provider),
-        posting(acct("processor", "fees"), usd.clone(), processing),
-        posting(acct("agape", "revenue"), usd, agape),
-    ]}
+    let agape = r.fare - driver - provider;
+    // the ride company is the seller and pays processing out of its part
+    let (mut p, _) = crate::economy::card_postings(&r.fan, acct(&r.provider, "revenue"), r.fare, provider, t);
+    p.push(posting(acct(r.driver.as_deref().unwrap_or("unassigned"), "earnings"), usd.clone(), driver));
+    p.push(posting(acct("agape", "revenue"), usd, agape));
+    Txn { memo: format!("ride {}", r.id), postings: p }
 }
 
 /// Prepaid parking: the operator gets the fee less Agape's share.
 pub fn parking_sale(fan: &str, operator: &str, lot: &str, price: i64, t: &Terms) -> Txn {
     let usd = Unit::Money(t.currency.clone());
-    let processing = bps(price, t.proc_bps) + t.proc_fixed;
     let share = bps(price, 1_500);
-    Txn { memo: format!("parking {lot}"), postings: vec![
-        posting(acct(fan, "card"), usd.clone(), -price),
-        posting(acct(operator, "revenue"), usd.clone(), price - share),
-        posting(acct("processor", "fees"), usd.clone(), processing),
-        posting(acct("agape", "revenue"), usd, share - processing),
+    let (mut p, _) = crate::economy::card_postings(fan, acct(operator, "revenue"), price, price - share, t);
+    p.extend([
+        posting(acct("agape", "revenue"), usd, share),
         posting(acct(lot, "passes"), crate::sim::pass_unit(lot), -1),
         posting(acct(fan, "holdings"), crate::sim::pass_unit(lot), 1),
-    ]}
+    ]);
+    Txn { memo: format!("parking {lot}"), postings: p }
 }

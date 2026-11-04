@@ -5,7 +5,7 @@
 import { React, useEffect, useState } from "./r";
 import { actWith, Deal, DealCard, Rates, Say, Thread } from "./deals";
 import { kernel } from "./kernel";
-import { feature, countdown, money, venueTime, SignalRow, momentText, LedgerLine } from "./parts";
+import { feature, Opt, countdown, money, venueTime, SignalRow, momentText, LedgerLine } from "./parts";
 import { R, SECS, wedge } from "./geo";
 import { CardArt } from "./cardart";
 
@@ -104,8 +104,8 @@ function MemberPage({ p, open, now, toast, refresh }: { p: any; open: OpenPage; 
         <div className="tile"><span className="eyebrow">Season</span><b className="num">{p.season.ppg}</b><small>points a game</small></div>
         <div className="tile"><span className="eyebrow">Also</span><b className="num">{p.season.rpg}<small> reb</small></b><small>{p.season.apg} assists</small></div>
       </div>
-      {p.your_deals.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Your deals with {first}</h3><div className="deal-list">{p.your_deals.map((d: Deal) => <DealCard key={d.id} d={d} as="you" act={act} now={now} />)}</div></section>}
-      {p.rates.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Ask {first}</h3>
+      {feature("players") && p.your_deals.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Your deals with {first}</h3><div className="deal-list">{p.your_deals.map((d: Deal) => <DealCard key={d.id} d={d} as="you" act={act} now={now} />)}</div></section>}
+      {feature("players") && p.rates.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Ask {first} <Opt k="players" /></h3>
         {!p.claimed && <p className="note">{first} isn't on Agape yet. You can still make an offer: it waits in escrow until they claim their profile, and you can take it back any time before they answer.</p>}
         <Rates rates={p.rates} to={p.id} name={p.name} act={act} balance={p.balance} />
         <small className="sub">You have {p.balance.toLocaleString()} pts.</small>
@@ -161,7 +161,7 @@ function CardPage({ p, open, toast, refresh, now }: { p: any; open: OpenPage; to
               <button className="btn primary sm">List it</button>
             </form>
           )}
-          <small>Agape keeps 5% of each sale.</small>
+          <small>Agape keeps 5% of each sale, in points.</small>
         </section>
       )}
       <section className="pg-sec"><h3 className="eyebrow">For sale</h3>
@@ -170,6 +170,7 @@ function CardPage({ p, open, toast, refresh, now }: { p: any; open: OpenPage; to
           <li key={l.id}><button className="link-inline" onClick={() => open(l.seller)}>{l.seller_name}</button><span className="grow" /><b className="num">{pts(l.price)}</b>
             <button className="btn primary sm" onClick={() => act({ do: "buy", listing: l.id }, "Bought. It's in your collection.")}>Buy</button></li>))}</ul>
       </section>
+      <p className="fineprint">Cards are for fun. They trade only for points, points can't be bought or cashed out, and nobody can promise what a card will be worth.</p>
       {p.sales.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Recent sales</h3><ul className="listings">{p.sales.map((s: any, i: number) => <li key={i}><span>{s.buyer}</span><span className="grow" /><span className="num">{pts(s.price)}</span><time className="num sub">{venueTime(s.t)}</time></li>)}</ul></section>}
     </>
   );

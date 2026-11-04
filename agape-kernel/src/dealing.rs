@@ -318,22 +318,21 @@ impl Night {
             }
             Kind::Upgrade => {
                 let usd = Unit::usd();
-                let processing = bps(a.amount, self.terms.proc_bps) + self.terms.proc_fixed;
                 let share = bps(a.amount, self.terms.platform_share_bps);
-                Txn { memo: format!("upgrade {}", o.subject), postings: vec![
-                    posting(acct(&a.buyer, "card"), usd.clone(), -a.amount), posting(acct(VENUE, "revenue"), usd.clone(), a.amount - share),
-                    posting(acct("processor", "fees"), usd.clone(), processing), posting(acct("agape", "revenue"), usd, share - processing)] }
+                let (mut p, _) = crate::economy::card_postings(&a.buyer, acct(VENUE, "revenue"), a.amount, a.amount - share, &self.terms);
+                p.push(posting(acct("agape", "revenue"), usd, share));
+                Txn { memo: format!("upgrade {}", o.subject), postings: p }
             }
             Kind::Resale => {
                 let usd = Unit::usd();
                 let (ev, sec) = o.subject.split_once(':').unwrap();
                 let unit = crate::economy::ticket_unit(ev, sec);
-                let processing = bps(a.amount, self.terms.proc_bps) + self.terms.proc_fixed;
                 let each = bps(a.amount, RESALE_FEE_BPS);
-                Txn { memo: format!("resale {ev}"), postings: vec![
-                    posting(acct(&a.buyer, "card"), usd.clone(), -a.amount), posting(acct(&a.maker, "payouts"), usd.clone(), a.amount - 2 * each),
-                    posting(acct(VENUE, "revenue"), usd.clone(), each), posting(acct("processor", "fees"), usd.clone(), processing), posting(acct("agape", "revenue"), usd, each - processing),
-                    posting(acct(&a.maker, "listed"), unit.clone(), -a.qty), posting(acct(&a.buyer, "holdings"), unit, a.qty)] }
+                // the seller pays processing on their sale, out of what they're paid
+                let (mut p, _) = crate::economy::card_postings(&a.buyer, acct(&a.maker, "payouts"), a.amount, a.amount - 2 * each, &self.terms);
+                p.extend([posting(acct(VENUE, "revenue"), usd.clone(), each), posting(acct("agape", "revenue"), usd, each),
+                    posting(acct(&a.maker, "listed"), unit.clone(), -a.qty), posting(acct(&a.buyer, "holdings"), unit, a.qty)]);
+                Txn { memo: format!("resale {ev}"), postings: p }
             }
             Kind::Drop => Txn { memo: format!("collect {}", o.subject), postings: vec![
                 posting(acct(ISSUER, "drops"), card_unit(&o.subject), -1), posting(acct(&a.buyer, "holdings"), card_unit(&o.subject), 1)] },

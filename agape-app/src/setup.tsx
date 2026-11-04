@@ -2,7 +2,7 @@
 // you type; a preview runs a whole simulated night on the template; then it opens.
 import { React, useMemo, useState } from "./r";
 import { kernel, setup, setWorldOverride, world as currentWorld } from "./kernel";
-import { MeasureTile, money } from "./parts";
+import { MeasureTile, money, MoneyFlows, OPTIONAL } from "./parts";
 import { LookPicker } from "./lookpicker";
 import { ItemArt } from "./Art";
 
@@ -51,6 +51,7 @@ export const FEATURES: [string, string, string][] = [
   ["gifting", "Send to a seat", "Buy something for a friend in another section"],
   ["priority", "Go first", "Spend points to jump the kitchen line"],
   ["colors", "Wear your colors", "Fans can switch the app to either team's colors"],
+  ["players", "Player deals", "Fans and businesses make paid offers to players (shout-outs, appearances), within team and league rules"],
 ];
 
 const TEAM_DEFAULT = { home: { name: "Harbor Kings", short: "Kings", abbr: "HBK", color: "#B8174F" }, away: { name: "Mesa Comets", short: "Comets", abbr: "MSC", color: "#2F6DB5" } };
@@ -127,11 +128,13 @@ export function SetupLens({ toast }: { toast: (s: string) => void }) {
           <div className="studio-look"><span className="eyebrow">The app's look</span><LookPicker /><small>Fans see the home team's colors automatically; this sets everything else.</small></div>
         </section>
         <section className="block span2">
-          <div className="block-head"><h2>What fans get</h2><span className="sub">Switch off anything this venue doesn't want. Ordering to the seat is always on.</span></div>
+          <div className="block-head"><h2>What fans get</h2><span className="sub">Ordering to the seat, points, tracking and ratings are always on. <b>At launch</b> is what Agape opens with; <b>Optional</b> is built and working, for a venue that wants it.</span>
+            <button className="btn ghost sm" onClick={() => edit(d => { d.features = Object.fromEntries(FEATURES.map(([k]) => [k, !OPTIONAL.has(k)])); })}>Launch set only</button>
+            <button className="btn ghost sm" onClick={() => edit(d => { d.features = Object.fromEntries(FEATURES.map(([k]) => [k, true])); })}>Everything on</button></div>
           <div className="features">{FEATURES.map(([k, name, blurb]) => {
             const on = w.features?.[k] !== false;
             return <label key={k} className={"feature" + (on ? " on" : "")}><input type="checkbox" checked={on} onChange={e => edit(d => { d.features = { ...(d.features ?? {}), [k]: e.target.checked }; })} />
-              <span><b>{name}</b><small>{blurb}</small></span></label>;
+              <span><b>{name} <em className={OPTIONAL.has(k) ? "opt" : "opt launch"}>{OPTIONAL.has(k) ? "Optional" : "At launch"}</em></b><small>{blurb}</small></span></label>;
           })}</div>
         </section>
         <section className="block">
@@ -145,13 +148,34 @@ export function SetupLens({ toast }: { toast: (s: string) => void }) {
             <Field label="Levels" type="number" value={w.levels} set={v => edit(d => { d.levels = num(v); })} />
             <Field label="Sections a level" type="number" value={w.sections_per_level} set={v => edit(d => { d.sections_per_level = num(v); })} />
           </div>
-          <div className="block-head"><h2>Terms</h2></div>
+          <div className="block-head"><h2>Terms</h2><span className="sub">Set per event and negotiated per deal</span></div>
           <div className="sf-grid">
+            <Field label="Agape's share of sales %" type="number" step="0.5" value={w.terms.platform_share_bps / 100} set={v => edit(d => { d.terms.platform_share_bps = Math.round(num(v) * 100); })} />
             <Field label="Delivery fee $" type="number" step="0.01" value={dollars(w.terms.delivery_fee)} set={v => edit(d => { d.terms.delivery_fee = cents(v); })} />
-            <Field label="Runner pay per delivery $" type="number" step="0.01" value={dollars(w.terms.runner_pay)} set={v => edit(d => { d.terms.runner_pay = cents(v); })} />
-            <Field label="Agape's share %" type="number" step="0.5" value={w.terms.platform_share_bps / 100} set={v => edit(d => { d.terms.platform_share_bps = Math.round(num(v) * 100); })} />
+            <Field label="Card processing %" type="number" step="0.1" value={w.terms.proc_bps / 100} set={v => edit(d => { d.terms.proc_bps = Math.round(num(v) * 100); })} />
+            <Field label="plus per charge $" type="number" step="0.01" value={dollars(w.terms.proc_fixed)} set={v => edit(d => { d.terms.proc_fixed = cents(v); })} />
+            <Field label="Interchange we pay %" type="number" step="0.05" value={(w.terms.interchange_bps ?? 200) / 100} set={v => edit(d => { d.terms.interchange_bps = Math.round(num(v) * 100); })} />
+            <Field label="plus per charge $" type="number" step="0.01" value={dollars(w.terms.interchange_fixed ?? 10)} set={v => edit(d => { d.terms.interchange_fixed = cents(v); })} />
             <Field label="Sales tax %" type="number" step="0.25" value={w.terms.tax_bps / 100} set={v => edit(d => { d.terms.tax_bps = Math.round(num(v) * 100); })} />
           </div>
+          <div className="block-head"><h2>Runner pay</h2></div>
+          <div className="seg fill pay-mode" role="group" aria-label="How runners are paid">
+            <button className={(w.terms.pay_mode ?? "offers") !== "fixed" ? "on" : ""} onClick={() => edit(d => { d.terms.pay_mode = "offers"; })}>Offers that rise</button>
+            <button className={w.terms.pay_mode === "fixed" ? "on" : ""} onClick={() => edit(d => { d.terms.pay_mode = "fixed"; })}>Fixed per delivery</button>
+          </div>
+          {w.terms.pay_mode === "fixed" ? <>
+            <p className="pay-explain">Every delivery pays the same, whoever takes it. Runners keep every tip on top.</p>
+            <div className="sf-grid"><Field label="Pay per delivery $" type="number" step="0.05" value={dollars(w.terms.runner_pay)} set={v => edit(d => { d.terms.runner_pay = cents(v); })} /></div>
+          </> : <>
+            <p className="pay-explain">Each trip is offered to the nearest runner, priced on its walk and wait time and how much there is to carry. If they pass, it goes to the next runner for a little more, until someone takes it. Runners keep every tip on top.</p>
+            <div className="sf-grid">
+              <Field label="First offer, per hour of the trip $" type="number" step="0.5" value={dollars(w.terms.offer_hourly ?? 1500)} set={v => edit(d => { d.terms.offer_hourly = cents(v); })} />
+              <Field label="Each extra item $" type="number" step="0.05" value={dollars(w.terms.offer_per_item ?? 25)} set={v => edit(d => { d.terms.offer_per_item = cents(v); })} />
+              <Field label="Smallest offer $" type="number" step="0.05" value={dollars(w.terms.offer_min ?? 150)} set={v => edit(d => { d.terms.offer_min = cents(v); })} />
+              <Field label="Raise each pass %" type="number" step="1" value={(w.terms.offer_raise_bps ?? 1500) / 100} set={v => edit(d => { d.terms.offer_raise_bps = Math.round(num(v) * 100); })} />
+              <Field label="Highest, % of first" type="number" step="5" value={(w.terms.offer_cap_bps ?? 16000) / 100} set={v => edit(d => { d.terms.offer_cap_bps = Math.round(num(v) * 100); })} />
+            </div>
+          </>}
         </section>
         <section className="block span2">
           <div className="block-head"><h2>Around the venue</h2><span className="sub">Your rideshare, parking and partner businesses, as fans will see them</span></div>
@@ -203,18 +227,10 @@ export function SetupLens({ toast }: { toast: (s: string) => void }) {
               <MeasureTile label="Orders" value={r.orders.toLocaleString()} sub={`${r.delivered.toLocaleString()} delivered`} />
               <MeasureTile label="Seat waits" value={`${Math.round(r.wait_p50_s / 60)} min`} sub={`90% within ${Math.round(r.wait_p90_s / 60)} min`} tone={r.wait_p90_s > 1800 ? "bad" : r.wait_p90_s > 1200 ? "warn" : "good"} />
               <MeasureTile label="Late" value={r.late} sub={`${r.cannot_fulfil} the stand couldn't make`} tone={r.late > r.orders * 0.1 ? "warn" : "good"} />
-              <MeasureTile label="Runners earn" value={`${money(r.runner_hourly)}/h`} sub={`${r.batch_avg.toFixed(1)} orders a trip`} />
+              <MeasureTile label="Runners earn" value={`${money(r.runner_hourly)}/h`} sub={r.trips_taken ? `pay and tips · ${Math.round(100 * r.taken_first / r.trips_taken)}% of trips taken on the first offer · ${money(r.trip_pay_avg)} a trip before tips` : "pay and tips"} tone={r.runner_hourly < 2000 ? "warn" : "good"} />
             </div>
-            <div className="lines">
-              <div className="ll"><span><b>Fans paid</b></span><b className="num">{money(m["fans charged"])}</b></div>
-              <div className="ll"><span>Stands</span><b className="num">{money(m["stands net"])}</b></div>
-              <div className="ll"><span>Runners, pay and tips</span><b className="num">{money((m["runner pay"] ?? 0) + (m["runner tips"] ?? 0))}</b></div>
-              <div className="ll"><span>Agape</span><b className="num">{money(m["agape net"])}</b></div>
-              <div className="ll"><span>Sales tax held</span><b className="num">{money(m["tax"])}</b></div>
-              <div className="ll"><span>Card processing</span><b className="num">{money(m["processing"])}</b></div>
-              {(() => { const other = (m["fans charged"] ?? 0) - (m["stands net"] ?? 0) - (m["runner pay"] ?? 0) - (m["runner tips"] ?? 0) - (m["agape net"] ?? 0) - (m["tax"] ?? 0) - (m["processing"] ?? 0); return Math.abs(other) >= 1 ? <div className="ll"><span>Tickets, rides and partners</span><b className="num">{money(other)}</b></div> : null; })()}
-            </div>
-            <p className="provenance">Agape keeps its share of each sale ({(w.terms.platform_share_bps / 100).toFixed(1)}%) and the delivery fee ({money(w.terms.delivery_fee)}), pays each runner {money(w.terms.runner_pay)} a delivery plus every tip, and pays card fees. Every one of those terms is set per venue. A simulation of this setup, not a forecast. Every unit {r.conserved ? "balanced to zero" : "did NOT balance"}. Busiest stands: {r.stands.slice(0, 3).map((s: any) => `${s.name} ${money(s.revenue)}`).join(", ")}.</p>
+            <MoneyFlows f={r.flows ?? {}} />
+            <p className="provenance">Agape keeps {(w.terms.platform_share_bps / 100).toFixed(1)}% of each sale and the {money(w.terms.delivery_fee)} delivery fee, and pays runners {w.terms.pay_mode === "fixed" ? `${money(w.terms.runner_pay)} a delivery` : "by trip offers"} out of it; runners keep every tip. Agape also processes the cards: sellers pay {(w.terms.proc_bps / 100).toFixed(1)}% + {money(w.terms.proc_fixed)}, and Agape pays the card networks' interchange out of that. A simulation of this setup, not a forecast. Every unit {r.conserved ? "balanced to zero" : "did NOT balance"}. Busiest stands: {r.stands.slice(0, 3).map((s: any) => `${s.name} ${money(s.revenue)}`).join(", ")}.</p>
           </div>}
         </section>
       </div>

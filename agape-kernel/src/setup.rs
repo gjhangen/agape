@@ -75,18 +75,27 @@ pub fn check(w: &WorldDef, tpl: &Template) -> Vec<Issue> {
     if !(0..=5000).contains(&tm.platform_share_bps) { v.push(err("terms.platform_share_bps", "Agape's share is 0% to 50%")); }
     if !(0..=2000).contains(&tm.tax_bps) { v.push(err("terms.tax_bps", "Sales tax is 0% to 20%")); }
     if tm.delivery_fee < 0 || tm.runner_pay < 0 { v.push(err("terms", "Fees and pay can't be negative")); }
-    if tm.runner_pay > tm.delivery_fee { v.push(warn("terms.runner_pay", "Runners are paid more per delivery than the delivery fee; Agape's share covers the rest")); }
+    if tm.offers() {
+        if tm.offer_hourly <= 0 || tm.offer_min <= 0 { v.push(err("terms.offer_hourly", "Runner offers need a rate per hour and a smallest offer")); }
+        if tm.offer_raise_bps < 0 || tm.offer_cap_bps < 10_000 { v.push(err("terms.offer_raise_bps", "Offers can only go up, and the most an offer reaches can't be below the first offer")); }
+    }
+    if !(0..=1000).contains(&tm.proc_bps) || tm.proc_fixed < 0 { v.push(err("terms.proc_bps", "Card processing is 0% to 10% plus a fixed amount")); }
+    // what one delivery might cost Agape in runner pay, at worst: fixed pay, or a 10-minute trip's offer raised as far as it goes
+    let worst_pay = if tm.offers() { tm.offer_after(tm.first_offer(600, 1), 1_000) } else { tm.runner_pay };
     // invariant 1 at the template: every item, ordered alone, leaves every party at zero or better
     for t in &w.things {
         for delivery in [true, false] {
             let q = Quote { fan: "fan".into(), stand: t.stand.clone(), runner: if delivery { Some("runner".into()) } else { None },
-                lines: vec![Line { thing: t.id.clone(), qty: 1, unit_price: t.price }], discounts: vec![], points_redeemed: 0, tip: 0, delivery, fee_waived: false };
+                lines: vec![Line { thing: t.id.clone(), qty: 1, unit_price: t.price }], discounts: vec![], points_redeemed: 0, tip: 0, delivery, fee_waived: false, runner_pay: Some(worst_pay) };
             let Ok(b) = breakdown(&q, tm) else { continue };
             let s = settlement(&q, tm, &b);
-            let agape: i64 = s.postings.iter().filter(|p| p.account.party == "agape" && p.account.purpose == "revenue").map(|p| p.amount).sum();
+            let agape: i64 = s.postings.iter().filter(|p| p.account.party == "agape" && p.unit == crate::value::Unit::Money(tm.currency.clone())).map(|p| p.amount).sum();
             if agape < 0 {
-                v.push(err(format!("things.{}", t.id), format!("{} ordered alone for {} loses Agape {}¢ after card fees{}; raise the price, the fee or Agape's share",
-                    t.name, if delivery { "delivery" } else { "pickup" }, -agape, if delivery { " and runner pay" } else { "" })));
+                v.push(err(format!("things.{}", t.id), format!("{} ordered alone for {} loses Agape {}¢{}; raise the price, the fee or Agape's share",
+                    t.name, if delivery { "delivery" } else { "pickup" }, -agape, if delivery { " after runner pay" } else { "" })));
+            }
+            if b.stand_net < 0 && !delivery {
+                v.push(err(format!("things.{}", t.id), format!("{} leaves its stand {}¢ short after Agape's share and card processing; raise the price", t.name, -b.stand_net)));
             }
         }
     }
@@ -117,7 +126,7 @@ pub fn preview(w: WorldDef, tpl: Template, fans: usize, runners: usize) -> Value
     by_stand.sort_by_key(|x| -x["revenue"].as_i64().unwrap_or(0));
     json!({ "ok": true, "issues": issues, "report": {
         "orders": report.orders, "delivered": pct("Settled"), "wait_p50_s": report.wait_p50_s, "wait_p90_s": report.wait_p90_s, "late": report.late,
-        "cannot_fulfil": pct("StandCannotFulfil"), "balked": report.balked, "runner_hourly": report.runner_hourly, "batch_avg": report.batch_avg,
+        "cannot_fulfil": pct("StandCannotFulfil"), "balked": report.balked, "runner_hourly": report.runner_hourly, "batch_avg": report.batch_avg, "flows": report.flows, "trips_taken": report.trips_taken, "taken_first": report.taken_first, "trip_pay_avg": report.trip_pay_avg,
         "money": report.money, "conserved": report.conserved, "stands": by_stand, "fans": fans, "runners": runners,
     }})
 }

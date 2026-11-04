@@ -23,6 +23,12 @@ export const BRAND = {
 };
 /** What the venue has switched on for its fans; anything it hasn't mentioned is on. */
 export const feature = (k: string): boolean => world()?.features?.[k] !== false;
+/** Built and working, but not in the set Agape launches with: a venue switches each one on if it wants it. */
+export const OPTIONAL = new Set(["chat", "predictions", "cards", "tickets", "around", "upgrades", "players"]);
+/** A small tag beside anything that isn't part of the launch set, so nobody mistakes it for the plan. */
+export function Opt({ k }: { k: string }) {
+  return OPTIONAL.has(k) ? <span className="opt" title="Optional: built and working, switched on per venue. Not part of the launch set.">Optional</span> : null;
+}
 /** A team's logo when the venue has given one, otherwise its color dot. */
 export function TeamMark({ side, big }: { side: "home" | "away"; big?: boolean }) {
   const t = side === "home" ? BRAND.home : BRAND.away;
@@ -357,6 +363,32 @@ export function LedgerLine({ label, amount, strong, note }: { label: React.React
     <div className={"ledger" + (strong ? " strong" : "")}>
       <span className="grow">{label}{note && <small> {note}</small>}</span>
       <span className="num">{money(amount)}</span>
+    </div>
+  );
+}
+
+/** Every dollar in and where it went, straight from the ledger: the two sides always match to the cent. */
+const FLOW_OUT: [string, string, string?][] = [
+  ["stands", "Stands", "their sales, less Agape's share and card processing"],
+  ["venue_partners", "The venue and partners", "tickets, upgrades, rides and parking"],
+  ["runners", "Runners", "trip pay and every tip"],
+  ["people", "Players, drivers and fans reselling", "what they earned"],
+  ["tax", "Sales tax held"],
+  ["interchange", "Card networks", "interchange, paid by Agape"],
+  ["agape", "Agape: share and delivery fees", "after runner pay and points"],
+  ["agape_processing", "Agape: card processing", "what sellers paid, less interchange"],
+  ["held", "Still held", "for deals not finished yet"],
+];
+export function MoneyFlows({ f }: { f: Record<string, number> }) {
+  const g = (k: string) => f?.[k] ?? 0;
+  const inn = g("in_fans") + g("in_partners");
+  return (
+    <div className="lines flows">
+      <LedgerLine label="Fans paid" amount={g("in_fans")} />
+      {g("in_partners") !== 0 && <LedgerLine label="Sponsors and businesses put in" amount={g("in_partners")} note="discounts they fund and deals with players" />}
+      <LedgerLine label="Money in" amount={inn} strong />
+      {FLOW_OUT.filter(([k]) => g(k) !== 0).map(([k, l, n]) => <LedgerLine key={k} label={l} amount={g(k)} note={n} />)}
+      <LedgerLine label="Money out" amount={FLOW_OUT.reduce((s, [k]) => s + g(k), 0)} strong />
     </div>
   );
 }

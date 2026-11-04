@@ -292,7 +292,7 @@ fn erasure_destroys_the_key_not_the_history() {
 
 fn quote(fan: &str, stand: &str, qty: i64, price: i64, discounts: Vec<Discount>, points: i64, tip: i64, delivery: bool) -> Quote {
     Quote { fan: fan.into(), stand: stand.into(), runner: None, lines: vec![Line { thing: "burger".into(), qty, unit_price: price }],
-            discounts, points_redeemed: points, tip, delivery, fee_waived: false }
+            discounts, points_redeemed: points, tip, delivery, fee_waived: false, runner_pay: None }
 }
 
 #[test]
@@ -429,7 +429,7 @@ fn offers_that_make_someone_lose_are_never_shown() {
     // a sponsor-paid discount leaves the stand whole: the stand is paid on the full price
     let q3 = quote("fan1", "grill", 1, 1350, vec![Discount { amount: 1350, payer: "sponsor_cola".into(), reason: "free".into() }], 0, 0, false);
     let b3 = agape_check(&q3, &t, &values).unwrap();
-    assert_eq!(b3.stand_net, 1350 - bps(1350, 1500));
+    assert_eq!(b3.stand_net, 1350 - bps(1350, t.platform_share_bps) - t.processing(b3.charge));
     // and the sponsor's ceiling binds too
     values.insert("sponsor_cola".into(), ValueFn::Floor(-1000));
     assert!(matches!(agape_check(&q3, &t, &values), Err(OfferError::Loses { party, .. }) if party == "sponsor_cola"));

@@ -127,7 +127,11 @@ function PilotInfo({ close }: { close: () => void }) {
         <h3>Points</h3>
         <p>You earn points by ordering, calling the quarter and collecting. You can spend them on moment cards and offers around the venue, or pass cards to other fans for points. Points can't be bought with money, can't be cashed out, and don't expire. Your level is the total you've ever earned and comes with you to every venue on Agape.</p>
         <h3>Drinks</h3>
-        <p>Drinks with alcohol are for people 21 and older. Your runner checks ID at your seat, and the venue's own last call applies.</p>
+        <p>Drinks with alcohol are for people 21 and older. We don't ask your age when you sign up; the first time you order one, we ask you to confirm you're 21, and your runner checks ID at your seat. The venue's own last call applies.</p>
+        <h3>What's in the launch, and what's optional</h3>
+        <p>At launch: ordering to your seat or for pickup, live arrival times, points, sending something to a friend's seat, going first with points, your section's battle and wearing your team's colors. Tagged <span className="opt">Optional</span>: built and working here, but switched on only by a venue that wants it. That's crowd chat, calling the quarter, moment cards and trading them, tickets and resale, seat upgrades, rides and partner offers, and player deals.</p>
+        <h3>Moment cards</h3>
+        <p>Cards are for fun. They're free to collect and trade only for points. Nobody can promise what a card will be worth.</p>
         <h3>The crowd chat</h3>
         <p>Links, phone numbers and selling aren't allowed, and swearing is hidden. Your chosen name is shown next to what you say.</p>
         <h3>Your information</h3>

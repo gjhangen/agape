@@ -212,10 +212,10 @@ impl Night {
         let delivered = self.orders.iter().filter(|o| o.c.quote.runner.as_deref() == Some(r) && o.delivered_at.is_some()).count();
         // a trip offered to this runner, or the one they're on, when a person runs this runner
         let trip = self.trips.get(r).map(|x| {
-            let pay: i64 = x.orders.iter().map(|&i| self.terms.runner_pay + self.orders[i].c.quote.tip).sum();
+            let tips: i64 = x.orders.iter().map(|&i| self.orders[i].c.quote.tip).sum();
             let stand = self.world.def.stands.iter().find(|s| s.id == x.stand).map(|s| s.name.clone());
             json!({ "accepted": x.accepted, "picked": x.picked, "stand": x.stand, "stand_name": stand, "expires": x.offered_at + crate::sim::TRIP_OFFER_MS,
-                    "pay": pay, "minutes": (x.done_s as i64 + 59) / 60, "sections": x.orders.iter().map(|&i| self.orders[i].seat.clone()).collect::<Vec<_>>(),
+                    "pay": x.pay + tips, "base": x.pay, "tips": tips, "raised": x.pay - x.first, "passes": x.passes, "mode": self.terms.pay_mode, "minutes": (x.done_s as i64 + 59) / 60, "sections": x.orders.iter().map(|&i| self.orders[i].seat.clone()).collect::<Vec<_>>(),
                     "orders": x.orders.iter().map(|&i| { let mut c = self.order_card(i); c["handoff_ok_at"] = json!(self.orders[i].picked_at.map(|p| p + 3 * 60_000)); c }).collect::<Vec<_>>() })
         });
         json!({ "clock": self.clock(), "runner": self.runner_at(r), "bag": bag, "plan": plan, "delivered": delivered, "map": self.view_map(None, None),
@@ -296,6 +296,10 @@ impl Night {
             "runners": self.runners.iter().map(|r| self.ledger.balance(&acct(&r.id, "pay"), &usd) + self.ledger.balance(&acct(&r.id, "tips"), &usd)).sum::<i64>(),
             "tax": self.ledger.balance(&acct("tax_authority", "payable"), &usd),
             "processing": self.ledger.balance(&acct("processor", "fees"), &usd),
+            "agape_processing": self.ledger.balance(&acct("agape", "processing"), &usd),
+            "flows": crate::sim::money_flows(&self.ledger, &self.world.def.stands.iter().map(|s| s.id.clone()).collect::<Vec<_>>(), &self.runners.iter().map(|r| r.id.clone()).collect::<Vec<_>>()),
+            "sponsors_paid": self.ledger.txns.iter().filter(|t| t.memo == "settle").flat_map(|t| t.postings.iter()).filter(|p| p.account.purpose == "promo_escrow" && p.amount < 0).map(|p| -p.amount).sum::<i64>(),
+            "trip_offers": self.pay_stats.0, "trips_taken": self.pay_stats.1, "taken_first": self.pay_stats.2,
             "fans_paid": -self.ledger.balances_iter().filter(|((a, u), _)| a.purpose == "card" && *u == usd).map(|(_, v)| *v).sum::<i64>(),
             "conserved": self.ledger.units().iter().all(|u| self.ledger.total(u) == 0),
             "txns": self.ledger.txns.len(),

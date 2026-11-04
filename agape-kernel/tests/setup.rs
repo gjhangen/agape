@@ -21,14 +21,14 @@ fn a_template_with_mistakes_is_told_exactly_what_to_fix() {
     w.stands[0].ring = 99;
     w.things.retain(|t| t.id != "combo");
     let cheap = w.things.iter().position(|t| t.category == "drink").unwrap();
-    w.things[cheap].price = 100; // a $1 drink can't pay for a runner
+    w.things[cheap].price = 20; // a 20¢ drink can't even cover its card processing
     let issues = check(&w, &game());
     let says = |s: &str| issues.iter().any(|i| i.blocking && i.message.contains(s));
     assert!(says("which isn't a stand here"), "{issues:#?}");
     assert!(says("needs a price"));
     assert!(says("but a level has 24 sections"));
     assert!(says("\"combo\", which isn't on this venue's menu"), "the event's rules offer something the venue doesn't sell");
-    assert!(says("loses Agape"), "the Agape check runs on the template: {issues:#?}");
+    assert!(says("leaves its stand"), "the Agape check runs on the template: {issues:#?}");
 }
 
 #[test]

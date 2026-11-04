@@ -78,11 +78,16 @@ fn a_runner_sees_the_trip_first_takes_it_and_hands_it_over() {
     assert_eq!(v["trip"]["accepted"], false);
     assert!(v["trip"]["pay"].as_i64().unwrap() >= 150 + 300, "the pay, tip included, is shown before saying yes");
     assert_eq!(stage(&mut n, id), "Ready", "offered isn't assigned");
-    // said no: it goes to someone else
+    let first_base = v["trip"]["base"].as_i64().unwrap();
+    // said no: it goes to someone else, for more
     n.decline_trip(&r).unwrap();
     let mut next = None;
     for _ in 0..30 { n.step(); if let Some((x, _)) = n.trips.iter().find(|(_, t)| t.orders.contains(&id)) { next = Some(x.clone()); break; } }
     let r = next.expect("offered again");
+    let v2 = n.view_runner(&r);
+    assert!(v2["trip"]["passes"].as_i64().unwrap() >= 1 && v2["trip"]["raised"].as_i64().unwrap() > 0, "the next runner is offered more: {}", v2["trip"]);
+    let offered = v2["trip"]["base"].as_i64().unwrap();
+    let _ = first_base;
     n.accept_trip(&r).unwrap();
     assert_eq!(stage(&mut n, id), "Assigned");
     assert_eq!(n.delivered(&r, id), Err("Pick it up first".into()));
@@ -95,7 +100,7 @@ fn a_runner_sees_the_trip_first_takes_it_and_hands_it_over() {
     assert_eq!(stage(&mut n, id), "Settled");
     let others = n.ledger.balance(&acct(&r, "tips"), &Unit::usd()) - tips - 300;
     assert!(others >= 0, "the whole tip to the runner who brought it (plus the tips of anything else in the bag)");
-    assert!(n.ledger.balance(&acct(&r, "pay"), &Unit::usd()) - pay >= 150);
+    assert!(n.ledger.balance(&acct(&r, "pay"), &Unit::usd()) - pay >= offered, "paid what the offer said");
     assert!(n.trips.get(&r).map_or(true, |t| !t.accepted && !t.orders.contains(&id)), "and they're free for the next one (maybe already offered it)");
 }
 

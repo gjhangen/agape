@@ -1,7 +1,7 @@
 // Deals between parties, rates on profiles, and the two new lenses: a player on Agape and a business.
 import { React, useState } from "./r";
 import { kernel } from "./kernel";
-import { MeasureTile, money, venueTime } from "./parts";
+import { feature, MeasureTile, money, Opt, venueTime } from "./parts";
 
 export type Deal = {
   id: string; kind: string; ask: string; pay: "points" | "money"; amount: number; status: "proposed" | "accepted" | "delivered" | "done" | "declined" | "withdrawn";
@@ -248,7 +248,7 @@ export function BusinessLens({ b, businesses, pick, toast, refresh }: { b: any; 
           {b.deals.length === 0 && <p className="empty">Sponsor a player or a timeout below. The money is held until they deliver.</p>}
         </section>
         <section className="block">
-          <div className="block-head"><h2>Sponsor someone</h2><span className="sub">players on Agape and tonight's teams</span></div>
+          <div className="block-head"><h2>Sponsor someone <Opt k="players" /></h2><span className="sub">players on Agape and tonight's teams</span></div>
           {talent ? (
             <div className="pg-sec">
               <button className="btn ghost sm" onClick={() => setWho(null)}>Everyone</button>

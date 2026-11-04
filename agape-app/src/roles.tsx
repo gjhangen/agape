@@ -4,6 +4,7 @@ import { ItemArt } from "./Art";
 import {
   BRAND, CommitmentCard, LedgerLine, MapView, MeasureTile, Offer, OFFER_COPY, Order, PlaceView,
   countdown, money, rel, runnerName, venueTime,
+  MoneyFlows,
 } from "./parts";
 
 const placeName = (p: string, stands: MapView["stands"]) =>
@@ -15,7 +16,7 @@ export type RunnerView = {
   clock: { t: number }; runner: { id: string; from: string; to: string; progress: number; busy: boolean };
   bag: Order[]; plan: { t: number; place: string; done: boolean }[]; delivered: number; pay: number; tips: number;
   human?: boolean; on_shift?: boolean; rating?: number | null; ratings?: number;
-  trip?: { accepted: boolean; picked: boolean; stand: string; stand_name: string; expires: number; pay: number; minutes: number; sections: string[]; orders: (Order & { handoff_ok_at: number | null })[] } | null;
+  trip?: { accepted: boolean; picked: boolean; stand: string; stand_name: string; expires: number; pay: number; base?: number; tips?: number; raised: number; passes: number; mode?: string; minutes: number; sections: string[]; orders: (Order & { handoff_ok_at: number | null })[] } | null;
 };
 
 /** Acting from a staff screen: as this party, with the answer said back in a toast. */
@@ -52,9 +53,10 @@ export function RunnerLens({ r, map, pick, runners, x }: { r: RunnerView; map: M
         <section className="trip-offer" aria-live="polite">
           <span className="eyebrow">New trip · take it in {countdown(t.expires - now)}</span>
           <b className="trip-pay num">{money(t.pay)}</b>
+          <small className="trip-split">{money(t.base ?? t.pay)} pay{t.tips ? ` + ${money(t.tips)} in tips, all yours` : ""}{t.raised > 0 ? ` · up ${money(t.raised)} since ${t.passes === 1 ? "a runner" : `${t.passes} runners`} passed` : ""}</small>
           <p>Pick up at <b>{t.stand_name}</b>, then {t.sections.map(s => `section ${s.slice(1)}`).join(", ")}. About {t.minutes} min.</p>
           <div className="deal-act two">
-            <button className="btn ghost big" onClick={() => staffAct(me, x, { do: "decline_trip" }, "Passed. It goes to someone else.")}>Pass</button>
+            <button className="btn ghost big" onClick={() => staffAct(me, x, { do: "decline_trip" }, t.mode === "fixed" ? "Passed. It goes to someone else." : "Passed. It goes to the next runner, for a little more.")}>Pass</button>
             <button className="btn primary big" onClick={() => staffAct(me, x, { do: "accept_trip" }, `It's yours. Head to ${t.stand_name}.`)}>Take it</button>
           </div>
         </section>
@@ -98,7 +100,7 @@ export function RunnerLens({ r, map, pick, runners, x }: { r: RunnerView; map: M
             <MeasureTile label="Delivered" value={r.delivered} sub={r.rating ? `★ ${r.rating.toFixed(1)} from ${r.ratings} fan${r.ratings === 1 ? "" : "s"}` : "no ratings yet"} />
             <MeasureTile label="Earned" value={money(r.pay + r.tips)} sub={`${money(r.tips)} in tips`} />
           </div>
-          <div className="lines"><LedgerLine label="Per-delivery pay" amount={r.pay} /><LedgerLine label="Tips, all yours" amount={r.tips} /><LedgerLine label="Total" amount={r.pay + r.tips} strong /></div>
+          <div className="lines"><LedgerLine label="Trip pay" amount={r.pay} /><LedgerLine label="Tips, all yours" amount={r.tips} /><LedgerLine label="Total" amount={r.pay + r.tips} strong /></div>
         </section>
       </div>
     </div>
@@ -236,7 +238,7 @@ export function OpsLens({ o, compact, x }: { o: OpsView; compact?: boolean; x?: 
       <div className={"tiles " + (compact ? "two" : "four")}>
         <MeasureTile label="Orders, last 5 min" value={o.orders_5m} sub={`${inFlight} in flight`} />
         <MeasureTile label="Seat waits" value={mins(o.wait_p50)} sub={`90% within ${mins(o.wait_p90)}`} tone={(o.wait_p90 ?? 0) > 1800 ? "bad" : (o.wait_p90 ?? 0) > 1200 ? "warn" : "good"} />
-        <MeasureTile label="Runners out" value={`${o.runners.busy}/${o.runners.total}`} />
+        <MeasureTile label="Runners out" value={`${o.runners.busy}/${o.runners.total}`} sub={(o.ledger as any).trips_taken ? `${Math.round(100 * (o.ledger as any).taken_first / (o.ledger as any).trips_taken)}% of trips taken on the first offer` : undefined} />
         <MeasureTile label="Ledger" value={o.ledger.conserved ? "Balanced" : "Out of balance"} sub={`${o.ledger.txns.toLocaleString()} entries, to the cent`} tone={o.ledger.conserved ? "good" : "bad"} />
       </div>
       <div className="role-grid">
@@ -275,16 +277,8 @@ export function OpsLens({ o, compact, x }: { o: OpsView; compact?: boolean; x?: 
               <td className="num">{k.closed || "–"}</td><td className="num">{[k.money ? money(k.money) : "", k.points ? `${k.points.toLocaleString()} pts` : ""].filter(Boolean).join(" + ") || "–"}</td></tr>)}</tbody>
           </table></div>
           {o.exchanges.exits.length > 0 && <ul className="earned">{o.exchanges.exits.map((e, i) => <li key={i}><span className="grow">{e.kind}: {EXIT_COPY[e.exit] ?? e.exit}</span><small>{e.owner === "nobody" ? "nobody's fault" : `on ${e.owner}`}</small><b className="num">{e.count}</b></li>)}</ul>}
-          <div className="block-head"><h2>Money tonight</h2><span className="sub">Every dollar fans paid, and where it went</span></div>
-          <div className="lines">
-            <LedgerLine label="Fans paid" amount={(o.ledger as any).fans_paid} strong />
-            <LedgerLine label="Stands" amount={o.ledger.stands} note="their sales, less Agape's share" />
-            <LedgerLine label="Runners" amount={o.ledger.runners} note="pay and tips" />
-            <LedgerLine label="Sales tax held" amount={o.ledger.tax} />
-            <LedgerLine label="Card processing" amount={(o.ledger as any).processing} />
-            <LedgerLine label="Agape" amount={o.ledger.agape} note="its share and delivery fees, after runner pay and card fees" />
-            {(() => { const other = (o.ledger as any).fans_paid - o.ledger.stands - o.ledger.runners - o.ledger.tax - (o.ledger as any).processing - o.ledger.agape; return other > 0 ? <LedgerLine label="Tickets, rides and partners" amount={other} note="to the venue, drivers and businesses" /> : null; })()}
-          </div>
+          <div className="block-head"><h2>Money tonight</h2><span className="sub">Every dollar in, and where it went</span></div>
+          <MoneyFlows f={(o.ledger as any).flows ?? {}} />
         </section>}
       </div>
       {!compact && x && !o.halt && <div className="ops-foot"><ServiceControl o={o} x={x} /></div>}

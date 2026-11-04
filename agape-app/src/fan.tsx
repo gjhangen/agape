@@ -11,7 +11,7 @@ import { kernel } from "./kernel";
 import { wearColor } from "./themes";
 import { cart, useCart } from "./cart";
 import { ItemArt } from "./Art";
-import { feature, TeamMark,
+import { feature, Opt, TeamMark,
   BRAND, CommitmentCard, FeedItem, LedgerLine, MapView, Offer, OfferCard, Order, PlaceView, SignalRow,
   countdown, momentText, money, rel, runnerName, team, useSecond, venueTime, whyNot,
 } from "./parts";
@@ -212,7 +212,7 @@ function Welcome({ v, go }: Ctx) {
       <div className="welcome-acts">
         <button onClick={() => { document.querySelector(".item-row")?.scrollIntoView({ behavior: "smooth", block: "center" }); }}><b>Order to your seat</b><small>see when it'll arrive before you tap</small></button>
         {feature("predictions") && <button onClick={() => go("live")}><b>Call the quarter</b><small>50 points if you're right</small></button>}
-        {feature("cards") && !feature("predictions") && <button onClick={() => go("live")}><b>Collect the big plays</b><small>limited cards, gone fast</small></button>}
+        {feature("cards") && !feature("predictions") && <button onClick={() => go("live")}><b>Collect the big plays</b><small>free to collect while they last</small></button>}
         {feature("colors") && <button onClick={() => go("me")}><b>Wear your colors</b><small>the app takes your team's look</small></button>}
       </div>
     </section>
@@ -252,7 +252,7 @@ function Get(ctx: Ctx) {
       {!["cards", "tickets", "around"].includes(cat) && stands.slice(0, cat === "all" ? 3 : 99).map(standBlock)}
       {feature("cards") && (cat === "cards" || cat === "all") && v.get.market.length > 0 && (
         <section className="block">
-          <div className="block-head"><h2>Cards from fans</h2><span className="sub">Pay in points · you have {v.me.balance.toLocaleString()}</span></div>
+          <div className="block-head"><h2>Cards from fans <Opt k="cards" /></h2><span className="sub">Pay in points · you have {v.me.balance.toLocaleString()}</span></div>
           <div className="card-grid">{(cat === "all" ? v.get.market.slice(0, 4) : v.get.market).map(l => (
             <div key={l.listing} className="market-item"><MomentCard c={l.card} size="sm" onClick={() => ctx.open(l.card.id)} /><b className="num">{l.price.toLocaleString()} pts</b><small>{l.seller_name}</small></div>))}</div>
         </section>
@@ -267,7 +267,7 @@ function Get(ctx: Ctx) {
 function Events({ v, open }: Ctx) {
   return (
     <section className="block">
-      <div className="block-head"><h2>Next at <button className="link-inline" onClick={() => open("venue")}>{BRAND.venue}</button></h2></div>
+      <div className="block-head"><h2>Next at <button className="link-inline" onClick={() => open("venue")}>{BRAND.venue}</button> <Opt k="tickets" /></h2></div>
       {v.get.events.map(e => (
         <button key={e.id} className="event-row" onClick={() => open(e.id)}>
           <span className="er-date"><b>{e.date.split(", ")[1]}</b><small>{e.date.split(", ")[0]}</small></span>
@@ -285,7 +285,7 @@ function Around({ v, refresh, toast, open, setSheet }: Ctx) {
   const ride = v.me.rides.find(r => r.stage !== "Done");
   return (
     <section className="block">
-      <div className="block-head"><h2>Around {BRAND.venue}</h2><span className="sub">You have {v.me.balance.toLocaleString()} pts</span></div>
+      <div className="block-head"><h2>Around {BRAND.venue} <Opt k="around" /></h2><span className="sub">You have {v.me.balance.toLocaleString()} pts</span></div>
       {v.get.around.map(a => (
         <div key={a.id} className={"around-row " + a.kind}>
           <div className="grow">
@@ -376,7 +376,7 @@ function Prediction({ v, refresh, toast }: Ctx) {
   }
   return (
     <div className="predict">
-      <div className="row gap"><span className="eyebrow grow">{p.question} · {p.points} points if you're right</span>{p.open && <span className="num lock">Locks in {countdown(p.locks - v.clock.t)}</span>}</div>
+      <div className="row gap"><span className="eyebrow grow">{p.question} · {p.points} points if you're right <Opt k="predictions" /></span>{p.open && <span className="num lock">Locks in {countdown(p.locks - v.clock.t)}</span>}</div>
       {p.yours ? <b>You picked {optLabel(p.yours)}. It settles when this part ends.</b> : p.open ? (
         <div className="seg fill big-seg" role="group" aria-label={p.question}>
           {p.options.map(o => <button key={o.id} onClick={() => pick(o.id)}>{optLabel(o.id)}</button>)}
@@ -431,7 +431,7 @@ function Live(ctx: Ctx) {
         </div>
         {fresh && (
           <div className={"moment-hero " + latest!.team}>
-            <span className="eyebrow">{venueTime(latest!.t)}</span><b>{momentText(latest!.text, latest!.team)}</b>
+            <span className="eyebrow">{venueTime(latest!.t)}{feature("cards") && latest!.drop && <Opt k="cards" />}</span><b>{momentText(latest!.text, latest!.team)}</b>
             {feature("cards") && latest!.drop && latest!.drop.open && !latest!.drop.collected && (
               <button className="btn hero-cta" onClick={() => collect(latest!.drop!.id)}>Collect this moment · {latest!.drop.left} of {latest!.drop.supply} left</button>)}
           </div>
@@ -443,7 +443,7 @@ function Live(ctx: Ctx) {
         <ol className="signals">{v.live.event.slice(0, 16).map((f, i) => <LiveRow key={f.t + f.text + i} f={f} open={open} now={c.t} collect={collect} />)}</ol>
       </section>
       {(feature("chat") || feature("battle")) && <section className="block">
-        {feature("chat") && <><div className="block-head"><h2>The crowd</h2>
+        {feature("chat") && <><div className="block-head"><h2>The crowd <Opt k="chat" /></h2>
           <div className="seg" role="group" aria-label="Whose chat"><button className={scope === "all" ? "on" : ""} onClick={() => setScope("all")}>Everyone</button><button className={scope === "section" ? "on" : ""} onClick={() => setScope("section")}>Section {sec(v.you.seat)}</button></div></div>
         <form className="say" onSubmit={send}>
           <input id="say" value={text} maxLength={140} onChange={e => setText(e.target.value)} placeholder="Say something" aria-label="Message the crowd" />
@@ -529,9 +529,9 @@ function Me({ v, refresh, toast, open, settings }: Ctx) {
             <div className="code-wrap">{p.used ? <small>Used {venueTime(p.used)}</small> : <><span className="code num">{p.code}</span><small>show at the counter</small></>}</div></div>)}
         </section>
       )}
-      {m.deals.length > 0 && (
+      {feature("players") && m.deals.length > 0 && (
         <section className="block">
-          <div className="block-head"><h2>Your deals</h2><span className="sub">{m.deals.filter(d => d.next === "confirm").length ? "1 to confirm" : ""}</span></div>
+          <div className="block-head"><h2>Your deals <Opt k="players" /></h2><span className="sub">{m.deals.filter(d => d.next === "confirm").length ? "1 to confirm" : ""}</span></div>
           <div className="deal-list">{m.deals.slice(0, 6).map(d => <DealCard key={d.id} d={d} as="you" act={actWith(toast, refresh)} open={open} now={now} />)}</div>
         </section>
       )}
@@ -541,7 +541,7 @@ function Me({ v, refresh, toast, open, settings }: Ctx) {
       </section>
       {feature("upgrades") && (v.upgrades?.length || v.moved) ? (
         <section className="block">
-          <div className="block-head"><h2>Your seat</h2><span className="sub">Section {sec(v.you.seat)}</span></div>
+          <div className="block-head"><h2>Your seat <Opt k="upgrades" /></h2><span className="sub">Section {sec(v.you.seat)}</span></div>
           {v.moved ? <p className="sub">You moved here at {venueTime(v.moved.at)}. Everything you order now comes to this section.</p> :
             v.upgrades!.slice(0, 3).map(u => <div key={u.id} className="upgrade-row"><div className="grow"><b>{u.title}</b><small>{u.blurb}{u.left != null ? ` · ${u.left} left tonight` : ""}</small></div>
               <button className="btn primary sm" disabled={!u.ok} onClick={() => { const r = kernel.act({ do: "upgrade", section: u.section }); toast(r.ok ? `Moved to section ${sec(u.section)}. Your orders follow you.` : r.error); refresh(); }}>{u.ok ? `Move · ${money(u.price)}` : (u.why_not ?? "Not now")}</button></div>)}
@@ -549,7 +549,7 @@ function Me({ v, refresh, toast, open, settings }: Ctx) {
       ) : null}
       {feature("colors") && v.colors && v.colors.teams.length > 0 && <Colors c={v.colors} toast={toast} refresh={refresh} />}
       {feature("cards") && <section className="block">
-        <div className="block-head"><h2>Your collection</h2><span className="sub">{m.cards.length} card{m.cards.length === 1 ? "" : "s"}</span></div>
+        <div className="block-head"><h2>Your collection <Opt k="cards" /></h2><span className="sub">{m.cards.length} card{m.cards.length === 1 ? "" : "s"}</span></div>
         {m.cards.length === 0 ? <p className="empty">Moments become cards. When something big happens in Live, collect it before it's gone.</p> :
           <div className="card-grid">{m.cards.map(x => (
             <div key={x.card.id} className="market-item"><MomentCard c={x.card} size="sm" onClick={() => open(x.card.id)} />

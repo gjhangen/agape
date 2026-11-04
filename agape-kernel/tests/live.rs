@@ -25,7 +25,7 @@ fn a_live_fan_orders_watches_it_arrive_and_finds_the_receipt() {
     let v = n.view_fan(YOU);
     let card = &v["orders"][0];
     assert_eq!((card["id"].as_u64(), card["stage"].as_str()), (Some(id as u64), Some("Accepted")));
-    let mut stages = vec![];
+    let mut stages = vec!["Accepted".to_string()];
     for _ in 0..400 {
         n.step();
         let v = n.view_fan(YOU);

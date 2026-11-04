@@ -99,7 +99,7 @@ fn tickets_resell_between_fans_at_no_more_than_120_percent() {
     assert_eq!(n.seats_of("ben", "e2"), vec![("s104".to_string(), seats.clone())], "the same seats, now his");
     assert!(n.seats_of(YOU, "e2").is_empty());
     let paid = face * 12 / 10;
-    assert_eq!(n.ledger.balance(&acct(YOU, "payouts"), &Unit::usd()), paid - 2 * (paid * 5 / 100), "the seller gets it less 5% to the venue and 5% to Agape");
+    assert_eq!(n.ledger.balance(&acct(YOU, "payouts"), &Unit::usd()), paid - 2 * (paid * 5 / 100) - n.terms.processing(paid), "the seller gets it less 5% to the venue, 5% to Agape and card processing");
     assert!(balanced(&n));
 }
 

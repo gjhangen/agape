@@ -19,19 +19,19 @@ const SPEEDS = [
 ];
 type Persp = "fan" | "runner" | "stand" | "player" | "business" | "ops" | "setup";
 const PERSPECTIVES: [Persp, string, string][] = [["fan", "Fan", "Section 104, on their phone"], ["runner", "Runner", "Carries orders to seats"], ["stand", "Kitchen", "Makes the orders"],
-  ["ops", "Venue ops", "The whole night, live"], ["business", "Business", "Sponsors and nearby partners"], ["player", "Player", "Deals and fans"], ["setup", "Studio", "Make it yours"]];
+  ["ops", "Venue ops", "The whole night, live"], ["business", "Business", "Sponsors and nearby partners"], ["player", "Player", "Optional · deals and fans"], ["setup", "Studio", "Make it yours"]];
 
 /** A walk through the night, one seat at a time. */
 const TOUR: { persp: Persp; title: string; body: string }[] = [
   { persp: "fan", title: "A fan's phone", body: "This is Agape as a fan sees it in section 104. Tap any food or drink: the time shown is when it reaches the seat, measured, not guessed. Add a few things to the cart and order." },
   { persp: "fan", title: "The game, live", body: "On the phone, tap Live at the bottom. Call the quarter for points, chat with your section, and collect the night's big plays as limited cards the moment they happen." },
   { persp: "stand", title: "The kitchen", body: "Every order lands here the second it's placed: stations, the queue, the ready shelf. Start a shift and you're the one cooking; the simulation steps aside." },
-  { persp: "runner", title: "The runner", body: "Runners get trips batched by section, with the route on the map. Tips go entirely to them." },
+  { persp: "runner", title: "The runner", body: "Runners are offered trips batched by section, with the route and the pay up front. Pass on one and it goes to the next runner for a little more, until someone takes it. Tips go entirely to them." },
   { persp: "ops", title: "The whole venue", body: "Operations sees every order, every runner and every dollar. The ledger balances to the cent all night, and one tap pauses service everywhere if something goes wrong." },
-  { persp: "ops", title: "Where the money goes", body: "Scroll Venue ops to Money tonight: every dollar fans paid, split between the stands, runners, sales tax, card processing and Agape. Every term is set per venue in the Studio." },
+  { persp: "ops", title: "Where the money goes", body: "Scroll Venue ops to Money tonight: every dollar fans paid, split between the stands, runners, sales tax, the card networks and Agape. Agape processes the cards itself, so processing is income, not a cost. Every term is set per event in the Studio." },
   { persp: "business", title: "Businesses and sponsors", body: "Nearby businesses offer perks fans unlock with points, and sponsors can back players. They see exactly which fans came through their door." },
-  { persp: "player", title: "Players", body: "Players see their following and the fans who backed them, and can take on promotions, all inside the rules their team sets." },
-  { persp: "setup", title: "Make it yours", body: "Put your own teams, logos, colors, players and menu on it, switch off what you don't want, and run a whole night before you open. Nothing here touches anyone else." },
+  { persp: "player", title: "Players", body: "Optional, not in the launch set: players see their following and can take paid promotions from fans and businesses, only inside the rules their team and league set. A venue switches it on in the Studio." },
+  { persp: "setup", title: "Make it yours", body: "Put your own teams, logos, colors, players and menu on it, switch off what you don't want, choose how runners are paid, and run a whole night before you open. Nothing here touches anyone else." },
   { persp: "fan", title: "Speed it up", body: "Use the speed buttons to run the night at 6×, 30× or 120×, or skip to halftime or the final. Everything stays consistent: same night, every seat." },
 ];
 
@@ -154,7 +154,7 @@ function App() {
           <div>
             <span className="eyebrow">You're looking at a whole night, simulated</span>
             <h1>A full arena, running in your browser.</h1>
-            <p>A basketball night at {BRAND.venue}: {(worldOverride()?.pilot?.fans ?? 3000).toLocaleString()} simulated fans ordering, chatting and collecting, {worldOverride()?.pilot?.runners ?? 40} runners, every kitchen, every dollar. Agape itself is real; the crowd and the game are simulated so you can see all of it at once. Step into any seat above, speed time up, switch features off, or put your own team on it in the Studio. Nothing you do here affects anyone else.</p>
+            <p>A basketball night at {BRAND.venue}: {(worldOverride()?.pilot?.fans ?? 3000).toLocaleString()} simulated fans ordering, chatting and collecting, {worldOverride()?.pilot?.runners ?? 40} runners, every kitchen, every dollar. Agape itself is real; the crowd and the game are simulated so you can see all of it at once. Step into any seat above, speed time up, switch features off, or put your own team on it in the Studio. Nothing you do here affects anyone else. Anything tagged <span className="opt">Optional</span> is built and working but not in the launch set; a venue switches it on if it wants it.</p>
           </div>
           <div className="sim-intro-acts">
             <button className="btn primary big" onClick={() => { closeIntro(); goTour(0); }}>Take the 2-minute tour</button>

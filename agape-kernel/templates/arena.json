@@ -245,13 +245,21 @@
  ],
  "terms": {
   "currency": "USD",
-  "platform_share_bps": 1500,
+  "platform_share_bps": 3000,
   "tax_bps": 700,
   "delivery_fee": 499,
-  "proc_bps": 290,
+  "proc_bps": 300,
   "proc_fixed": 30,
   "runner_pay": 150,
-  "points_per_dollar": 10
+  "points_per_dollar": 10,
+  "interchange_bps": 200,
+  "interchange_fixed": 10,
+  "pay_mode": "offers",
+  "offer_hourly": 1500,
+  "offer_per_item": 25,
+  "offer_min": 150,
+  "offer_raise_bps": 1500,
+  "offer_cap_bps": 16000
  },
  "service": {
   "batch_max": 4,

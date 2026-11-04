@@ -102,9 +102,8 @@ impl Night {
             posting(acct("tax_authority", "payable"), usd.clone(), -b.tax),
             posting(acct(&q.stand, "revenue"), usd.clone(), -b.stand_net),
             posting(acct("agape", "revenue"), usd.clone(), -(b.agape_share + fee)),
-            // processing already paid on the sale: the party at fault covers it
+            // the stand paid processing out of the sale and the fan gets it all back: whoever was at fault covers it
             posting(fault_acct, usd.clone(), -b.processing),
-            posting(acct("agape", "revenue"), usd.clone(), b.processing),
         ];
         for d in &q.discounts { post.push(posting(acct(&d.payer, "promo_budget"), usd.clone(), d.amount)); }
         if q.points_redeemed > 0 {

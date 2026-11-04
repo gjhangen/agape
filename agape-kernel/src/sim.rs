@@ -90,6 +90,12 @@ pub struct Report {
     pub conserved: bool,
     pub orders_per_min: Vec<(String, f64)>,
     pub runner_hourly: i64,
+    /// Trips offered to runners, how many were taken on the first offer, and the average pay per trip taken.
+    pub flows: BTreeMap<String, i64>,
+    pub trip_offers: u64,
+    pub trips_taken: u64,
+    pub taken_first: u64,
+    pub trip_pay_avg: i64,
     pub batch_avg: f64,
     pub balked: u64,
     pub avg_queue_s: i64,
@@ -131,6 +137,8 @@ pub(crate) struct Order {
     pub(crate) priority: bool,
     /// Its priority points are still held, waiting on how the order ends.
     pub(crate) priority_held: bool,
+    /// Runners who were offered it and passed (each pass raises the next offer, in offers mode).
+    pub(crate) passes: u32,
 }
 
 pub const TICK: i64 = 10_000;
@@ -229,6 +237,8 @@ pub struct Night {
     pub live: BTreeSet<String>,
     /// Batches offered to runners who are people, and the trips they've taken on.
     pub trips: BTreeMap<String, Trip>,
+    /// Trip offers made, trips taken, taken on the first offer, and total trip pay.
+    pub(crate) pay_stats: (u64, u64, u64, i64),
     /// Problems fans reported with orders, and how each was settled.
     pub problems: Vec<crate::care::Problem>,
     /// Service stopped by the venue, and why.
@@ -256,6 +266,8 @@ pub struct Night {
 #[derive(Clone, Debug)]
 pub struct Trip {
     pub orders: Vec<usize>, pub stand: String, pub offered_at: i64, pub accepted: bool, pub picked: bool,
+    /// What Agape pays for the trip (tips on top), the first offer it was priced at, and how many runners passed first.
+    pub pay: i64, pub first: i64, pub passes: u32,
     pub route: Vec<String>, pub pickup_s: u32, pub arrive_s: Vec<u32>, pub done_s: u32,
 }
 
@@ -265,6 +277,12 @@ pub const PRIORITY_AHEAD_MS: i64 = 10 * 60_000;
 
 /// How long a runner has to take an offered trip.
 pub const TRIP_OFFER_MS: i64 = 60_000;
+
+/// What an hour of a simulated runner's time is worth to them (pay and tips), $15 to $30, fixed per runner.
+fn reservation(id: &str) -> i64 {
+    let h = id.bytes().fold(0xcbf29ce484222325u64, |h, b| (h ^ b as u64).wrapping_mul(0x100000001b3));
+    1500 + (h % 1500) as i64
+}
 
 #[derive(Clone, Debug)]
 pub struct Prediction {
@@ -369,7 +387,7 @@ impl Night {
             report: Report::default(), placed_by_phase: BTreeMap::new(), batches: (0, 0), score: (0, 0), script, end_min, menu, t: 0,
             feed: vec![], recent: Default::default(), plans: BTreeMap::new(), done: false, chat: Default::default(), predictions: vec![], world,
             league, social: crate::social::Social::default(), last_scorer: BTreeMap::new(), seatmaps: BTreeMap::new(),
-            trade: Default::default(), claimed: BTreeSet::new(), driven: BTreeSet::new(), redeemed: BTreeMap::new(), replies: vec![], replay_check: std::cell::Cell::new((0, true)), live: BTreeSet::new(), trips: BTreeMap::new(), problems: vec![], halt: None, ratings: vec![], names: BTreeMap::new(), wearing: BTreeMap::new(), renames: BTreeMap::new(), spots: BTreeMap::new(), level_offset: BTreeMap::new(), passports: BTreeMap::new(), transfers: BTreeMap::new(),
+            trade: Default::default(), claimed: BTreeSet::new(), driven: BTreeSet::new(), redeemed: BTreeMap::new(), replies: vec![], replay_check: std::cell::Cell::new((0, true)), live: BTreeSet::new(), trips: BTreeMap::new(), pay_stats: (0, 0, 0, 0), problems: vec![], halt: None, ratings: vec![], names: BTreeMap::new(), wearing: BTreeMap::new(), renames: BTreeMap::new(), spots: BTreeMap::new(), level_offset: BTreeMap::new(), passports: BTreeMap::new(), transfers: BTreeMap::new(),
         }.seeded_live()
     }
 
@@ -424,7 +442,7 @@ impl Night {
         let eta = self.estimate(&stand, prep, &fan.seat, q.delivery);
         let id = self.orders.len();
         if source != "menu" { self.report.offer_orders += 1; }
-        self.orders.push(Order { c, source, accepted_at: t, delivered_at: None, started_at: None, ready_at: None, picked_at: None, prep_s: prep, seat: fan.seat.clone(), step_free: fan.step_free, eta, quoted: eta, promise: t + 1_800_000, scheduled_for: None, gift: None, priority: false, priority_held: false });
+        self.orders.push(Order { c, source, accepted_at: t, delivered_at: None, started_at: None, ready_at: None, picked_at: None, prep_s: prep, seat: fan.seat.clone(), step_free: fan.step_free, eta, quoted: eta, promise: t + 1_800_000, scheduled_for: None, gift: None, priority: false, priority_held: false, passes: 0 });
         if self.orders[id].c.stage == Stage::Accepted { self.queues.entry(stand).or_default().push(id); }
         self.report.orders += 1;
         let ph = phase(t / 60_000).0;
@@ -473,7 +491,7 @@ impl Night {
         self.world.eligible(&fan, thing, &|s| self.engine.span_open(s), false).map_err(|r| format!("{r:?}"))?;
         if let Some(why) = self.closed_now(thing) { return Err(why.into()); }
         let q = Quote { fan: who.into(), stand: th.stand.clone(), runner: None, lines: vec![Line { thing: th.id.clone(), qty, unit_price: th.price }],
-                        discounts: vec![], points_redeemed: 0, tip, delivery, fee_waived: false };
+                        discounts: vec![], points_redeemed: 0, tip, delivery, fee_waived: false, runner_pay: None };
         let c = Commitment::accept(&format!("o{}", self.orders.len()), q, &mut self.ledger).map_err(|_| "SoldOut".to_string())?;
         let mut outs = vec![];
         self.place(c, "menu".into(), &mut outs);
@@ -518,7 +536,7 @@ impl Night {
         let mut ids = vec![];
         for (k, (stand, lines)) in groups.into_iter().enumerate() {
             let share = if delivery { tip / n + if k == 0 { tip % n } else { 0 } } else { 0 };
-            let q = Quote { fan: who.into(), stand, runner: None, lines, discounts: vec![], points_redeemed: 0, tip: share, delivery, fee_waived: k > 0 };
+            let q = Quote { fan: who.into(), stand, runner: None, lines, discounts: vec![], points_redeemed: 0, tip: share, delivery, fee_waived: k > 0, runner_pay: None };
             let c = match Commitment::accept(&format!("o{}", self.orders.len()), q, &mut self.ledger) {
                 Ok(c) => c,
                 Err(_) => { for &id in &ids { let _ = self.cancel_as(who, id); } return Err("Something in your cart just sold out".into()); }
@@ -566,7 +584,7 @@ impl Night {
             None => {
                 let th = self.world.thing(thing).ok_or("unknown item")?;
                 Quote { fan: who.into(), stand: th.stand.clone(), runner: None, lines: vec![Line { thing: th.id.clone(), qty, unit_price: th.price }],
-                        discounts: vec![], points_redeemed: 0, tip, delivery, fee_waived: false }
+                        discounts: vec![], points_redeemed: 0, tip, delivery, fee_waived: false, runner_pay: None }
             }
         };
         let b = breakdown(&q, &self.terms).map_err(|e| format!("{e:?}"))?;
@@ -1010,7 +1028,7 @@ impl Night {
             let delivery = self.rng.chance(self.cfg.delivery_share);
             let tip = if delivery && self.rng.chance(0.6) { [100, 200, 300, 500][self.rng.below(4) as usize] } else { 0 };
             let q = Quote { fan: fan.id.clone(), stand: thing.stand.clone(), runner: None, lines: vec![Line { thing: thing.id.clone(), qty, unit_price: thing.price }],
-                            discounts: vec![], points_redeemed: 0, tip, delivery, fee_waived: false };
+                            discounts: vec![], points_redeemed: 0, tip, delivery, fee_waived: false, runner_pay: None };
             if breakdown(&q, &self.terms).map_or(true, |b| b.charge > fan.ceiling * 2) { continue; }
             let wait = self.stand_wait(&thing.stand);
             if wait > 1200 && self.rng.chance(((wait - 1200) as f64 / 1200.0).min(0.9)) { self.report.balked += 1; continue; }
@@ -1115,16 +1133,29 @@ impl Night {
         for r in lapsed { self.return_trip(&r, t + 30_000); }
         if !self.ready.is_empty() {
             for a in dispatch(&self.world, &mut self.costs, &self.ready, &self.runners, t) {
+                let ids: Vec<usize> = a.orders.iter().map(|s| s.parse().unwrap()).collect();
+                let (pay, first, passes) = self.trip_pay(&ids, a.done_s);
+                self.pay_stats.0 += 1;
                 if self.human(&a.runner) {
                     // a person is offered the trip first, with its route and pay; nothing is theirs until they say yes
-                    let ids: Vec<usize> = a.orders.iter().map(|s| s.parse().unwrap()).collect();
                     let stand = self.orders[ids[0]].c.quote.stand.clone();
                     self.ready.retain(|x| !a.orders.contains(&x.order));
                     if let Some(r) = self.runners.iter_mut().find(|r| r.id == a.runner) { r.free_at = i64::MAX; }
-                    self.trips.insert(a.runner.clone(), Trip { orders: ids, stand, offered_at: t, accepted: false, picked: false,
+                    self.trips.insert(a.runner.clone(), Trip { orders: ids, stand, offered_at: t, accepted: false, picked: false, pay, first, passes,
                         route: a.route.clone(), pickup_s: a.pickup_at_s, arrive_s: a.arrive_s.clone(), done_s: a.done_s });
                     continue;
                 }
+                // a simulated runner weighs the offer (pay and tips for the time it takes) against what their time is worth to them
+                let tips: i64 = ids.iter().map(|&i| self.orders[i].c.quote.tip).sum();
+                let per_hour = (pay + tips) * 3600 / (a.done_s as i64).max(120);
+                let ratio = per_hour as f64 / reservation(&a.runner) as f64;
+                if !self.rng.chance(((ratio - 0.55) / 0.5).clamp(0.03, 0.97)) {
+                    // passed: it stays on the shelf for the next runner, at a higher offer; this one rests a moment
+                    for &i in &ids { self.orders[i].passes += 1; }
+                    if let Some(r) = self.runners.iter_mut().find(|r| r.id == a.runner) { r.free_at = t + 20_000; }
+                    continue;
+                }
+                self.took_trip(&ids, pay, passes);
                 let r = self.runners.iter_mut().find(|r| r.id == a.runner).unwrap();
                 let mut plan = vec![(t, r.at.clone()), (t + a.pickup_at_s as i64 * 1000, a.route[1].clone())];
                 r.free_at = t + a.done_s as i64 * 1000;
@@ -1220,6 +1251,10 @@ impl Night {
         report.money.insert("runner tips".into(), sum("tips", "runner"));
         report.money.insert("tax".into(), ledger.balance(&acct("tax_authority", "payable"), &usd));
         report.money.insert("processing".into(), ledger.balance(&acct("processor", "fees"), &usd));
+        report.money.insert("agape processing".into(), ledger.balance(&acct("agape", "processing"), &usd));
+        let stand_ids: Vec<String> = self.world.def.stands.iter().map(|s| s.id.clone()).collect();
+        let runner_ids: Vec<String> = self.runners.iter().map(|r| r.id.clone()).collect();
+        report.flows = money_flows(ledger, &stand_ids, &runner_ids);
         for s in ["sponsor_cola", "sponsor_water"] {
             let funded = if s == "sponsor_cola" { 400_00 } else { 300_00 };
             report.sponsor_spend_ledger.insert(s.into(), funded - ledger.balance(&acct(s, "promo_budget"), &usd) - ledger.balance(&acct(s, "promo_escrow"), &usd) - ledger.balance(&acct(s, "promised_budget"), &usd));
@@ -1233,6 +1268,8 @@ impl Night {
         report.orders_per_min = self.placed_by_phase.iter().map(|(k, (n, ms))| (k.to_string(), *n as f64 / (*ms as f64 / 60_000.0))).collect();
         let hours = self.end_min as f64 / 60.0;
         report.runner_hourly = ((report.money["runner pay"] + report.money["runner tips"]) as f64 / self.cfg.runners as f64 / hours) as i64;
+        (report.trip_offers, report.trips_taken, report.taken_first) = (self.pay_stats.0, self.pay_stats.1, self.pay_stats.2);
+        report.trip_pay_avg = if self.pay_stats.1 > 0 { self.pay_stats.3 / self.pay_stats.1 as i64 } else { 0 };
         report.batch_avg = if self.batches.0 > 0 { self.batches.1 as f64 / self.batches.0 as f64 } else { 0.0 };
         report
     }
@@ -1242,6 +1279,31 @@ pub fn run(world_def: WorldDef, tpl: Template, cfg: &Config) -> Report {
     let mut n = Night::new(world_def, tpl, cfg.clone());
     while n.step() {}
     n.finish()
+}
+
+/// Where every dollar came from and went, from the ledger itself. In: fans' cards, and what sponsors and
+/// businesses put in. Out: everyone who holds money now. In minus out is always zero (the ledger balances).
+pub fn money_flows(l: &Ledger, stands: &[String], runners: &[String]) -> BTreeMap<String, i64> {
+    let mut f: BTreeMap<String, i64> = BTreeMap::new();
+    for ((a, u), v) in l.balances_iter() {
+        if !matches!(u, Unit::Money(_)) || *v == 0 { continue }
+        let k = match (a.party.as_str(), a.purpose.as_str()) {
+            (_, "card") => "in_fans",
+            (_, "bank" | "promo_budget" | "promo_escrow" | "promised_budget" | "deal_budget") => "in_partners",
+            ("agape", "revenue") => "agape",
+            ("agape", "processing") => "agape_processing",
+            ("processor", _) => "interchange",
+            ("tax_authority", _) => "tax",
+            (p, "pay" | "tips") if runners.iter().any(|r| r == p) => "runners",
+            (p, _) if stands.iter().any(|s| s == p) => "stands",
+            (_, "revenue") => "venue_partners",
+            (_, "earnings" | "payouts") => "people",
+            _ => "held",
+        };
+        let sign = if k.starts_with("in_") { -1 } else { 1 };
+        *f.entry(k.into()).or_insert(0) += sign * v;
+    }
+    f
 }
 
 fn ledger_sum(l: &Ledger, purpose: &str, prefix: &str) -> i64 {
@@ -1356,9 +1418,27 @@ impl Night {
         Ok(())
     }
 
+    /// What a trip pays the runner (tips on top): its first offer and, in offers mode, raised for each runner
+    /// who passed on any of its orders; or the fixed amount per delivery. Returns (pay, first offer, passes).
+    pub(crate) fn trip_pay(&self, ids: &[usize], secs: u32) -> (i64, i64, u32) {
+        let passes = ids.iter().map(|&i| self.orders[i].passes).max().unwrap_or(0);
+        if !self.terms.offers() { return (self.terms.runner_pay * ids.len() as i64, self.terms.runner_pay * ids.len() as i64, passes); }
+        let items: i64 = ids.iter().flat_map(|&i| self.orders[i].c.quote.lines.iter().map(|l| l.qty)).sum();
+        let first = self.terms.first_offer(secs as i64, items);
+        (self.terms.offer_after(first, passes as i64), first, passes)
+    }
+
+    /// A runner took a trip: each of its deliveries carries its share of the pay into settlement.
+    fn took_trip(&mut self, ids: &[usize], pay: i64, passes: u32) {
+        let n = ids.len() as i64;
+        for (k, &i) in ids.iter().enumerate() { self.orders[i].c.quote.runner_pay = Some(pay / n + if k == 0 { pay % n } else { 0 }); }
+        self.pay_stats.1 += 1; self.pay_stats.2 += (passes == 0) as u64; self.pay_stats.3 += pay;
+    }
+
     /// An offered trip goes back to the shelf; the runner isn't offered another until `rest_until`.
     fn return_trip(&mut self, runner: &str, rest_until: i64) {
         let Some(trip) = self.trips.remove(runner) else { return };
+        for &id in &trip.orders { self.orders[id].passes += 1; }
         for id in trip.orders {
             let o = &self.orders[id];
             let at = o.ready_at.unwrap_or(self.t) - if o.priority { PRIORITY_AHEAD_MS } else { 0 };
@@ -1372,6 +1452,7 @@ impl Night {
         let trip = self.trips.get(runner).filter(|x| !x.accepted).cloned().ok_or("No trip is waiting for you")?;
         let r = self.runners.iter_mut().find(|r| r.id == runner).ok_or("Unknown runner")?;
         let mut plan = vec![(t, r.at.clone()), (t + trip.pickup_s as i64 * 1000, trip.route[1].clone())];
+        self.took_trip(&trip.orders, trip.pay, trip.passes);
         for (k, &id) in trip.orders.iter().enumerate() {
             self.orders[id].c.act(Action::Assign(runner.into()), "agape", &mut self.ledger, &self.terms).map_err(|e| format!("{e:?}"))?;
             self.orders[id].eta = t + trip.arrive_s[k] as i64 * 1000;
