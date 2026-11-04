@@ -111,7 +111,7 @@ function beatFor(stage: Stage, v: FanView | null, level: number, seen: Set<strin
   const o = v.orders[0];
   const done = v.me.receipts.find(r => r.stage === "Settled" && r.delivery);
   if (o) {
-    if (o.stage === "Accepted" || o.stage === "Preparing") return { id: "kitchen", title: `${o.stand} is making it`, body: <>Your order went straight to the kitchen's screen. The arrival time you were shown is measured from how fast this stand and its runners are going right now. Keep watching the {EVENT === "concert" ? "show" : "game"}; the bar at the top of your screen follows your order.</> };
+    if (o.stage === "Accepted" || o.stage === "Preparing") return { id: "kitchen", title: `${o.stand} is making it`, body: <>Your order went straight to the stand's screen. The arrival time you were shown is measured from how fast this stand and its runners are going right now. Keep watching the {EVENT === "concert" ? "show" : "game"}; the bar at the top of your screen follows your order.</> };
     if (o.stage === "Ready" || o.stage === "Assigned") return { id: "runner", title: "A runner takes the trip", body: <>It's on the ready shelf, and the nearest runner has been offered the trip, with its route and pay shown up front. Runners keep every tip.</> };
     if (o.stage === "PickedUp") return { id: "walk", title: `${v.runner ? runnerName(v.runner.id) : "Your runner"} is on the way`, body: <>Walking the concourse to section {v.you.seat.slice(1)}. Open Me to watch them come.</> };
   }

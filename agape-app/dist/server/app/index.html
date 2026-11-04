@@ -1668,6 +1668,9 @@ body { margin: 0; }
 .sheet-actions:has(.pay-ask) > .btn { display: none; }
 .pay-ask .btn.ghost { color: var(--ink); background: var(--surface); border: 1px solid var(--line); }
 .talk-roles .chip { padding: 8px 14px; border: 1px solid var(--line); cursor: pointer; }
+/* in-app messages sit above the tab bar, never over Back or Close */
+.story .toasts.in-phone, .story.full .toasts.in-phone, .story:not(.tablet):not(.laptop) .toasts.in-phone { top: auto !important; bottom: calc(78px + env(safe-area-inset-bottom, 0px)); }
+.story.tablet .toasts.in-phone, .story.laptop .toasts.in-phone { bottom: 24px; width: min(420px, calc(100% - 28px)); }
 </style></head><body>
 <div id="root"><div class="gate"><h1>Harbor Arena</h1><p>Opening the doors…</p></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
