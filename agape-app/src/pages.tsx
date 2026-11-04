@@ -285,7 +285,7 @@ function EventPage({ p, open, toast, refresh }: { p: any; open: OpenPage; toast:
             <div className="confirm-box" role="group" aria-label="Confirm your tickets">
               <b>{p.title} · {p.date} · {p.time}</b>
               <span>{sec === "sFL" ? "Courtside" : `Section ${sec!.slice(1)}`}, row {q.seats[0]?.[0]}, seats {q.seats.map((x: string) => x.slice(1)).join(", ")}</span>
-              <small>{money(q.quote.charge)} to your card. Can't go after all? Resell them to other fans in Me, at up to 120% of face value. (Pilot: nothing is actually charged.)</small>
+              <small>{money(q.quote.charge)} to your card. Can't go after all? Resell them to other fans in Me, at up to 120% of face value.</small>
               <div className="row gap"><button className="btn" onClick={() => setSure(false)}>Change</button><button className="btn primary big grow" onClick={buy}>Buy · {money(q.quote.charge)}</button></div>
             </div>
           )}

@@ -138,7 +138,7 @@ export function PlayerLens({ p, players, pick, toast, refresh }: { p: any; playe
         <section className="block claim">
           <h2>This is your profile, {p.name.split(" ")[0]}</h2>
           <p>{p.followers > 0 ? `${p.followers.toLocaleString()} fans already follow you here` : "Your page is already here"}{p.deals.length ? `, and ${p.deals.length} offer${p.deals.length === 1 ? " is" : "s are"} waiting in escrow for you` : ""}. Claim it to answer messages, take deals and get paid.</p>
-          <p className="sub">In the pilot, {p.group.name} confirm it's you.</p>
+          <p className="sub">{p.group.name} confirm it's you.</p>
           <button className="btn primary big wide" onClick={() => act({ do: "claim", member: p.id }, "Profile claimed. It's yours now.")}>Claim my profile</button>
         </section>
       ) : (

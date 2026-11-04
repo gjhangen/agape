@@ -11,7 +11,7 @@ import { kernel } from "./kernel";
 import { wearColor } from "./themes";
 import { cart, useCart } from "./cart";
 import { ItemArt } from "./Art";
-import { feature, Opt, TeamMark,
+import { feature, Icon, Opt, TeamMark,
   BRAND, CommitmentCard, FeedItem, LedgerLine, MapView, Offer, OfferCard, Order, PlaceView, SignalRow,
   countdown, momentText, money, rel, runnerName, team, useSecond, venueTime, whyNot,
 } from "./parts";
@@ -59,21 +59,37 @@ export type FanView = {
 };
 
 export type Sheet = { kind: "cart" } | { kind: "item"; item: string; at?: number } | { kind: "checkout"; offer: Offer; claim: string } | { kind: "ride"; zone: string } | null;
-type Space = "get" | "live" | "me";
-type Ctx = { v: FanView; refresh: () => void; setSheet: (s: Sheet) => void; toast: (s: string) => void; go: (s: Space) => void; open: (id: string) => void; settings?: React.ReactNode };
+type Space = "get" | "deals" | "play" | "people" | "me" | "live";
+type Ctx = { v: FanView; refresh: () => void; setSheet: (s: Sheet) => void; toast: (s: string) => void; go: (s: Space) => void; open: (id: string) => void; settings?: React.ReactNode; setting: (s: string | null) => void };
+
+/** The tabs, by what's switched on: Get and Me always; the others arrive as the venue's level grows. */
+const SPACES: { id: Space; icon: "get" | "deals" | "play" | "people" | "me"; label: string; when: () => boolean }[] = [
+  { id: "get", icon: "get", label: "Get", when: () => true },
+  { id: "deals", icon: "deals", label: "Deals", when: () => feature("offers") || feature("tickets") || feature("upgrades") || feature("around") },
+  { id: "play", icon: "play", label: "Play", when: () => feature("predictions") || feature("battle") || feature("cards") },
+  { id: "people", icon: "people", label: "People", when: () => feature("chat") || feature("players") },
+  { id: "me", icon: "me", label: "Me", when: () => true },
+];
+/** Words under the icons for a fan's first week; after that, the icons alone. */
+function useFirstWeek() {
+  const [on] = useState(() => { try { const k = "agape.first"; const f = Number(localStorage.getItem(k)) || Date.now(); localStorage.setItem(k, String(f)); return Date.now() - f < 7 * 864e5; } catch { return true; } });
+  return on;
+}
 const sec = (s: string) => s.slice(1);
 
-export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ctx, "go" | "open"> & { sheet: Sheet }) {
+export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ctx, "go" | "open" | "setting"> & { sheet: Sheet }) {
   const [space, setSpace] = useState<Space>("get");
   const [q, setQ] = useState("");
   const body = useRef<HTMLDivElement>(null);
   useSecond();
   const [pages, setPages] = useState<string[]>([]);
-  const [tucked, setTucked] = useState(false);
+  const setTucked = (_: boolean) => {};
+  const [liveOpen, setLiveOpen] = useState(false);
+  const [setting, setSetting] = useState<string | null>(null);
   // the phone's back button closes what's open (a sheet, a page) instead of leaving the app
-  const overlay = (sheet ? 1 : 0) + pages.length;
+  const overlay = (sheet ? 1 : 0) + pages.length + (liveOpen ? 1 : 0) + (setting ? 1 : 0);
   const depth = useRef(0), fromBack = useRef(false), skipPop = useRef(0);
-  const live = useRef({ sheet, pages }); live.current = { sheet, pages };
+  const live = useRef({ sheet, pages, liveOpen, setting }); live.current = { sheet, pages, liveOpen, setting };
   useEffect(() => {
     if (overlay > depth.current) history.pushState({ agape: overlay }, "");
     else if (overlay < depth.current && !fromBack.current) { skipPop.current += depth.current - overlay; history.go(overlay - depth.current); }
@@ -83,14 +99,15 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
     const on = () => {
       if (skipPop.current > 0) { skipPop.current--; return; }
       fromBack.current = true;
-      if (live.current.pages.length) setPages(p => p.slice(0, -1)); else if (live.current.sheet) setSheet(null); else fromBack.current = false;
+      if (live.current.pages.length) setPages(p => p.slice(0, -1)); else if (live.current.sheet) setSheet(null); else if (live.current.setting) setSetting(null); else if (live.current.liveOpen) setLiveOpen(false); else fromBack.current = false;
     };
     addEventListener("popstate", on); return () => removeEventListener("popstate", on);
   }, []);
-  const lastY = useRef(0);
-  const go = (s: Space) => { setSpace(s); setQ(""); setPages([]); body.current?.scrollTo({ top: 0 }); };
+  const go = (s: Space) => { if (s === "live") { setLiveOpen(true); return; } setLiveOpen(false); setSpace(s); setQ(""); setPages([]); setTucked(false); body.current?.scrollTo({ top: 0 }); };
   const open = (id: string) => setPages(p => [...p, id]);
-  const ctx: Ctx = { v, refresh, setSheet, toast, go, open, settings };
+  const ctx: Ctx = { v, refresh, setSheet, toast, go, open, settings, setting: setSetting };
+  const tabs = SPACES.filter(t => t.when());
+  const labels = useFirstWeek();
   const worn = v.colors?.teams.find(t => t.id === v.colors?.wearing)?.color ?? null;
   useEffect(() => { wearColor(worn); }, [worn]);
   useEffect(() => () => wearColor(null), []);
@@ -113,12 +130,7 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
   const c = v.clock;
   const lead = v.orders[0];
   return (
-    <div className={"phone" + (tucked && !q ? " tucked" : "")}>
-      {space !== "live" && <button className="event-strip" onClick={() => go("live")} aria-label="Open Live">
-        <span className="es-team home"><TeamMark side="home" />{BRAND.home.abbr} <b key={c.home} className="num score-bump">{c.home}</b></span>
-        <span className="es-clock num">{c.label}</span>
-        <span className="es-team away"><b key={c.away} className="num score-bump">{c.away}</b> {BRAND.away.abbr}<TeamMark side="away" /></span>
-      </button>}
+    <div className="phone">
       {lead && space !== "me" && (
         <button className="order-pill" onClick={() => go("me")}>
           <ItemArt name={lead.items[0]?.name ?? ""} size={26} />
@@ -126,21 +138,26 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
           <span className="num">{lead.delivery ? "here by" : "ready by"} {venueTime(lead.eta)}</span>
         </button>
       )}
-      <div className="finder">
-        <input id="find" type="search" placeholder="Search food, drinks, gear…" value={q} onChange={e => setQ(e.target.value)} aria-label="Find anything" />
-      </div>
-      <div className="scope-body" ref={body} onScroll={e => { const y = e.currentTarget.scrollTop; const d = y - lastY.current; lastY.current = y; if (y < 40) setTucked(false); else if (d > 6) setTucked(true); else if (d < -6) setTucked(false); }}>
+      <div className="scope-body" ref={body}>
+        {space === "get" && !q && <EventAnchor {...ctx} />}
+        {space === "get" && <div className="finder">
+          <input id="find" type="search" placeholder="Search food, drinks, gear…" value={q} onChange={e => setQ(e.target.value)} aria-label="Find anything" />
+        </div>}
         {v.halt && <div className="halt-banner" role="alert"><b>Service is paused</b><p>{v.halt.reason}</p><small>Nothing new can be ordered right now. Anything not yet being made was cancelled, and you weren't charged for it.</small></div>}
-        {q ? <Search q={q} {...ctx} /> : space === "get" ? <Get {...ctx} /> : space === "live" ? <Live {...ctx} /> : <Me {...ctx} />}
+        {q ? <Search q={q} {...ctx} /> : space === "get" ? <Get {...ctx} /> : space === "deals" ? <Deals {...ctx} /> : space === "play" ? <Play {...ctx} /> : space === "people" ? <People {...ctx} /> : <Me {...ctx} />}
       </div>
-      <nav className="space-bar" aria-label="Spaces">
-        {([["get", "Get"], ["live", "Live"], ["me", "Me"]] as [Space, string][]).map(([id, label]) => (
-          <button key={id} className={space === id && !q ? "on" : ""} aria-current={space === id} onClick={() => go(id)}>
-            {label}{id === "me" && v.orders.length > 0 && <i className="badge">{v.orders.length}</i>}
-            {id === "live" && v.live.prediction?.open && !v.live.prediction.yours && <i className="dot-badge" aria-label="A pick is open" />}
+      {tabs.length > 1 && <nav className={"space-bar icons" + (labels ? " labelled" : "")} aria-label="Spaces">
+        {tabs.map(t => (
+          <button key={t.id} className={space === t.id && !q ? "on" : ""} aria-current={space === t.id} aria-label={t.label} onClick={() => go(t.id)}>
+            {t.id === "me" ? <span className="me-av">{(v.me as any).name?.slice?.(0, 1) ?? <Icon name="me" />}</span> : <Icon name={t.icon} />}
+            {labels && <small>{t.label}</small>}
+            {t.id === "me" && v.orders.length > 0 && <i className="badge">{v.orders.length}</i>}
+            {t.id === "play" && v.live.prediction?.open && !v.live.prediction.yours && feature("predictions") && <i className="dot-badge" aria-label="A pick is open" />}
           </button>
         ))}
-      </nav>
+      </nav>}
+      {liveOpen && <LiveSheet {...ctx} close={() => setLiveOpen(false)} />}
+      {setting && <SettingsPage which={setting} {...ctx} close={() => setSetting(null)} />}
       {pages.length > 0 && <Page key={pages.join("/")} id={pages[pages.length - 1]} depth={pages.length} close={() => setPages([])} back={() => setPages(p => p.slice(0, -1))} open={open} toast={toast} now={c.t}
         acts={{ order: item => { setPages([]); setSheet({ kind: "item", item }); }, ride: zone => { setPages([]); setSheet({ kind: "ride", zone }); }, refreshAll: refresh }} />}
       {!sheet && pages.length === 0 && <CartBar v={v} open={() => setSheet({ kind: "cart" })} />}
@@ -192,30 +209,55 @@ function Callout({ eyebrow, text, cta, onClick }: { eyebrow: string; text: strin
   return <div className="callout"><span className="eyebrow">{eyebrow}</span><p>{text}</p><button className="btn primary" onClick={onClick}>{cta}</button></div>;
 }
 
-const ALL_CATS = [["all", "Everything"], ["food", "Food"], ["drink", "Drinks"], ["merch", "Gear"], ["cards", "Cards"], ["tickets", "Tickets"], ["around", "Around"]];
-const CAT_FEATURE: Record<string, string> = { cards: "cards", tickets: "tickets", around: "around" };
+const ALL_CATS = [["all", "Everything"], ["food", "Food"], ["drink", "Drinks"], ["merch", "Gear"]];
 
-/** A first-night hello: what's theirs already and three things worth trying. Gone once dismissed. */
-function Welcome({ v, go }: Ctx) {
+/** The fan's name as they gave it (in onboarding, or in Settings). */
+export function profileName(): string { try { return JSON.parse(localStorage.getItem("agape.profile") || "{}").name || ""; } catch { return ""; } }
+function setProfile(p: Record<string, unknown>) { try { const o = JSON.parse(localStorage.getItem("agape.profile") || "{}"); localStorage.setItem("agape.profile", JSON.stringify({ ...o, ...p })); } catch { /* kept for this visit only */ } }
+function pref<T>(k: string, d: T): T { try { const o = JSON.parse(localStorage.getItem("agape.prefs") || "{}"); return k in o ? o[k] : d; } catch { return d; } }
+function setPref(k: string, v: unknown) { try { const o = JSON.parse(localStorage.getItem("agape.prefs") || "{}"); o[k] = v; localStorage.setItem("agape.prefs", JSON.stringify(o)); } catch { /* fine */ } }
+
+/** A first-night hello that leads with the one thing Agape is for: something good, at your seat, soon. */
+function Welcome({ v, setSheet }: Ctx) {
   const key = `agape.welcomed.${v.you.id}`;
   const [gone, setGone] = useState(() => { try { return localStorage.getItem(key) === "1"; } catch { return false; } });
-  const fresh = v.me.earned.length <= 1 && v.me.orders.length === 0 && v.orders.length === 0 && v.clock.phase !== "postgame";
-  if (gone || !fresh) return null;
+  const fresh = v.me.orders.length === 0 && v.orders.length === 0 && v.me.receipts.length === 0 && v.clock.phase !== "postgame";
+  const pick = v.get.fastest.find(i => i.category === "food" && i.available) ?? v.get.fastest[0];
+  if (gone || !fresh || !pick) return null;
   const close = () => { setGone(true); try { localStorage.setItem(key, "1"); } catch { /* shown again next visit */ } };
+  const name = profileName().split(" ")[0];
   return (
     <section className="welcome" aria-label="Welcome">
-      <button className="welcome-x" onClick={close} aria-label="Dismiss">×</button>
-      <p className="eyebrow">Welcome to {BRAND.venue}</p>
-      <h2>{v.me.balance.toLocaleString()} points are yours.</h2>
-      <p>{feature("cards") ? "Spend them on moment cards, or earn more as the night goes." : "Earn more as the night goes."} A few things to try:</p>
-      <small className="welcome-pilot">This is the Agape pilot: the game and most of the crowd are simulated, and nothing is charged.</small>
-      <div className="welcome-acts">
-        <button onClick={() => { document.querySelector(".item-row")?.scrollIntoView({ behavior: "smooth", block: "center" }); }}><b>Order to your seat</b><small>see when it'll arrive before you tap</small></button>
-        {feature("predictions") && <button onClick={() => go("live")}><b>Call the quarter</b><small>50 points if you're right</small></button>}
-        {feature("cards") && !feature("predictions") && <button onClick={() => go("live")}><b>Collect the big plays</b><small>free to collect while they last</small></button>}
-        {feature("colors") && <button onClick={() => go("me")}><b>Wear your colors</b><small>the app takes your team's look</small></button>}
-      </div>
+      <button className="welcome-x" onClick={close} aria-label="Dismiss"><Icon name="close" size={18} /></button>
+      <p className="eyebrow">Welcome to {BRAND.venue}{name ? `, ${name}` : ""}</p>
+      <h2>Anything here, brought to section {sec(v.you.seat)}.</h2>
+      <p>A {pick.name.toLowerCase()} could be at your seat by <b>{venueTime(pick.eta)}</b>. Every time you see is when it reaches you, so you never have to leave the moment.</p>
+      <button className="btn welcome-cta" onClick={() => { close(); setSheet({ kind: "item", item: pick.id }); }}>Get a {pick.name.toLowerCase()} · {money(pick.price)}</button>
+      {feature("points") && <small className="welcome-pts">You start with {v.me.balance.toLocaleString()} points, and every order earns more.</small>}
     </section>
+  );
+}
+
+/** One line of the event, as it happens. */
+function feedLine(f: LiveItem): React.ReactNode {
+  if (f.kind === "score") return <>{f.name ?? team(f.team)} <span className={"pts " + f.team}>{f.text}</span></>;
+  if (f.kind === "moment") return <b>{momentText(f.text, f.team)}</b>;
+  return f.text;
+}
+
+/** The event, folded into one line at the top of Get: the score and the latest thing that happened. Tap to open it. */
+function EventAnchor({ v, go }: Ctx) {
+  const c = v.clock;
+  const f = v.live.event[0];
+  return (
+    <button className="anchor" onClick={() => go("live")} aria-label="Open the game">
+      <span className="an-score">
+        <span className="es-team home"><TeamMark side="home" />{BRAND.home.abbr} <b key={c.home} className="num score-bump">{c.home}</b></span>
+        <span className="es-clock num">{c.label}</span>
+        <span className="es-team away"><b key={c.away} className="num score-bump">{c.away}</b> {BRAND.away.abbr}<TeamMark side="away" /></span>
+      </span>
+      {f && <span className="an-feed" key={f.t + f.text}><i className="an-dot" aria-hidden="true" /><span className="grow">{feedLine(f)}</span><Icon name="chev" size={16} /></span>}
+    </button>
   );
 }
 
@@ -234,32 +276,15 @@ function Get(ctx: Ctx) {
   return (
     <>
       <Welcome {...ctx} />
-      {v.orders.length === 0 && <p className="orient">You're in <b>section {sec(v.you.seat)}</b>. Anything in {BRAND.venue} can come to your seat. Every time shown is when it reaches you.</p>}
       <Nudge {...ctx} />
-      {v.get.offers.length > 0 && (
-        <section className="block">
-          <h2>For you right now</h2>
-          {v.get.offers.map(o => <OfferCard key={o.id} o={o} now={now} onTap={() => tapOffer(o, ctx)} onCheckout={() => o.claim && setSheet({ kind: "checkout", offer: o, claim: o.claim.id })} />)}
-        </section>
-      )}
       <section className="block">
         <h2>Fastest to section {sec(v.you.seat)}</h2>
         {v.get.fastest.map(it => <ItemRow key={it.id} it={it} now={now} onPick={() => setSheet({ kind: "item", item: it.id })} />)}
       </section>
       <div className="cats-bar"><div className="cats chips" role="group" aria-label="What you want">
-        {ALL_CATS.filter(([id]) => !CAT_FEATURE[id] || feature(CAT_FEATURE[id])).map(([id, label]) => <button key={id} className={cat === id ? "on" : ""} onClick={() => { setCat(id); requestAnimationFrame(() => document.querySelector(".cats-bar")?.scrollIntoView({ block: "start", behavior: "smooth" })); }}>{label}</button>)}
+        {ALL_CATS.map(([id, label]) => <button key={id} className={cat === id ? "on" : ""} onClick={() => { setCat(id); requestAnimationFrame(() => document.querySelector(".cats-bar")?.scrollIntoView({ block: "start", behavior: "smooth" })); }}>{label}</button>)}
       </div></div>
-      {!["cards", "tickets", "around"].includes(cat) && stands.slice(0, cat === "all" ? 3 : 99).map(standBlock)}
-      {feature("cards") && (cat === "cards" || cat === "all") && v.get.market.length > 0 && (
-        <section className="block">
-          <div className="block-head"><h2>Cards from fans <Opt k="cards" /></h2><span className="sub">Pay in points · you have {v.me.balance.toLocaleString()}</span></div>
-          <div className="card-grid">{(cat === "all" ? v.get.market.slice(0, 4) : v.get.market).map(l => (
-            <div key={l.listing} className="market-item"><MomentCard c={l.card} size="sm" onClick={() => ctx.open(l.card.id)} /><b className="num">{l.price.toLocaleString()} pts</b><small>{l.seller_name}</small></div>))}</div>
-        </section>
-      )}
-      {feature("tickets") && (cat === "tickets" || cat === "all") && <Events {...ctx} />}
-      {feature("around") && (cat === "around" || cat === "all") && <Around {...ctx} />}
-      {cat === "all" && stands.slice(3).map(standBlock)}
+      {stands.map(standBlock)}
     </>
   );
 }
@@ -409,66 +434,185 @@ function LiveRow({ f, open, now, collect }: { f: LiveItem; open: (id: string) =>
   );
 }
 
-function Live(ctx: Ctx) {
-  const { v, refresh, toast, go, open } = ctx;
+/** The event, opened from the anchor on Get: the score, the moment, everything that's happened. */
+function LiveSheet(ctx: Ctx & { close: () => void }) {
+  const { v, refresh, toast, open, close } = ctx;
   const c = v.clock;
-  const [scope, setScope] = useState<"all" | "section">("all");
-  const [text, setText] = useState("");
   const latest = v.live.event.find(e => e.kind === "moment");
   const fresh = latest && c.t - latest.t < 150000;
-  const b = v.live.battle;
-  const gap = b.ahead ? b.ahead.orders - b.orders_5m + 1 : 0;
-  const chat = scope === "all" ? v.live.chat : v.live.chat_section;
-  const send = (e: React.FormEvent) => { e.preventDefault(); const r = kernel.act({ do: "chat", text }); if (!r.ok) { toast(r.error); return; } setText(""); refresh(); };
-  const collect = (e: string) => { const r = kernel.act({ do: "collect", edition: e }); toast(r.ok ? "It's yours. It's in Me with the rest of your collection." : "That drop just closed."); refresh(); };
+  const collect = (e: string) => { const r = kernel.act({ do: "collect", edition: e }); toast(r.ok ? "It's yours. Find it in Play, with the rest of your collection." : "That one just closed."); refresh(); };
+  return (
+    <div className="overlay-page live-page" role="dialog" aria-label="The game">
+      <header className="op-head"><button className="op-back" onClick={close} aria-label="Back"><Icon name="back" /></button><b>{BRAND.home.short} vs {BRAND.away.short}</b><span className="op-sp" /></header>
+      <div className="op-body">
+        <section className="block event">
+          <div className="big-score">
+            <button className="bs-team home" onClick={() => open("hbk")}><span><TeamMark side="home" big />{BRAND.home.name}</span><b className="num">{c.home}</b></button>
+            <div className="bs-clock num">{c.label}</div>
+            <button className="bs-team away" onClick={() => open("msc")}><span><TeamMark side="away" big />{BRAND.away.name}</span><b className="num">{c.away}</b></button>
+          </div>
+          {fresh && (
+            <div className={"moment-hero " + latest!.team}>
+              <span className="eyebrow">{venueTime(latest!.t)}</span><b>{momentText(latest!.text, latest!.team)}</b>
+              {feature("cards") && latest!.drop && latest!.drop.open && !latest!.drop.collected && (
+                <button className="btn hero-cta" onClick={() => collect(latest!.drop!.id)}>Collect this moment · {latest!.drop.left} of {latest!.drop.supply} left</button>)}
+            </div>
+          )}
+          {feature("predictions") && v.live.prediction?.open && !v.live.prediction.yours && <button className="btn block primary" onClick={() => { close(); ctx.go("play"); }}>{v.live.prediction.question} · make your call</button>}
+        </section>
+        <section className="block">
+          <h2>Play by play</h2>
+          <ol className="signals">{v.live.event.slice(0, 20).map((f, i) => <LiveRow key={f.t + f.text + i} f={f} open={open} now={c.t} collect={collect} />)}</ol>
+        </section>
+        <section className="block">
+          <h2>Around the league</h2>
+          <ul className="league">{v.live.league.map(g => (
+            <li key={g.id}><button className="league-row" onClick={() => open(g.id)}>
+              <span className="grow"><b>{g.home_name}</b> {g.home_score} · {g.away_score} <b>{g.away_name}</b></span><span className="tag">{g.status}</span></button></li>))}</ul>
+        </section>
+      </div>
+    </div>
+  );
+}
+
+// ---------- Deals: what this event offers you ----------
+
+function Deals(ctx: Ctx) {
+  const { v, setSheet, open } = ctx;
+  const now = v.clock.t;
   return (
     <>
-      <section className="block event">
-        <div className="big-score">
-          <button className="bs-team home" onClick={() => open("hbk")}><span><TeamMark side="home" big />{BRAND.home.name}</span><b className="num">{c.home}</b></button>
-          <div className="bs-clock num">{c.label}</div>
-          <button className="bs-team away" onClick={() => open("msc")}><span><TeamMark side="away" big />{BRAND.away.name}</span><b className="num">{c.away}</b></button>
-        </div>
-        {fresh && (
-          <div className={"moment-hero " + latest!.team}>
-            <span className="eyebrow">{venueTime(latest!.t)}{feature("cards") && latest!.drop && <Opt k="cards" />}</span><b>{momentText(latest!.text, latest!.team)}</b>
-            {feature("cards") && latest!.drop && latest!.drop.open && !latest!.drop.collected && (
-              <button className="btn hero-cta" onClick={() => collect(latest!.drop!.id)}>Collect this moment · {latest!.drop.left} of {latest!.drop.supply} left</button>)}
-          </div>
-        )}
-        {feature("predictions") && <Prediction {...ctx} />}
-      </section>
-      <section className="block">
-        <h2>Play by play</h2>
-        <ol className="signals">{v.live.event.slice(0, 16).map((f, i) => <LiveRow key={f.t + f.text + i} f={f} open={open} now={c.t} collect={collect} />)}</ol>
-      </section>
-      {(feature("chat") || feature("battle")) && <section className="block">
-        {feature("chat") && <><div className="block-head"><h2>The crowd <Opt k="chat" /></h2>
-          <div className="seg" role="group" aria-label="Whose chat"><button className={scope === "all" ? "on" : ""} onClick={() => setScope("all")}>Everyone</button><button className={scope === "section" ? "on" : ""} onClick={() => setScope("section")}>Section {sec(v.you.seat)}</button></div></div>
+      {feature("points") && (
+        <section className="block points-head">
+          <span className="eyebrow">Your points</span>
+          <b className="pts-big num">{v.me.balance.toLocaleString()}</b>
+          <small>Every dollar you spend here earns 10. Spend them on the deals below{feature("priority") ? ", or to have an order go first" : ""}.</small>
+        </section>
+      )}
+      {feature("offers") && (
+        <section className="block">
+          <div className="block-head"><h2>Tonight's deals</h2><span className="sub">{BRAND.venue} only</span></div>
+          {v.get.offers.length > 0 ? v.get.offers.map(o => <OfferCard key={o.id} o={o} now={now} onTap={() => tapOffer(o, ctx)} onCheckout={() => o.claim && setSheet({ kind: "checkout", offer: o, claim: o.claim.id })} />)
+            : <p className="empty">New deals open as the night goes: at big moments, at halftime and before last call. They show up here the second they do.</p>}
+        </section>
+      )}
+      {(feature("upgrades") || feature("tickets")) && <YourSeat {...ctx} />}
+      {feature("around") && <Around {...ctx} />}
+      {feature("tickets") && <Events {...ctx} />}
+      {!feature("tickets") && !feature("around") && v.get.events.length > 0 && null}
+      <button className="link-row" onClick={() => open("venue")}><span className="grow">About {BRAND.venue}</span><Icon name="chev" size={18} /></button>
+    </>
+  );
+}
+
+function YourSeat({ v, toast, refresh, setting }: Ctx) {
+  const spot = pref<string>("spot", "");
+  return (
+    <section className="block">
+      <div className="block-head"><h2>Your seat</h2><button className="link-inline small" onClick={() => setting("seat")}>Change</button></div>
+      <div className="seat-ticket"><Icon name="seat" /><div className="grow"><b>Section {sec(v.you.seat)}{spot ? `, ${spot}` : ""}</b><small>{BRAND.home.name} vs {BRAND.away.name} · tonight</small></div></div>
+      {feature("upgrades") && (v.moved ? <p className="sub">You moved here at {venueTime(v.moved.at)}. Everything you order now comes to this section.</p> :
+        (v.upgrades ?? []).slice(0, 3).map(u => <div key={u.id} className="upgrade-row"><div className="grow"><b>{u.title}</b><small>{u.blurb}{u.left != null ? ` · ${u.left} left tonight` : ""}</small></div>
+          <button className="btn primary sm" disabled={!u.ok} onClick={() => { const r = kernel.act({ do: "upgrade", section: u.section }); toast(r.ok ? `Moved to section ${sec(u.section)}. Your orders follow you.` : r.error); refresh(); }}>{u.ok ? `Move · ${money(u.price)}` : (u.why_not ?? "Not now")}</button></div>))}
+    </section>
+  );
+}
+
+// ---------- Play: things to do and win tonight ----------
+
+function Battle({ v, go }: Ctx) {
+  const b = v.live.battle;
+  const gap = b.ahead ? b.ahead.orders - b.orders_5m + 1 : 0;
+  return (
+    <section className="block battle-block">
+      <div className="block-head"><h2>Section battle</h2><span className="sub">orders in the last 5 min</span></div>
+      <p className="explain">Every order from your section counts. The section on top at the final wins free drinks at the next home game.</p>
+      <div className="battle">
+        <div><b className="big num">{b.rank ? `Section ${sec(v.you.seat)} is #${b.rank} of ${b.of}` : `Section ${sec(v.you.seat)} isn't on the board yet`}</b>
+          <small>{b.rank === 1 ? "Leading the arena." : b.ahead ? `${gap} order${gap === 1 ? "" : "s"} to pass section ${sec(b.ahead.section)}` : "One order puts you on it"}</small></div>
+        <button className="btn primary" onClick={() => go("get")}>{b.rank === 1 ? "Hold the lead" : "Order to climb"}</button>
+      </div>
+    </section>
+  );
+}
+
+function Play(ctx: Ctx) {
+  const { v, open, refresh, toast } = ctx;
+  const m = v.me;
+  const now = v.clock.t;
+  const collect = (e: string) => { const r = kernel.act({ do: "collect", edition: e }); toast(r.ok ? "It's yours. It's in your collection below." : "That one just closed."); refresh(); };
+  const moments = v.live.event.filter(f => f.kind === "moment" && f.drop).slice(0, 4);
+  const got = m.badges.filter(b => b.earned).length;
+  return (
+    <>
+      {feature("predictions") && <section className="block"><div className="block-head"><h2>Call it</h2><span className="sub">{v.me.balance.toLocaleString()} pts</span></div>{v.live.prediction ? <Prediction {...ctx} /> : <p className="empty">The first call opens at tip-off: who takes the first quarter. Get it right for 50 points.</p>}</section>}
+      {feature("battle") && <Battle {...ctx} />}
+      {feature("cards") && (
+        <section className="block">
+          <div className="block-head"><h2>Moments</h2><span className="sub">free to collect while they last</span></div>
+          {moments.length ? <ol className="signals">{moments.map((f, i) => <LiveRow key={f.t + f.text + i} f={f} open={open} now={now} collect={collect} />)}</ol>
+            : <p className="empty">When something big happens, it becomes a card here for a few minutes. The next one could be any play.</p>}
+        </section>
+      )}
+      {feature("cards") && v.get.market.length > 0 && (
+        <section className="block">
+          <div className="block-head"><h2>From other fans</h2><span className="sub">traded for points</span></div>
+          <div className="card-grid">{v.get.market.slice(0, 6).map(l => (
+            <div key={l.listing} className="market-item"><MomentCard c={l.card} size="sm" onClick={() => open(l.card.id)} /><b className="num">{l.price.toLocaleString()} pts</b><small>{l.seller_name}</small></div>))}</div>
+        </section>
+      )}
+      {feature("cards") && <section className="block">
+        <div className="block-head"><h2>Your collection</h2><span className="sub">{m.cards.length} card{m.cards.length === 1 ? "" : "s"}</span></div>
+        {m.cards.length === 0 ? <p className="empty">Your first card is waiting for the next big play.</p> :
+          <div className="card-grid">{m.cards.map(x => (
+            <div key={x.card.id} className="market-item"><MomentCard c={x.card} size="sm" onClick={() => open(x.card.id)} />
+              <small>{x.listing ? `Listed at ${x.listing.price.toLocaleString()} pts` : x.count > 1 ? `You hold ${x.count}` : "Tap to trade"}</small></div>))}</div>}
+      </section>}
+      {feature("points") && <section className="block">
+        <div className="block-head"><h2>Badges</h2><span className="sub">{got} of {m.badges.length}</span></div>
+        <div className="badges">{m.badges.map(b => <div key={b.id} className={"badge-tile" + (b.earned ? " on" : "")}><b>{b.name}</b><small>{b.how}</small></div>)}</div>
+      </section>}
+    </>
+  );
+}
+
+// ---------- People: your section and the crowd ----------
+
+function People(ctx: Ctx) {
+  const { v, refresh, toast, open } = ctx;
+  const [scope, setScope] = useState<"all" | "section">("section");
+  const [text, setText] = useState("");
+  const chat = scope === "all" ? v.live.chat : v.live.chat_section;
+  const send = (e: React.FormEvent) => { e.preventDefault(); const r = kernel.act({ do: "chat", text }); if (!r.ok) { toast(r.error); return; } setText(""); refresh(); };
+  const m = v.me;
+  return (
+    <>
+      {feature("chat") && <section className="block">
+        <div className="block-head"><h2>{scope === "section" ? `Section ${sec(v.you.seat)}` : "Everyone here"}</h2>
+          <div className="seg" role="group" aria-label="Whose chat"><button className={scope === "section" ? "on" : ""} onClick={() => setScope("section")}>Your section</button><button className={scope === "all" ? "on" : ""} onClick={() => setScope("all")}>Everyone</button></div></div>
         <form className="say" onSubmit={send}>
           <input id="say" value={text} maxLength={140} onChange={e => setText(e.target.value)} placeholder="Say something" aria-label="Message the crowd" />
           <button className="btn primary sm" disabled={!text.trim()}>Send</button>
         </form>
         <ol className="chat">
-          {chat.slice(0, 12).map((m, i) => <li key={m.t + m.text + i} className={m.you ? "you" : ""}>
-            {m.you ? <b>You</b> : <button className="link-inline who" onClick={() => open(m.id)}>{m.who}{scope === "all" ? ` · ${sec(m.section)}` : ""}</button>}
-            <span>{m.text}</span><time className="num">{venueTime(m.t)}</time></li>)}
+          {chat.slice(0, 14).map((c, i) => <li key={c.t + c.text + i} className={c.you ? "you" : ""}>
+            {c.you ? <b>You</b> : <button className="link-inline who" onClick={() => open(c.id)}>{c.who}{scope === "all" ? ` · ${sec(c.section)}` : ""}</button>}
+            <span>{c.text}</span><time className="num">{venueTime(c.t)}</time></li>)}
           {chat.length === 0 && <li className="empty">Quiet so far. Start it.</li>}
         </ol>
-        {v.provenance?.crowd === "simulated" && <p className="provenance">Pilot: most of the crowd here is simulated ({v.provenance.simulated_fans.toLocaleString()} fans), so the chat is lively even before launch.</p>}</>}
-        {feature("battle") && <div className="battle">
-          <div><span className="eyebrow">Section battle · last 5 min</span>
-            <b className="big num">{b.rank ? `Section ${sec(v.you.seat)} is #${b.rank}` : `Section ${sec(v.you.seat)} isn't on the board`}</b>
-            <small>{b.rank === 1 ? "Leading the arena." : b.ahead ? `${gap} order${gap === 1 ? "" : "s"} to pass section ${sec(b.ahead.section)}` : "One order puts you on it"}</small></div>
-          <button className="btn primary" onClick={() => go("get")}>{b.rank === 1 ? "Hold the lead" : "Order to climb"}</button>
-        </div>}
       </section>}
       <section className="block">
-        <h2>Around the league</h2>
-        <ul className="league">{v.live.league.map(g => (
-          <li key={g.id}><button className="league-row" onClick={() => open(g.id)}>
-            <span className="grow"><b>{g.home_name}</b> {g.home_score} · {g.away_score} <b>{g.away_name}</b></span><span className="tag">{g.status}</span></button></li>))}</ul>
+        <h2>Your people</h2>
+        {m.following.length > 0 ? <div className="follow-list">{m.following.map(f => <button key={f.id} className="chip" onClick={() => open(f.id)}><i>{(f.name ?? "?").slice(0, 1)}</i>{f.name}</button>)}</div>
+          : <p className="empty">Tap anyone's name, in the crowd or on a team, to see their profile and follow them.</p>}
+        {m.messages.map(t => <button key={t.with} className="thread-row" onClick={() => open(t.with)}><b>{t.name}</b><span className="grow">{t.lines[t.lines.length - 1]?.text}</span></button>)}
       </section>
+      {feature("players") && m.deals.length > 0 && (
+        <section className="block">
+          <div className="block-head"><h2>Your requests</h2><span className="sub">{m.deals.filter(d => d.next === "confirm").length ? "1 to confirm" : ""}</span></div>
+          <div className="deal-list">{m.deals.slice(0, 6).map(d => <DealCard key={d.id} d={d} as="you" act={actWith(toast, refresh)} open={open} now={v.clock.t} />)}</div>
+        </section>
+      )}
     </>
   );
 }
@@ -489,15 +633,24 @@ function Colors({ c, toast, refresh }: { c: NonNullable<FanView["colors"]>; toas
   );
 }
 
-function Me({ v, refresh, toast, open, settings }: Ctx) {
+function Me({ v, refresh, toast, open, settings, setting }: Ctx) {
   const [rec, setRec] = useState<number | null>(null);
   const now = v.clock.t;
   const r = v.runner;
   const m = v.me;
-  const got = m.badges.filter(b => b.earned).length;
+  const name = profileName() || "You";
+  const spot = pref<string>("spot", "");
   const fresh = m.receipts.filter(o => o.stage === "Settled" && o.delivered != null && now - o.delivered < 10 * 60_000).slice(0, 2);
+  const onWay = m.orders.reduce((a, o) => a + (o.charge ?? 0), 0);
+  const row = (id: string, icon: Parameters<typeof Icon>[0]["name"], label: string, sub?: string) =>
+    <button key={id} className="set-row" onClick={() => setting(id)}><Icon name={icon} size={20} /><span className="grow"><b>{label}</b>{sub && <small>{sub}</small>}</span><Icon name="chev" size={18} /></button>;
   return (
     <>
+      <header className="me-head">
+        <span className="me-av big">{name.slice(0, 1)}</span>
+        <div className="grow"><h2>{name}</h2><small>Section {sec(v.you.seat)}{spot ? `, ${spot}` : ""} · {BRAND.venue}</small></div>
+        {feature("points") && <LevelBadge tier={m.tier} small />}
+      </header>
       {fresh.length > 0 && (
         <section className="block arrived">
           <h2>Just arrived</h2>
@@ -507,7 +660,7 @@ function Me({ v, refresh, toast, open, settings }: Ctx) {
       )}
       {m.orders.length > 0 && (
         <section className="block">
-          <h2>Your orders</h2>
+          <h2>On the way</h2>
           {m.orders.map(o => <CommitmentCard key={o.id} o={o} now={now} onCancel={() => { const x = kernel.act({ do: "cancel", order: o.id }); if (!x.ok) toast(x.error); refresh(); }} />)}
           {r && r.busy && (
             <div className="mini-map">
@@ -517,7 +670,7 @@ function Me({ v, refresh, toast, open, settings }: Ctx) {
           )}
         </section>
       )}
-      {(m.tickets.length > 0 || m.passes.length > 0 || m.rides.length > 0) && (
+      {((feature("tickets") && m.tickets.length > 0) || (feature("around") && (m.passes.length > 0 || m.rides.length > 0))) && (
         <section className="block">
           <h2>Coming up</h2>
           {m.rides.filter(r => r.stage !== "Done").map(r => <RideCard key={r.id} r={r} open={open} cancel={() => { const x = kernel.act({ do: "cancel_ride", ride: r.id }); toast(x.ok ? "Ride cancelled. No charge." : x.error); refresh(); }} />)}
@@ -529,54 +682,17 @@ function Me({ v, refresh, toast, open, settings }: Ctx) {
             <div className="code-wrap">{p.used ? <small>Used {venueTime(p.used)}</small> : <><span className="code num">{p.code}</span><small>show at the counter</small></>}</div></div>)}
         </section>
       )}
-      {feature("players") && m.deals.length > 0 && (
-        <section className="block">
-          <div className="block-head"><h2>Your deals <Opt k="players" /></h2><span className="sub">{m.deals.filter(d => d.next === "confirm").length ? "1 to confirm" : ""}</span></div>
-          <div className="deal-list">{m.deals.slice(0, 6).map(d => <DealCard key={d.id} d={d} as="you" act={actWith(toast, refresh)} open={open} now={now} />)}</div>
-        </section>
-      )}
-      <section className="block">
-        <LevelPanel level={m.level} tier={m.tier} floor={m.tier_floor} next={m.next_tier} balance={m.balance} />
-        <p className="passport-line">{m.passport?.venues?.length ? <>Your passport: {m.passport.venues.join(", ")} · {m.passport.nights} night{m.passport.nights === 1 ? "" : "s"}. </> : null}Your level and points go with you to every venue on Agape.</p>
-      </section>
-      {feature("upgrades") && (v.upgrades?.length || v.moved) ? (
-        <section className="block">
-          <div className="block-head"><h2>Your seat <Opt k="upgrades" /></h2><span className="sub">Section {sec(v.you.seat)}</span></div>
-          {v.moved ? <p className="sub">You moved here at {venueTime(v.moved.at)}. Everything you order now comes to this section.</p> :
-            v.upgrades!.slice(0, 3).map(u => <div key={u.id} className="upgrade-row"><div className="grow"><b>{u.title}</b><small>{u.blurb}{u.left != null ? ` · ${u.left} left tonight` : ""}</small></div>
-              <button className="btn primary sm" disabled={!u.ok} onClick={() => { const r = kernel.act({ do: "upgrade", section: u.section }); toast(r.ok ? `Moved to section ${sec(u.section)}. Your orders follow you.` : r.error); refresh(); }}>{u.ok ? `Move · ${money(u.price)}` : (u.why_not ?? "Not now")}</button></div>)}
-        </section>
-      ) : null}
-      {feature("colors") && v.colors && v.colors.teams.length > 0 && <Colors c={v.colors} toast={toast} refresh={refresh} />}
-      {feature("cards") && <section className="block">
-        <div className="block-head"><h2>Your collection <Opt k="cards" /></h2><span className="sub">{m.cards.length} card{m.cards.length === 1 ? "" : "s"}</span></div>
-        {m.cards.length === 0 ? <p className="empty">Moments become cards. When something big happens in Live, collect it before it's gone.</p> :
-          <div className="card-grid">{m.cards.map(x => (
-            <div key={x.card.id} className="market-item"><MomentCard c={x.card} size="sm" onClick={() => open(x.card.id)} />
-              <small>{x.listing ? `Listed at ${x.listing.price.toLocaleString()} pts` : x.count > 1 ? `You hold ${x.count}` : x.card.floor ? `Others ask ${x.card.floor.toLocaleString()}` : "Tap to sell"}</small></div>))}</div>}
-      </section>}
-      <section className="block">
-        <div className="block-head"><h2>Badges</h2><span className="sub">{got} of {m.badges.length}</span></div>
-        <div className="badges">{m.badges.map(b => <div key={b.id} className={"badge-tile" + (b.earned ? " on" : "")}><b>{b.name}</b><small>{b.how}</small></div>)}</div>
-      </section>
-      <section className="block">
-        <h2>Your points</h2>
-        <ul className="earned">{m.earned.slice(0, 8).map((e, i) => <li key={i}><span className="grow">{e.why}</span><b className={"num " + (e.points > 0 ? "plus" : "minus")}>{e.points > 0 ? "+" : ""}{e.points.toLocaleString()}</b><time className="num">{e.t ? venueTime(e.t) : ""}</time></li>)}</ul>
-      </section>
-      {(m.following.length > 0 || m.messages.length > 0) && (
-        <section className="block">
-          <h2>Your people</h2>
-          {m.following.length > 0 && <div className="follow-list">{m.following.map(f => <button key={f.id} className="chip" onClick={() => open(f.id)}><i>{(f.name ?? "?").slice(0, 1)}</i>{f.name}</button>)}</div>}
-          {m.messages.map(t => <button key={t.with} className="thread-row" onClick={() => open(t.with)}><b>{t.name}</b><span className="grow">{t.lines[t.lines.length - 1]?.text}</span></button>)}
-        </section>
-      )}
-      <section className="block">
-        <h2>Tonight</h2>
+      <section className="block wallet">
+        <div className="block-head"><h2>Wallet</h2><button className="link-inline small" onClick={() => setting("payment")}>Payment</button></div>
         <div className="pair">
-          <div><span className="eyebrow">Spent</span><b className="big num">{money(m.spent + m.orders.reduce((a, o) => a + (o.charge ?? 0), 0))}</b><small>{m.receipts.length} receipt{m.receipts.length === 1 ? "" : "s"}{m.orders.length ? ` · ${money(m.orders.reduce((a, o) => a + (o.charge ?? 0), 0))} on the way` : ""}</small></div>
-          <div><span className="eyebrow">Events</span><b className="big num">{m.events.length}</b><small>{m.events[0]?.name} · {m.events[0]?.venue}</small></div>
+          <div><span className="eyebrow">Spent tonight</span><b className="big num">{money(m.spent + onWay)}</b><small>{m.receipts.length} receipt{m.receipts.length === 1 ? "" : "s"}{onWay ? ` · ${money(onWay)} on the way` : ""}</small></div>
+          {feature("points") ? <div><span className="eyebrow">Points</span><b className="big num">{m.balance.toLocaleString()}</b><small>level {m.level.toLocaleString()} · {m.tier}</small></div>
+            : <div><span className="eyebrow">Paying with</span><b className="big">{pref<string>("pay", "Apple Pay")}</b><small>change in Payment</small></div>}
         </div>
-        {m.holdings.length > 0 && <div className="holdings">{m.holdings.map(h => <span key={h.thing} className="chip"><ItemArt name={h.name} size={22} />{h.qty > 1 ? `${h.qty}× ` : ""}{h.name}</span>)}</div>}
+      </section>
+      <section className="block">
+        <div className="block-head"><h2>History</h2><span className="sub">tap a receipt for its details</span></div>
+        {m.receipts.length === 0 && <p className="empty">Your receipts will be here, with every charge itemized.</p>}
         {m.receipts.map(o => (
           <div key={o.id} className="receipt">
             <button className="receipt-head" aria-expanded={rec === o.id} onClick={() => setRec(rec === o.id ? null : o.id)}><CommitmentCard o={o} now={now} compact /></button>
@@ -595,8 +711,104 @@ function Me({ v, refresh, toast, open, settings }: Ctx) {
           </div>
         ))}
       </section>
+      {feature("colors") && v.colors && v.colors.teams.length > 0 && <Colors c={v.colors} toast={toast} refresh={refresh} />}
+      <section className="block settings-list">
+        <h2>Settings</h2>
+        {row("account", "user", "Account", name === "You" ? "Name, email, password" : name)}
+        {row("payment", "card", "Payment", pref<string>("pay", "Apple Pay"))}
+        {row("seat", "seat", "Your seat", `Section ${sec(v.you.seat)}${spot ? `, ${spot}` : ""}`)}
+        {row("notifications", "bell", "Notifications")}
+        {row("accessibility", "access", "Accessibility")}
+        {row("privacy", "lock", "Privacy")}
+        {row("help", "help", "Help")}
+        {row("about", "info", "About Agape")}
+      </section>
       {settings}
     </>
+  );
+}
+
+/** Settings that behave the way they would in the real app. */
+function SettingsPage({ which, v, toast, refresh, go, close }: Ctx & { which: string; close: () => void }) {
+  const [, bump] = useState(0);
+  const set = (k: string, val: unknown) => { setPref(k, val); bump(x => x + 1); };
+  const tog = (k: string, label: string, sub: string, d = true) => {
+    const on = pref<boolean>(k, d);
+    return <label className="set-toggle"><span className="grow"><b>{label}</b><small>{sub}</small></span><input type="checkbox" role="switch" checked={on} onChange={e => { set(k, e.target.checked); if (k === "motion") document.documentElement.classList.toggle("calm", e.target.checked); }} /></label>;
+  };
+  const title = ({ account: "Account", payment: "Payment", seat: "Your seat", notifications: "Notifications", accessibility: "Accessibility", privacy: "Privacy", help: "Help", about: "About Agape" } as Record<string, string>)[which] ?? "Settings";
+  const [name, setName] = useState(profileName());
+  const [email, setEmail] = useState(() => { try { return JSON.parse(localStorage.getItem("agape.profile") || "{}").email || ""; } catch { return ""; } });
+  const [spot, setSpot] = useState(pref<string>("spot", ""));
+  const [card, setCard] = useState(false);
+  const pay = pref<string>("pay", "Apple Pay");
+  const cards = pref<string[]>("cards", ["Visa •••• 4242"]);
+  const size = pref<string>("text", "Default");
+  return (
+    <div className="overlay-page" role="dialog" aria-label={title}>
+      <header className="op-head"><button className="op-back" onClick={close} aria-label="Back"><Icon name="back" /></button><b>{title}</b><span className="op-sp" /></header>
+      <div className="op-body set-body">
+        {which === "account" && <form onSubmit={e => { e.preventDefault(); setProfile({ name: name.trim(), email: email.trim() }); toast("Saved."); close(); }}>
+          <label className="sf wide"><span>Your name</span><input value={name} onChange={e => setName(e.target.value)} maxLength={40} autoComplete="name" /></label>
+          <label className="sf wide"><span>Email</span><input type="email" value={email} onChange={e => setEmail(e.target.value)} autoComplete="email" placeholder="you@example.com" /></label>
+          <button className="btn primary block">Save</button>
+          <button type="button" className="btn ghost block" onClick={() => toast(email ? `We sent a link to ${email} to set a new password.` : "Add your email first, and we'll send a link there.")}>Change password</button>
+        </form>}
+        {which === "payment" && <>
+          <p className="explain">What you order is charged when it reaches you, never before. Tips go entirely to your runner.</p>
+          {["Apple Pay", ...cards].map(c => <label key={c} className="set-toggle radio"><span className="grow"><b>{c}</b>{c === pay && <small>Used for your orders</small>}</span><input type="radio" name="pay" checked={c === pay} onChange={() => set("pay", c)} /></label>)}
+          {card ? <form className="add-card" onSubmit={e => { e.preventDefault(); const n = (new FormData(e.currentTarget).get("n") as string).replace(/\D/g, ""); if (n.length < 12) { toast("That card number looks short."); return; } const label = `Card •••• ${n.slice(-4)}`; set("cards", [...cards, label]); set("pay", label); setCard(false); toast("Card added."); }}>
+            <label className="sf wide"><span>Card number</span><input name="n" inputMode="numeric" autoComplete="cc-number" placeholder="1234 5678 9012 3456" /></label>
+            <div className="sf-grid"><label className="sf"><span>Expires</span><input inputMode="numeric" autoComplete="cc-exp" placeholder="MM/YY" /></label><label className="sf"><span>Security code</span><input inputMode="numeric" autoComplete="cc-csc" placeholder="123" /></label></div>
+            <button className="btn primary block">Add card</button></form>
+            : <button className="btn ghost block" onClick={() => setCard(true)}>Add a card</button>}
+        </>}
+        {which === "seat" && <form onSubmit={e => { e.preventDefault(); const [row, place] = spot.split(",").map(x => x.trim()); kernel.act({ do: "spot", row: row ?? "", place: place ?? "" }); set("spot", spot.trim()); refresh(); toast("Your runner will come right to you."); close(); }}>
+          <p className="explain">You're in section {sec(v.you.seat)} at {BRAND.venue}. Tell us your row and seat so your runner walks straight to you.</p>
+          <label className="sf wide"><span>Row and seat</span><input value={spot} onChange={e => setSpot(e.target.value)} placeholder="Row F, seat 7" /></label>
+          <button className="btn primary block">Save</button>
+        </form>}
+        {which === "notifications" && <>
+          {tog("n-orders", "Your orders", "When it's being made, on the way and here")}
+          {feature("offers") && tog("n-deals", "Deals", "When a deal opens at your event")}
+          {tog("n-moments", "Big moments", "Lead changes and the final, if you've stepped away", false)}
+          {tog("n-events", "Upcoming events", "From venues and teams you follow", false)}
+          {tog("n-email", "Email", "Receipts and the occasional update", true)}
+        </>}
+        {which === "accessibility" && <>
+          <div className="set-group"><b>Text size</b><div className="seg fill" role="group" aria-label="Text size">{["Default", "Large", "Larger"].map(x => <button key={x} className={size === x ? "on" : ""} onClick={() => { set("text", x); document.documentElement.dataset.text = x.toLowerCase(); }}>{x}</button>)}</div></div>
+          {tog("motion", "Reduce motion", "Fewer animations and no pulsing", false)}
+          {tog("stepfree", "Step-free delivery", "Your runner avoids stairs, and meets you at the aisle if you'd like", false)}
+          {tog("contrast", "Higher contrast", "Darker text and stronger outlines", false)}
+          {tog("haptics", "Haptics", "A tap you can feel when your order arrives", true)}
+        </>}
+        {which === "privacy" && <>
+          <div className="set-group"><b>Who sees your profile</b><div className="seg fill" role="group" aria-label="Who sees your profile">{["Everyone", "My section", "Only me"].map(x => <button key={x} className={pref("vis", "My section") === x ? "on" : ""} onClick={() => set("vis", x)}>{x}</button>)}</div></div>
+          {tog("loc", "Location while using Agape", "So we know when you've arrived at an event. Never in the background.", true)}
+          {tog("ads", "Personalized deals", "Use what you order to choose which deals you see", true)}
+          <p className="explain">We keep your name, email, seat and orders to run Agape. We don't sell them.</p>
+          <button className="btn ghost block" onClick={() => toast("We're preparing your data. You'll get an email with a download link.")}>Download my data</button>
+          <button className="btn ghost block danger" onClick={() => toast("To delete your account, confirm from the email we just sent. It takes effect within 30 days.")}>Delete my account</button>
+        </>}
+        {which === "help" && <>
+          <button className="set-row" onClick={() => { close(); go("me"); }}><Icon name="help" size={20} /><span className="grow"><b>A problem with an order</b><small>Report it from the order itself; most are settled on the spot</small></span><Icon name="chev" size={18} /></button>
+          {[["When will my order arrive?", "Every time you see is when it reaches your seat, measured from how long the kitchen and runners are actually taking right now. If anything changes, the time on your order changes with it."],
+            ["What if it's late?", "If it's late, you get money back automatically. You don't need to ask."],
+            ["Who gets my tip?", "Your runner, every cent."],
+            ["Ordering drinks", "Drinks with alcohol are for people 21 and older. The first time you order one, we'll ask you to confirm, and your runner checks ID at your seat."],
+            ["What if I move seats?", "Change your seat in Settings and anything not yet on its way follows you."]].map(([q, a]) =>
+            <details key={q} className="faq"><summary>{q}</summary><p>{a}</p></details>)}
+          <button className="btn primary block" onClick={() => toast("Someone from Agape will reply here in a few minutes.")}>Message us</button>
+        </>}
+        {which === "about" && <>
+          <div className="about-mark"><b>agape</b><small>to your seat</small></div>
+          <p className="explain">Agape brings what you want to your seat at live events, made by the venue's own kitchens and carried by runners, so you never miss the moment.</p>
+          <button className="set-row" onClick={() => toast("Opening the terms.")}><span className="grow"><b>Terms of service</b></span><Icon name="chev" size={18} /></button>
+          <button className="set-row" onClick={() => toast("Opening the privacy policy.")}><span className="grow"><b>Privacy policy</b></span><Icon name="chev" size={18} /></button>
+          <p className="sub center">Version 1.0</p>
+        </>}
+      </div>
+    </div>
   );
 }
 
@@ -674,7 +886,7 @@ function CartSheet({ v, refresh, setSheet, toast, go }: Ctx) {
           <LedgerLine label="Items" amount={q.items} /><LedgerLine label="Tax" amount={q.tax} />
           {q.fee > 0 && <LedgerLine label="Delivery" amount={q.fee} note="once for the cart" />}{q.tip > 0 && <LedgerLine label="Tip" amount={q.tip} note="all to your runners" />}
           <LedgerLine label="You pay" amount={q.charge} strong />
-          <small className="pilot-note">Pilot: nothing is actually charged.</small>
+          <small className="pilot-note">Charged when it reaches you. Tips go to your runner.</small>
         </div>}
         <button className="btn ghost sm" onClick={() => { cart.clear(); setSheet(null); }}>Empty the cart</button>
         <button className="btn primary block big" disabled={busy || !!v.halt || blocked.length > 0} onClick={place}>{v.halt ? "Service is paused" : blocked.length ? "Remove what's unavailable" : `Place order · ${money(q?.charge)}`}</button>
@@ -778,7 +990,7 @@ function ItemSheet({ v, refresh, setSheet, toast, go, id, at: preset }: Ctx & { 
           <LedgerLine label="Items" amount={quote.subtotal} /><LedgerLine label="Tax" amount={quote.tax} />
           {quote.fee > 0 && <LedgerLine label="Delivery" amount={quote.fee} />}{quote.tip > 0 && <LedgerLine label="Tip" amount={quote.tip} />}
           <LedgerLine label="You pay" amount={quote.charge} strong />
-          <small className="pilot-note">Pilot: nothing is actually charged.</small>
+          <small className="pilot-note">Charged when it reaches you. Tips go to your runner.</small>
         </div>}
         <div className="sheet-actions">
           {at == null && !giftTo && !first && <button className="btn big" disabled={!!v.halt} onClick={() => { cart.add(id, qty); toast(`${qty > 1 ? `${qty}× ` : ""}${item.name} is in your cart.`); setSheet(null); }}>Add to cart</button>}
@@ -811,7 +1023,7 @@ function CheckoutSheet({ v, refresh, setSheet, toast, offer, claim }: Ctx & { of
           <LedgerLine label="Tax" amount={quote.tax} /><LedgerLine label="Delivery" amount={quote.fee} />
           {quote.tip > 0 && <LedgerLine label="Tip" amount={quote.tip} />}
           <LedgerLine label="You pay" amount={quote.charge} strong />
-          <small className="pilot-note">Pilot: nothing is actually charged.</small>
+          <small className="pilot-note">Charged when it reaches you. Tips go to your runner.</small>
         </div>}
         <button className="btn primary block big" disabled={!!v.halt} onClick={place}>{v.halt ? "Service is paused" : `Place order · ${money(quote?.charge)}`}</button>
       </div>

@@ -43,7 +43,7 @@ function App() {
   const [ops, setOps] = useState<OpsView | null>(null);
   const [runner, setRunner] = useState<RunnerView | null>(null);
   const [stand, setStand] = useState<StandView | null>(null);
-  const [persp, setPersp] = useState<Persp>("fan");
+  const [persp, setPersp] = useState<Persp>(() => { const p = new URLSearchParams(location.search).get("as"); return (["runner", "stand", "ops", "business", "player", "setup"].includes(p ?? "") ? p : "fan") as Persp; });
   const [speed, setSpeed] = useState(1);
   const [playing, setPlaying] = useState(true);
   const [done, setDone] = useState(false);
@@ -59,7 +59,7 @@ function App() {
   const [wide, setWide] = useState(() => matchMedia("(min-width: 1080px)").matches);
   const [tour, setTour] = useState<number | null>(null);
   const [talk, setTalk] = useState(false);
-  const [intro, setIntro] = useState(() => { try { return localStorage.getItem("agape.sim.intro") !== "seen"; } catch { return true; } });
+  const [intro, setIntro] = useState(() => { if (new URLSearchParams(location.search).get("as")) return false; try { return localStorage.getItem("agape.sim.intro") !== "seen"; } catch { return true; } });
   const closeIntro = () => { setIntro(false); try { localStorage.setItem("agape.sim.intro", "seen"); } catch { /* shown again next visit */ } };
   useEffect(() => { try { if (sessionStorage.getItem("agape.badlink")) { sessionStorage.removeItem("agape.badlink"); setTimeout(() => toast("That link didn't open a saved version, so this is the sample venue."), 600); } } catch { /* fine */ } }, []);
   const goTour = (i: number | null) => { setTour(i); if (i != null) setPersp(TOUR[i].persp); };

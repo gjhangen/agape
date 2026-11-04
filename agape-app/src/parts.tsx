@@ -392,3 +392,40 @@ export function MoneyFlows({ f }: { f: Record<string, number> }) {
     </div>
   );
 }
+
+/** Agape grows in levels; each is a complete product. A level is a set of what's switched on. */
+export const LEVELS: { n: number; name: string; line: string; on: string[] }[] = [
+  { n: 1, name: "Order to your seat", line: "Food, drinks and gear brought to your seat, with live arrival times", on: [] },
+  { n: 2, name: "Deals", line: "Points, this event's offers and sponsor perks, your seat and upgrades", on: ["points", "offers", "gifting", "priority", "upgrades", "colors"] },
+  { n: 3, name: "Play", line: "Calls, section battles, moments to collect and trade", on: ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards"] },
+  { n: 4, name: "Beyond the night", line: "Tickets and resale, rides, parking and places nearby", on: ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards", "tickets", "around"] },
+  { n: 5, name: "Community", line: "Your section, the crowd, profiles and the people you follow", on: ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards", "tickets", "around", "chat", "players"] },
+];
+export const ALL_FEATURES = ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards", "tickets", "around", "chat", "players"];
+export function levelFeatures(n: number): Record<string, boolean> {
+  const on = new Set(LEVELS.find(l => l.n === n)?.on ?? []);
+  return Object.fromEntries(ALL_FEATURES.map(k => [k, on.has(k)]));
+}
+
+/** The app's own icons: simple strokes, drawn in the current color. */
+export function Icon({ name, size = 24 }: { name: "get" | "deals" | "play" | "people" | "me" | "back" | "chev" | "close" | "card" | "bell" | "access" | "lock" | "help" | "info" | "seat" | "user" | "out"; size?: number }) {
+  const p = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
+  switch (name) {
+    case "get": return <svg {...p}><path d="M4 11h16" /><path d="M5 11a7 7 0 0 1 14 0" /><path d="M3.5 15h17l-1.2 3.2a2 2 0 0 1-1.9 1.3H6.6a2 2 0 0 1-1.9-1.3z" /><path d="M12 4V2.5" /></svg>;
+    case "deals": return <svg {...p}><path d="M3 8a2 2 0 0 0 2-2h14a2 2 0 0 0 2 2v2a2 2 0 0 0 0 4v2a2 2 0 0 0-2 2H5a2 2 0 0 0-2-2v-2a2 2 0 0 0 0-4z" /><path d="M14 6v12" strokeDasharray="2 2.2" /></svg>;
+    case "play": return <svg {...p}><path d="M7 7h10a4 4 0 0 1 4 4v3.5a2.5 2.5 0 0 1-4.5 1.5L15 14H9l-1.5 2a2.5 2.5 0 0 1-4.5-1.5V11a4 4 0 0 1 4-4z" /><path d="M8 10v3M6.5 11.5h3" /><circle cx="15.5" cy="10.5" r=".6" fill="currentColor" /><circle cx="17" cy="12.5" r=".6" fill="currentColor" /></svg>;
+    case "people": return <svg {...p}><circle cx="9" cy="8" r="3.2" /><path d="M3 19a6 6 0 0 1 12 0" /><path d="M16 5.2a3 3 0 0 1 0 5.6M18 19a6 6 0 0 0-2.5-4.9" /></svg>;
+    case "me": case "user": return <svg {...p}><circle cx="12" cy="8.5" r="3.7" /><path d="M4.5 20a7.5 7.5 0 0 1 15 0" /></svg>;
+    case "back": return <svg {...p}><path d="M15 5l-7 7 7 7" /></svg>;
+    case "chev": return <svg {...p}><path d="M9 5l7 7-7 7" /></svg>;
+    case "close": return <svg {...p}><path d="M6 6l12 12M18 6L6 18" /></svg>;
+    case "card": return <svg {...p}><rect x="3" y="6" width="18" height="13" rx="2" /><path d="M3 10h18M7 15h4" /></svg>;
+    case "bell": return <svg {...p}><path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z" /><path d="M10 20a2 2 0 0 0 4 0" /></svg>;
+    case "access": return <svg {...p}><circle cx="12" cy="4.5" r="1.6" /><path d="M5 8.5l7 1.5 7-1.5M12 10v4l-3 6M12 14l3 6" /></svg>;
+    case "lock": return <svg {...p}><rect x="5" y="10.5" width="14" height="9.5" rx="2" /><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></svg>;
+    case "help": return <svg {...p}><circle cx="12" cy="12" r="9" /><path d="M9.6 9.3a2.5 2.5 0 0 1 4.8.9c0 1.7-2.4 2.1-2.4 3.6" /><circle cx="12" cy="17" r=".6" fill="currentColor" /></svg>;
+    case "info": return <svg {...p}><circle cx="12" cy="12" r="9" /><path d="M12 11v6" /><circle cx="12" cy="7.8" r=".6" fill="currentColor" /></svg>;
+    case "seat": return <svg {...p}><path d="M6 4h12v8H6zM4 12h16v3H4zM7 15v5M17 15v5" /></svg>;
+    case "out": return <svg {...p}><path d="M14 4h4a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-4M10 16l-4-4 4-4M6 12h10" /></svg>;
+  }
+}
