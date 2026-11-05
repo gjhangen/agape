@@ -340,6 +340,8 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/send", post(office_send))
         .route("/api/office/read", post(office_read))
         .route("/api/office/mute", post(office_mute))
+        .route("/api/office/user/delete", post(office_user_delete))
+        .route("/api/office/trouble", post(office_trouble).get(office_trouble_list))
         .layer(axum::extract::DefaultBodyLimit::max(3_500_000))
         .with_state(app);
     match static_dir { Some(d) => api.fallback_service(tower_http::services::ServeDir::new(d)), None => api }
@@ -664,4 +666,30 @@ pub async fn retry_mail(app: &App) {
         let perm = r.as_ref().err().map_or(false, |e| mail::permanent(e));
         app.office.lock().unwrap().retried(&note, &to, r, perm);
     }
+}
+
+async fn office_user_delete(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    match app.office.lock().unwrap().delete_user(&u, &s(&b, "id")) { Ok(name) => Json(json!({ "ok": true, "name": name })).into_response(), Err(e) => err(StatusCode::BAD_REQUEST, &e) }
+}
+
+/// A browser tells us a request to Agape Admin failed on its side (it never got an answer).
+/// Kept so the host can see when and where people hit trouble. Never holds passwords.
+async fn office_trouble(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let clip = |k: &str, n: usize| b[k].as_str().unwrap_or("").chars().take(n).collect::<String>();
+    let path = app.data.join("admin-trouble.jsonl");
+    if std::fs::metadata(&path).map(|m| m.len()).unwrap_or(0) > 2_000_000 { return Json(json!({ "ok": true })).into_response(); }
+    let ua = h.get("user-agent").and_then(|v| v.to_str().ok()).unwrap_or("").chars().take(200).collect::<String>();
+    let rec = json!({ "at": admin::now(), "path": clip("path", 60), "what": clip("what", 200), "tries": b["tries"].as_u64().unwrap_or(0), "page": clip("page", 30), "ua": ua });
+    let mut line = rec.to_string(); line.push('\n');
+    use std::io::Write;
+    let _ = std::fs::OpenOptions::new().create(true).append(true).open(&path).and_then(|mut f| f.write_all(line.as_bytes()));
+    Json(json!({ "ok": true })).into_response()
+}
+async fn office_trouble_list(State(app): State<S>, h: HeaderMap) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    if u.role != admin::HOST { return err(StatusCode::FORBIDDEN, "Only the host sees this"); }
+    let mut all: Vec<Value> = std::fs::read_to_string(app.data.join("admin-trouble.jsonl")).unwrap_or_default().lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
+    all.reverse(); all.truncate(200);
+    Json(json!({ "ok": true, "trouble": all })).into_response()
 }

@@ -94,13 +94,27 @@ const STATUS: [Status, string, string][] = [
 const KEY = "agape.admin.session";
 let token = (() => { try { return localStorage.getItem(KEY) ?? ""; } catch { return ""; } })();
 const keep = (t: string) => { token = t; try { t ? localStorage.setItem(KEY, t) : localStorage.removeItem(KEY); } catch {} };
+/** Talk to Agape's server. If the request never gets an answer (a dropped connection, or the server
+ *  restarting for an update) it tries again a few times before giving up, and then tells the host it
+ *  happened, so a failure is never silent. A gateway error page (502/503/504) counts the same way. */
 async function api(path: string, body?: unknown): Promise<any> {
-  try {
-    const r = await fetch("/api/office/" + path, { method: body === undefined ? "GET" : "POST", headers: { "content-type": "application/json", ...(token ? { authorization: "Bearer " + token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
-    const j = await r.json().catch(() => ({ ok: false, error: "The server sent something unexpected" }));
-    if (r.status === 401 && path !== "signin" && path !== "setup") { keep(""); }
-    return { status: r.status, ...j };
-  } catch { return { ok: false, error: "Can't reach the server. Check your connection and try again." }; }
+  const wait = (ms: number) => new Promise(r => setTimeout(r, ms));
+  let last = "", retried = false;
+  // only requests that are safe to repeat are tried again: never one that could send an email twice
+  const safe = body === undefined || ["signin", "accept", "read", "mute", "user", "mailbox", "setup"].includes(path);
+  for (let tries = 0; tries < (safe ? 4 : 1); tries++) {
+    if (tries) { retried = true; await wait(1500 * tries); }
+    try {
+      const r = await fetch("/api/office/" + path, { method: body === undefined ? "GET" : "POST", headers: { "content-type": "application/json", ...(token ? { authorization: "Bearer " + token } : {}) }, body: body === undefined ? undefined : JSON.stringify(body) });
+      if ([502, 503, 504, 520, 521, 522, 523, 524, 530].includes(r.status)) { last = `gateway ${r.status}`; continue; }
+      const j = await r.json().catch(() => ({ ok: false, error: "The server sent something unexpected. Try again in a moment." }));
+      if (r.status === 401 && path !== "signin" && path !== "setup") { keep(""); }
+      return { status: r.status, retried, ...j };
+    } catch (e: any) { last = String(e?.message ?? e); }
+  }
+  if (path !== "trouble") fetch("/api/office/trouble", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ path: path.split("/")[0], what: last, tries: safe ? 4 : 1, page: location.search.includes("invite") ? "invitation" : location.hash.slice(1) }) }).catch(() => {});
+  if (!safe) return { ok: false, retried, error: "Agape didn't answer, so this may or may not have gone through. Check before trying again (for an email, look in Messages for it)." };
+  return { ok: false, retried, error: "Agape couldn't be reached after a few tries. It may be updating: wait a minute and try again. If it keeps happening, check your internet connection." };
 }
 
 const when = (s: number) => new Date(s * 1000).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -192,7 +206,11 @@ function Accept({ code, enter, toSignin }: { code: string; enter: (t: string, m:
   return <Gate title="Join Agape Admin" sub={<>You've been invited as {inv.role_name}, reporting to {inv.boss_name}, with <b>{inv.email}</b>. Choose a password to finish.</>}>
     <form onSubmit={e => f.run(e, async () => {
       if (f.v.password !== f.v.again) return "The two passwords don't match";
-      const r = await api("accept", { code, name: f.v.name, password: f.v.password }); if (r.ok) enter(r.token, r.me); else return r.error;
+      const r = await api("accept", { code, name: f.v.name, password: f.v.password });
+      if (r.ok) { enter(r.token, r.me); return; }
+      // if an earlier try got through but its answer was lost, the account already exists: sign in instead
+      if (r.retried && /already used/.test(r.error ?? "")) { const s = await api("signin", { email: inv.email, password: f.v.password }); if (s.ok) { enter(s.token, s.me); return; } }
+      return r.error;
     })}>
       <label className="ox-f"><span>Your name</span><input required autoComplete="name" {...f.bind("name")} /></label>
       <label className="ox-f"><span>Password</span><input type="password" required minLength={10} autoFocus autoComplete="new-password" {...f.bind("password")} /><small>At least 10 characters</small></label>
@@ -480,6 +498,7 @@ function People({ me, t, load, toast }: { me: Me; t: TeamView; load: () => void;
   const grantable = t.roles.filter(r => r.grantable);
   const f = useForm({ email: "", name: "", title: "", role: grantable.find(r => r.id === "r-member")?.id ?? grantable[0]?.id ?? "", boss: me.id });
   const canInvite = me.perms.includes("invite"), canPeople = me.perms.includes("people");
+  const [sure, setSure] = useState("");
   const set = async (id: string, b: Record<string, unknown>, ok: string) => { const r = await api("user", { id, ...b }); toast(r.ok ? ok : r.error); load(); };
   const role = t.roles.find(r => r.id === f.v.role);
   return <>
@@ -506,7 +525,12 @@ function People({ me, t, load, toast }: { me: Me; t: TeamView; load: () => void;
           <td>{u.name}{u.id === me.id ? <small>You</small> : u.title && <small>{u.title}</small>}</td><td>{u.email}</td>
           <td>{edit && t.roles.find(r => r.id === u.role)?.grantable !== false ? <select aria-label={`Role for ${u.name}`} value={u.role} onChange={e => set(u.id, { role: e.target.value }, "Role changed.")}>{grantable.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}</select> : u.off ? "Turned off" : u.role_name}</td>
           <td>{edit ? <select aria-label={`Who ${u.name} reports to`} value={u.boss ?? ""} onChange={e => set(u.id, { boss: e.target.value }, "Reporting line changed.")}>{!u.boss && <option value="">Choose…</option>}{targets(me, t, u.id).map(x => <option key={x.id} value={x.id}>{x.label}</option>)}</select> : nodeName(t, u.boss) || "—"}</td>
-          {canPeople && <td>{u.mine && u.id !== me.id && u.role !== "host" && <button className="ox-btn ghost sm" onClick={() => set(u.id, { off: !u.off }, u.off ? "Access turned back on." : "Access turned off. They're signed out everywhere.")}>{u.off ? "Turn access on" : "Turn access off"}</button>}</td>}
+          {canPeople && <td>{u.mine && u.id !== me.id && u.role !== "host" && <div className="ox-row nowrap">
+            <button className="ox-btn ghost sm" onClick={() => set(u.id, { off: !u.off }, u.off ? "Access turned back on." : "Access turned off. They're signed out everywhere.")}>{u.off ? "Turn access on" : "Turn access off"}</button>
+            {sure === u.id
+              ? <><button className="ox-btn ghost sm" onClick={() => setSure("")}>Keep</button><button className="ox-btn danger sm" onClick={async () => { const r = await api("user/delete", { id: u.id }); setSure(""); toast(r.ok ? `${r.name}'s account is deleted. Their messages are kept, and mail to their address now comes to the host.` : r.error); load(); }}>Delete {u.name.split(" ")[0]}</button></>
+              : <button className="ox-btn ghost sm" onClick={() => setSure(u.id)}>Delete…</button>}
+          </div>}</td>}
         </tr>; })}
         {t.invites.map(i => <tr key={i.email} className="pending">
           <td>{i.name || "—"}<small>Invited</small></td><td>{i.email}</td><td>{i.role_name}</td><td><small>{nodeName(t, i.boss)} · link works until {when(i.until)}</small></td>
@@ -819,8 +843,14 @@ function Accounts() {
 
 function Activity({ me }: { me: Me }) {
   const [log, setLog] = useState<{ at: number; who: string; what: string }[] | null>(null);
-  useEffect(() => { api("activity").then(r => setLog(r.ok ? r.log : [])); }, []);
+  const [trouble, setTrouble] = useState<any[]>([]);
+  useEffect(() => { api("activity").then(r => setLog(r.ok ? r.log : [])); if (me.role === "host") api("trouble").then(r => r.ok && setTrouble(r.trouble)); }, []);
   return <>
+    {trouble.length > 0 && <section className="ox-card">
+      <h2>When people couldn't reach Agape</h2>
+      <p className="ox-sub">Each time someone's browser tried a few times and never got an answer. Only you see this.</p>
+      <ol className="ox-log">{trouble.slice(0, 20).map((t, i) => <li key={i}><time>{when(t.at)}</time><b>{t.page === "invitation" ? "Joining" : t.path}</b><span>{t.what} · {t.ua}</span></li>)}</ol>
+    </section>}
     <Head title="Activity" sub={me.role === "host" ? "Every change anyone has made, and every printed VAR sheet, newest first. It can't be edited." : "Every change made by you and by everyone who reports up to you, newest first. It can't be edited."} />
     {log === null ? <p className="ox-empty">Loading…</p> : <ol className="ox-log">{log.map((e, i) => <li key={i}><time>{when(e.at)}</time><b>{e.who}</b><span>{e.what}</span></li>)}</ol>}
   </>;

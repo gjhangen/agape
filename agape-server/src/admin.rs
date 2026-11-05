@@ -55,6 +55,8 @@ pub struct User { pub id: String, pub email: String, pub name: String, hash: Str
     #[serde(default)] pub boss: Option<String>, #[serde(default)] pub title: String,
     /// Their address at Agape's domain, before the @ ("gabriel" for gabriel@agapetoyourseat.com).
     #[serde(default)] pub mailbox: String,
+    /// Removed by someone above them. Kept, so their messages and email history stay whole.
+    #[serde(default)] pub deleted: bool,
     /// Channels (people below them) whose pings they've muted. Muting never hides anything.
     #[serde(default)] pub muted: Vec<String>,
     /// From before roles existed ("owner", "admin", ...); read once and turned into a role.
@@ -216,7 +218,7 @@ impl Admin {
         if name.is_empty() { return Err("Add your name".into()); }
         good_pw(pw)?;
         if self.s.users.iter().any(|u| u.email == email) { return Err("There's already an account with that email".into()); }
-        let u = User { id: format!("a{}", self.s.users.len() + 1), email, name, hash: hash_pw(pw)?, role: role.into(), at: now(), off: false, boss: None, title: String::new(), mailbox: String::new(), muted: vec![], legacy: None };
+        let u = User { id: format!("a{}", self.s.users.len() + 1), email, name, hash: hash_pw(pw)?, role: role.into(), at: now(), off: false, boss: None, title: String::new(), mailbox: String::new(), muted: vec![], deleted: false, legacy: None };
         self.s.users.push(u.clone());
         self.give_mailbox(&u.id);
         let u = self.s.users.iter().find(|x| x.id == u.id).cloned().unwrap();
@@ -318,7 +320,7 @@ impl Admin {
     }
     fn node_name(&self, id: &str) -> String {
         if id.is_empty() { return "Agape".into(); }
-        if let Some(u) = self.s.users.iter().find(|u| u.id == id) { return u.name.clone(); }
+        if let Some(u) = self.s.users.iter().find(|u| u.id == id) { return if u.deleted { format!("{} (removed)", u.name) } else { u.name.clone() }; }
         if let Some(g) = self.s.groups.iter().find(|g| g.id == id) { return g.name.clone(); }
         "nobody".into()
     }
@@ -419,6 +421,30 @@ impl Admin {
         Ok(())
     }
 
+    /// Remove someone's account. Nothing they sent or received is lost: their history stays where
+    /// everyone above them can read it, mail to their address goes to the host, and anyone who
+    /// reported to them now reports to whoever they reported to. Their email can be invited again.
+    pub fn delete_user(&mut self, by: &User, id: &str) -> Result<String, String> {
+        if id == by.id { return Err("You can't delete your own account".into()); }
+        if !self.can(by, "people") || !self.oversees(by, id) { return Err("You can only delete people below you".into()); }
+        let i = self.s.users.iter().position(|u| u.id == id && !u.deleted).ok_or("No such person")?;
+        if self.s.users[i].role == HOST { return Err("Nobody can delete the host".into()); }
+        let gone = self.s.users[i].clone();
+        let up = gone.boss.clone().unwrap_or_else(|| by.id.clone());
+        for u in self.s.users.iter_mut().filter(|u| u.boss.as_deref() == Some(id)) { u.boss = Some(up.clone()); }
+        for g in self.s.groups.iter_mut() { g.members.retain(|m| m != id); if g.boss.as_deref() == Some(id) { g.boss = Some(up.clone()); } }
+        let u = &mut self.s.users[i];
+        u.deleted = true; u.off = true;
+        u.email = format!("removed-{}+{}", u.id, u.email);
+        u.mailbox = String::new();
+        u.hash = String::new();
+        let uid = id.to_string();
+        self.s.sessions.retain(|_, s| s.user != uid);
+        self.note(&by.clone(), format!("Deleted the account of {} ({}); their history is kept", gone.name, gone.email));
+        self.save();
+        Ok(gone.name)
+    }
+
     pub fn change_password(&mut self, by: &User, old: &str, new: &str) -> Result<(), String> {
         let i = self.s.users.iter().position(|u| u.id == by.id).ok_or("No such person")?;
         if !check_pw(old, &self.s.users[i].hash) { return Err("Your current password isn't right".into()); }
@@ -515,7 +541,7 @@ impl Admin {
     pub fn team(&self, viewer: &User) -> Value {
         let host = viewer.role == HOST;
         let (mine, my_groups) = self.down(&viewer.id);
-        let shown = |u: &&User| host || u.id == viewer.id || mine.contains(&u.id);
+        let shown = |u: &&User| !u.deleted && (host || u.id == viewer.id || mine.contains(&u.id));
         let gshown = |g: &&Group| host || my_groups.contains(&g.id) || g.members.contains(&viewer.id);
         let user = |u: &User| json!({ "id": u.id, "email": u.email, "name": u.name, "role": u.role, "role_name": self.role_name(&u.role), "at": u.at, "off": u.off, "boss": u.boss, "title": u.title, "mailbox": u.mailbox, "mine": host || mine.contains(&u.id) });
         json!({
@@ -523,7 +549,7 @@ impl Admin {
             "groups": self.s.groups.iter().filter(gshown).map(|g| json!({ "id": g.id, "name": g.name, "about": g.about, "members": g.members, "member_names": g.members.iter().map(|m| self.node_name(m)).collect::<Vec<_>>(), "boss": g.boss, "mine": host || my_groups.contains(&g.id) })).collect::<Vec<_>>(),
             "chain": self.chain(&viewer.id).iter().map(|id| json!({ "id": id, "name": self.node_name(id), "group": id.starts_with('g') })).collect::<Vec<_>>(),
             "invites": self.s.invites.iter().filter(|i| i.until > now() && (host || i.by == viewer.id || mine.contains(&i.by))).map(|i| json!({ "email": i.email, "name": i.name, "role": i.role, "role_name": self.role_name(&i.role), "until": i.until, "boss": i.boss })).collect::<Vec<_>>(),
-            "contacts": self.s.users.iter().filter(|u| !u.off && u.id != viewer.id).map(|u| json!({ "id": u.id, "name": u.name, "title": u.title })).collect::<Vec<_>>(),
+            "contacts": self.s.users.iter().filter(|u| !u.off && !u.deleted && u.id != viewer.id).map(|u| json!({ "id": u.id, "name": u.name, "title": u.title })).collect::<Vec<_>>(),
             "roles": self.s.roles.iter().map(|r| json!({ "id": r.id, "name": r.name, "about": r.about, "perms": r.perms, "template": r.template, "holders": self.s.users.iter().filter(|u| u.role == r.id).count(), "grantable": self.covers(viewer, &r.perms), "editable": self.can(viewer, "structure") && self.covers(viewer, &r.perms) && self.holders_below(viewer, &r.id) })).collect::<Vec<_>>(),
             "templates": self.s.templates.iter().map(|t| json!({ "id": t.id, "name": t.name, "about": t.about, "perms": t.perms, "editable": self.can(viewer, "structure") && self.covers(viewer, &t.perms) })).collect::<Vec<_>>(),
             "perms": PERMS.iter().map(|(k, d)| json!({ "id": k, "about": d, "mine": self.can(viewer, k) })).collect::<Vec<_>>(),
@@ -894,6 +920,31 @@ mod channel_tests {
         let host = a.s.users.iter().find(|u| u.id == host.id).cloned().unwrap();
         assert_eq!(a.unread(&host).1, base.1);
         assert!(a.inbox(&host)["notes"].as_array().unwrap().iter().any(|n| n["subject"] == "Again"));
+    }
+}
+
+#[cfg(test)]
+mod delete_tests {
+    use super::*;
+    #[test]
+    fn deleting_keeps_history_moves_reports_up_and_frees_the_email() {
+        let d = tempfile::tempdir().unwrap();
+        let mut a = Admin::open(d.path().to_path_buf());
+        let code = std::fs::read_to_string(d.path().join("admin-setup-code")).unwrap();
+        let (_, host) = a.setup(&code, "g@x.com", "Gabriel", "longenough1").unwrap();
+        let join = |a: &mut Admin, by: &User, e: &str, r: &str| { let c = a.invite(by, e, e, r, "", "").unwrap(); a.accept(&c, "", "longenough1").unwrap() };
+        let (jt, jeff) = join(&mut a, &host, "jeff@x.com", "r-admin");
+        let (_, kid) = join(&mut a, &jeff, "kid@x.com", "r-member");
+        a.send(&jeff, &[host.id.clone()], "Hi", "from jeff").unwrap();
+        assert!(a.delete_user(&jeff, &host.id).is_err(), "nobody deletes the host");
+        assert!(a.delete_user(&kid, &jeff.id).is_err(), "nobody deletes someone above them");
+        a.delete_user(&host, &jeff.id).unwrap();
+        assert!(a.who(&jt).is_none(), "signed out everywhere");
+        assert!(a.sign_in("jeff@x.com", "longenough1").is_err());
+        assert_eq!(a.s.users.iter().find(|u| u.id == kid.id).unwrap().boss.as_deref(), Some(host.id.as_str()), "their report moves up");
+        assert!(a.inbox(&host)["notes"].as_array().unwrap().iter().any(|n| n["subject"] == "Hi"), "history kept");
+        assert!(a.invite(&host, "jeff@x.com", "Jeff", "r-admin", "", "").is_ok(), "can be invited again");
+        assert!(a.team(&host)["users"].as_array().unwrap().iter().all(|u| u["id"] != jeff.id.as_str()));
     }
 }
 
