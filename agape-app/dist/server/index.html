@@ -1841,6 +1841,13 @@ svg.wordmark { display: block; width: auto; overflow: visible; }
 .site-mark svg.wordmark { height: 46px; color: var(--accent); --wm-tag: var(--ink); margin-left: -4px; }
 .sx-logo { display: flex; justify-content: center; }
 .sx-logo svg.wordmark { height: 30px; color: #FF5C8A; }
+/* on a real phone (full screen, or added to the home screen) keep the top bar and every Close/back
+   button clear of the notch and Dynamic Island */
+@media (max-width: 760px) {
+  .device-screen > .phone, .device-screen .overlay-page { padding-top: env(safe-area-inset-top, 0px); }
+  .device-screen .ob { padding-top: calc(40px + env(safe-area-inset-top, 0px)); }
+  .sheet { max-height: calc(92% - env(safe-area-inset-top, 0px)); }
+}
 </style></head><body><div id="root"><div class="site"><section class="site-hero"><h1>Order from your seat.<br>It comes to you.</h1></section></div></div><script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script><script>var AGAPE_WORLD={
  "venue": "arena",

@@ -455,7 +455,7 @@ function LiveSheet(ctx: Ctx & { close: () => void }) {
       <div className="op-body">
         <section className="block event">
           {isConcert() ? <div className="show-head"><span className="eyebrow">{(world() as any)?.event?.title}</span><b>{c.label}</b>
-            <small>{(world() as any)?.event?.acts?.join(" · ")}</small></div> :
+            {(() => { const head = String((world() as any)?.event?.title ?? "").split(":")[0].trim(); const rest = ((world() as any)?.event?.acts ?? []).filter((x: string) => x.trim() !== head); return rest.length ? <small>With {rest.join(" and ")}</small> : null; })()}</div> :
           <div className="big-score">
             <button className="bs-team home" onClick={() => open("hbk")}><span><TeamMark side="home" big />{BRAND.home.name}</span><b className="num">{c.home}</b></button>
             <div className="bs-clock num">{c.label}</div>
@@ -684,14 +684,14 @@ function Me({ v, refresh, toast, open, settings, setting }: Ctx) {
       )}
       {((feature("tickets") && m.tickets.length > 0) || (feature("around") && (m.passes.length > 0 || m.rides.length > 0))) && (
         <section className="block">
-          <h2>Coming up</h2>
+          <h2>{[m.tickets.length && "Tickets", m.passes.length && "passes", m.rides.some(r => r.stage !== "Done") && "rides"].filter(Boolean).join(", ").replace(/^./, c => c.toUpperCase()).replace(/, ([^,]*)$/, " and $1")}</h2>
           {m.rides.filter(r => r.stage !== "Done").map(r => <RideCard key={r.id} r={r} open={open} cancel={() => { const x = kernel.act({ do: "cancel_ride", ride: r.id }); toast(x.ok ? "Ride cancelled. No charge." : x.error); refresh(); }} />)}
           {m.tickets.map(t => <div key={t.event + t.section}>
             <button className="ticket" onClick={() => open(t.event)}><div className="grow"><b>{t.title}</b><small>{t.date} · {t.time} · {t.section === "sFL" ? "Courtside" : `Section ${t.section.slice(1)}`}, row {t.seats[0][0]}, seats {t.seats.map(x => x.slice(1)).join(", ")}</small></div><span className="tq num">{t.qty}×</span></button>
             <Resell t={t} toast={toast} refresh={refresh} />
           </div>)}
           {m.passes.map(p => <div key={p.place} className={"ticket pass" + (p.used ? " used" : "")} onClick={() => open(p.operator)}><div className="grow"><b>{p.name}</b><small>{p.title}</small></div>
-            <div className="code-wrap">{p.used ? <small>Used {venueTime(p.used)}</small> : <><span className="code num">{p.code}</span><small>{/exit|gate/i.test(p.title ?? "") ? "show at the gate" : "show at the counter"}</small></>}</div></div>)}
+            <div className="code-wrap">{p.used ? <small>Used {venueTime(p.used)}</small> : <><span className="code num">{p.code}</span><small>{(p as any).kind === "parking" || /park|lot|garage/i.test((p.title ?? "") + p.name) ? "show at the lot entrance" : /exit|gate/i.test(p.title ?? "") ? "show at the gate" : "show at the counter"}</small></>}</div></div>)}
         </section>
       )}
       <section className="block wallet">
@@ -757,7 +757,9 @@ function SettingsPage({ which, v, toast, refresh, go, close }: Ctx & { which: st
   const title = ({ account: "Account", payment: "Payment", seat: "Your seat", notifications: "Notifications", accessibility: "Accessibility", privacy: "Privacy", help: "Help", about: "About Agape" } as Record<string, string>)[which] ?? "Settings";
   const [name, setName] = useState(profileName());
   const [email, setEmail] = useState(() => { try { return JSON.parse(localStorage.getItem("agape.profile") || "{}").email || ""; } catch { return ""; } });
-  const [spot, setSpot] = useState(pref<string>("spot", ""));
+  const [spot] = useState(pref<string>("spot", ""));
+  const [rowIn, setRowIn] = useState(() => (/row\s*([^,]+)/i.exec(spot)?.[1] ?? "").trim());
+  const [seatIn, setSeatIn] = useState(() => (/seat\s*(\w+)/i.exec(spot)?.[1] ?? "").trim());
   const [card, setCard] = useState(false);
   const pay = pref<string>("pay", "");
   const cards = pref<string[]>("cards", []);
@@ -789,9 +791,12 @@ function SettingsPage({ which, v, toast, refresh, go, close }: Ctx & { which: st
           {card ? <CardForm toast={toast} done={() => { setCard(false); bump(x => x + 1); toast("Card added."); }} />
             : <button className="btn ghost block" onClick={() => setCard(true)}>Add a card</button>}
         </>}
-        {which === "seat" && <form onSubmit={e => { e.preventDefault(); const [row, place] = spot.split(",").map(x => x.trim()); kernel.act({ do: "spot", row: row ?? "", place: place ?? "" }); set("spot", spot.trim()); refresh(); toast("Your runner will come right to you."); close(); }}>
+        {which === "seat" && <form onSubmit={e => { e.preventDefault(); const r = rowIn.trim().replace(/^row\s*/i, ""), p = seatIn.trim().replace(/^seat\s*/i, "");
+          if (!r || !p) { toast("Add both your row and your seat."); return; }
+          kernel.act({ do: "spot", row: "Row " + r.toUpperCase(), place: "seat " + p }); set("spot", `Row ${r.toUpperCase()}, seat ${p}`); refresh(); toast("Your runner will come right to you."); close(); }}>
           <p className="explain">You're in section {sec(v.you.seat)} at {BRAND.venue}. Tell us your row and seat so your runner walks straight to you.</p>
-          <label className="sf wide"><span>Row and seat</span><input value={spot} onChange={e => setSpot(e.target.value)} placeholder="Row F, seat 7" /></label>
+          <div className="pair"><label className="sf"><span>Row</span><input value={rowIn} onChange={e => setRowIn(e.target.value)} placeholder="F" autoCapitalize="characters" maxLength={4} /></label>
+          <label className="sf"><span>Seat</span><input value={seatIn} onChange={e => setSeatIn(e.target.value.replace(/[^\dA-Za-z]/g, ""))} placeholder="7" inputMode="numeric" maxLength={4} /></label></div>
           <button className="btn primary block">Save</button>
         </form>}
         {which === "notifications" && <>
