@@ -1,6 +1,7 @@
 // Agape Venue on a laptop: the venue's operations console, and a partner's home inside it.
 // Which one is shown depends on the seat chosen: /try/venue/ or /try/partner/.
 import { React, ReactDOM, useEffect, useState } from "./r";
+import { Wordmark } from "./logo";
 import { boot, kernel, setWorldOverride } from "./kernel";
 import { BRAND, Icon, money, levelFeatures } from "./parts";
 import { OpsLens, OpsView } from "./roles";
@@ -31,11 +32,11 @@ const PARTNER_NOTES: Note[] = [
 
 function Console({ stage, next, toast, o, b, parties, refresh }: { stage: Stage; next: (s: Stage) => void; toast: (t: string) => void; o: OpsView | null; b: any; parties: any; refresh: () => void }) {
   const [tab, setTab] = useState<"live" | "setup" | "team" | "settings">("live");
-  if (stage === "boot") return <div className="ob ob-boot"><div className="ob-mark"><b>agape</b><small>{PARTNER ? "partners" : "venue"}</small></div></div>;
+  if (stage === "boot") return <div className="ob ob-boot"><div className="ob-mark"><Wordmark /><small>{PARTNER ? "partners" : "venue"}</small></div></div>;
   if (stage === "signin") return (
     <form className="ob lp-signin" onSubmit={e => { e.preventDefault(); next("tonight"); }}>
       <div className="lp-card">
-        <b className="ob-logo dark">agape venue</b>{PARTNER && <small className="ob-sub">Partner account</small>}
+        <span className="ob-logo dark"><Wordmark /><small>venue</small></span>{PARTNER && <small className="ob-sub">Partner account</small>}
         <h2>Sign in</h2>
         <label className="sf wide"><span>Work email</span><input placeholder={PARTNER ? "you@dockstreetpizza.com" : "you@harborarena.com"} /></label>
         <label className="sf wide"><span>Password</span><input type="password" placeholder="Your password" /></label>
@@ -62,7 +63,7 @@ function Console({ stage, next, toast, o, b, parties, refresh }: { stage: Stage;
   return (
     <div className="lp-app">
       <aside className="lp-nav">
-        <b className="sx-logo">agape</b>
+        <span className="sx-logo"><Wordmark /></span>
         {(PARTNER ? [["live", "chart", "Results"], ["settings", "store", "Business"]] : [["live", "chart", "Tonight"], ["setup", "list", "Events"], ["team", "people", "Team"], ["settings", "store", "Venue"]]).map(([id, ic, l]) =>
           <button key={id} className={tab === id ? "on" : ""} onClick={() => setTab(id as any)}><Icon name={ic as any} /><small>{l}</small></button>)}
       </aside>

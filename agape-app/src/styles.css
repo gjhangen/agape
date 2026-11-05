@@ -1826,3 +1826,12 @@ html.night-held .st-story h2 { animation: held-breathe 1.4s ease-in-out infinite
 .sx-open.danger { background: #C6352B; color: #fff; }
 .ob-check { display: flex; gap: 10px; align-items: flex-start; font-size: 13px; line-height: 1.4; color: var(--muted); text-align: left; margin: 4px 0 10px; }
 .ob-check input { margin-top: 2px; accent-color: var(--accent, #B8174F); flex: none; width: 18px; height: 18px; }
+/* the drawn wordmark */
+svg.wordmark { display: block; width: auto; overflow: visible; }
+.ob-mark svg.wordmark { height: 92px; color: #fff; --wm-tag: #fff; margin: 0 auto; animation: mark-in 1.4s ease-out both; }
+.ob-logo { display: flex; align-items: center; gap: 10px; }
+.ob-logo svg.wordmark { height: 46px; color: currentColor; margin-left: -6px; }
+.ob-logo small { font: 700 13px/1 var(--body); letter-spacing: .24em; text-transform: uppercase; opacity: .85; }
+.site-mark svg.wordmark { height: 46px; color: var(--accent); --wm-tag: var(--ink); margin-left: -4px; }
+.sx-logo { display: flex; justify-content: center; }
+.sx-logo svg.wordmark { height: 30px; color: #FF5C8A; }

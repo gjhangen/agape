@@ -2,6 +2,7 @@
 // Everything about the demo (the story, levels, speed, sound) lives here, outside the phone. The app inside
 // never mentions a demo.
 import { React, ReactDOM, useEffect, useRef, useState } from "./r";
+import { Wordmark } from "./logo";
 import { boot, kernel, setWorldOverride } from "./kernel";
 import { FanApp, FanView, Sheet, profileName } from "./fan";
 import { BRAND, Icon, LEVELS, levelFeatures, momentText, runnerName, venueTime } from "./parts";
@@ -34,10 +35,10 @@ function Onboarding({ stage, next, seatChosen, onLocated }: { stage: Stage; next
   // a returning fan: their name and the card they saved last time
   const returning = () => { try { localStorage.setItem("agape.profile", JSON.stringify({ name: "Jordan Lee", email: email.trim() || "jordan.lee@gmail.com" })); localStorage.setItem("agape.prefs", JSON.stringify({ cards: ["Visa •••• 7612"], pay: "Visa •••• 7612" })); } catch { /* fine */ } };
   const ok = /^(1(0[1-9]|1\d|2[0-4])|2(0[1-9]|1\d|2[0-4]))$/.test(sec);
-  if (stage === "boot") return <div className="ob ob-boot"><div className="ob-mark"><b>agape</b></div></div>;
+  if (stage === "boot") return <div className="ob ob-boot"><div className="ob-mark"><Wordmark /></div></div>;
   if (stage === "welcome") return (
     <div className="ob ob-welcome">
-      <div className="ob-hero"><b className="ob-logo">agape</b><h1>Order from your seat.<br />It comes to you.</h1><p>Food, drinks and gear at live events, brought to you by the venue's own kitchens, so you never miss the moment.</p></div>
+      <div className="ob-hero"><span className="ob-logo"><Wordmark /></span><h1>Order from your seat.<br />It comes to you.</h1><p>Food, drinks and gear at live events, brought to you by the venue's own kitchens, so you never miss the moment.</p></div>
       <div className="ob-acts"><button className="btn ob-primary" onClick={() => next("signup")}>Create an account</button><button className="btn ob-second" onClick={() => next("signin")}>Sign in</button><button className="link-inline" onClick={() => { try { localStorage.setItem("agape.profile", JSON.stringify({ guest: true })); } catch { /* fine */ } next("perms"); }}>Continue as a guest</button></div>
     </div>
   );

@@ -1,4 +1,6 @@
 import { build } from "esbuild";
+import { readFileSync as _rf } from "fs";
+const BOOT_MARK = _rf("brand/wordmark-boot.svg", "utf8").trim();
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
 
 const K = "/home/claude/agape-kernel";
@@ -83,7 +85,7 @@ const storyJs = await bundle("src/story.tsx");
 mkdirSync("dist/server/try", { recursive: true });
 manifest("", "Agape");
 const storyPage = head("Agape · a fan's night", "Open Agape at a game, take your seat, order a hot dog and watch it reach you.", "", "Agape") +
-  `<div id="root"><div class="story"><div class="ob ob-boot"><div class="ob-mark"><b>agape</b></div></div></div></div>${REACT}<script>var AGAPE_WASM="${wasm}";var AGAPE_WORLD=${world};var AGAPE_TEMPLATE=${tpl};</script><script>${storyJs}</script></body></html>`;
+  `<div id="root"><div class="story"><div class="ob ob-boot"><div class="ob-mark">${BOOT_MARK}</div></div></div></div>${REACT}<script>var AGAPE_WASM="${wasm}";var AGAPE_WORLD=${world};var AGAPE_TEMPLATE=${tpl};</script><script>${storyJs}</script></body></html>`;
 writeFileSync("dist/server/try/index.html", storyPage);
 console.log("dist/server/try/index.html", (storyPage.length / 1024).toFixed(0) + " KB");
 for (const [dir, entry, title, desc, app] of [
@@ -96,7 +98,7 @@ for (const [dir, entry, title, desc, app] of [
   manifest(dir, app);
   const js = await bundle(entry);
   mkdirSync(`dist/server/try/${dir}`, { recursive: true });
-  writeFileSync(`dist/server/try/${dir}/index.html`, head(title, desc, dir, app) + `<div id="root"><div class="story"><div class="ob ob-boot"><div class="ob-mark"><b>agape</b></div></div></div></div>${REACT}<script>var AGAPE_WASM="${wasm}";var AGAPE_WORLD=${world};var AGAPE_TEMPLATE=${tpl};</script><script>${js}</script></body></html>`);
+  writeFileSync(`dist/server/try/${dir}/index.html`, head(title, desc, dir, app) + `<div id="root"><div class="story"><div class="ob ob-boot"><div class="ob-mark">${BOOT_MARK}</div></div></div></div>${REACT}<script>var AGAPE_WASM="${wasm}";var AGAPE_WORLD=${world};var AGAPE_TEMPLATE=${tpl};</script><script>${js}</script></body></html>`);
   console.log(`dist/server/try/${dir}/index.html`);
 }
 

@@ -2,6 +2,7 @@
 // details, and the VAR sheet printed from them for processors, venues and investors.
 // Everything here comes from the server and needs an Agape Admin account; nothing is simulated.
 import { React, ReactDOM, useEffect, useMemo, useState } from "./r";
+import { Wordmark } from "./logo";
 
 type Me = { mailbox: string; domain: string; id: string; email: string; name: string; role: string; role_name: string; perms: string[]; oversees: boolean; title?: string; boss?: string | null };
 type Merchant = { id: string; fields: Record<string, string>; status: Status; at: number; by: string };
@@ -144,7 +145,7 @@ function App() {
   return <Shell me={me} out={async () => { await api("signout", {}); keep(""); setMe(null); setBoot("signin"); }} />;
 }
 
-const Mark = () => <div className="ox-mark"><b>agape</b><span>admin</span></div>;
+const Mark = () => <div className="ox-mark"><Wordmark /><span>admin</span></div>;
 
 function Gate({ title, sub, children, foot }: { title: string; sub: React.ReactNode; children: React.ReactNode; foot?: React.ReactNode }) {
   return <div className="ox-gate"><div className="ox-gate-card">
@@ -405,7 +406,7 @@ function Sheet({ m, back, close }: { m: Merchant; back: () => void; close: () =>
     </div>}
     <article className="var-sheet">
       <header className="var-top">
-        <div className="var-brand"><b>agape</b><span>to your seat</span></div>
+        <div className="var-brand"><Wordmark tag /></div>
         <div className="var-title"><h1>VAR Sheet</h1><span>Merchant processing setup</span></div>
         {blank ? <dl className="var-ref"><div><dt>Date</dt><dd><span className="var-line short" /></dd></div><div><dt>Reference</dt><dd><span className="var-line short" /></dd></div></dl>
           : <dl className="var-ref"><div><dt>Reference</dt><dd className="mono">{ref}</dd></div><div><dt>Prepared</dt><dd>{day()}</dd></div><div><dt>Status</dt><dd>{STATUS.find(s => s[0] === m.status)?.[1]}</dd></div></dl>}

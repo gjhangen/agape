@@ -1,6 +1,7 @@
 // One page per kind of person Agape is for: what it means to them, and only the demos that matter to them.
 // Served at /for/<who>/.
 import { React, ReactDOM, useState } from "./r";
+import { Wordmark } from "./logo";
 import { TalkToUs } from "./talk";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
@@ -59,7 +60,7 @@ function Audience() {
   return (
     <div className="site">
       <header className="site-top">
-        <a className="site-mark" href="/"><b>agape</b><span>to your seat</span></a>
+        <a className="site-mark" href="/" aria-label="Agape home"><Wordmark tag /></a>
         <nav><a href="/">Home</a><a className="btn sm" href="#demo">Try it</a><button className="btn sm primary" onClick={() => setTalk(true)}>Talk to us</button></nav>
       </header>
       <section className="site-hero solo">

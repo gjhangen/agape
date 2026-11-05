@@ -1,5 +1,6 @@
 // Agape Crew: the runner's app, on the runner's phone, inside the demo's story of one runner's night.
 import { React, ReactDOM, useEffect, useState } from "./r";
+import { Wordmark } from "./logo";
 import { boot, kernel, setWorldOverride } from "./kernel";
 import { Icon, money, runnerName, venueTime, countdown, BRAND, PlaceView } from "./parts";
 import { RunnerView } from "./roles";
@@ -56,10 +57,10 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
     if (a.do === "clock_in" && !crewBase.set && r) { crewBase.set = true; crewBase.pay = r.pay; crewBase.tips = r.tips; crewBase.delivered = r.delivered; }
     const x = kernel.act({ ...a, as: RUNNER }); toast(x.ok ? ok : x.error); refresh();
   };
-  if (stage === "boot") return <div className="ob ob-boot crew"><div className="ob-mark"><b>agape</b><small>crew</small></div></div>;
+  if (stage === "boot") return <div className="ob ob-boot crew"><div className="ob-mark"><Wordmark /><small>crew</small></div></div>;
   if (stage === "welcome") return (
     <div className="ob ob-welcome crew">
-      <div className="ob-hero"><b className="ob-logo">agape crew</b><h1>Earn at live events, on your schedule.</h1><p>Pick your nights. See the pay before you take a trip. Keep every tip.</p></div>
+      <div className="ob-hero"><span className="ob-logo"><Wordmark /><small>crew</small></span><h1>Earn at live events, on your schedule.</h1><p>Pick your nights. See the pay before you take a trip. Keep every tip.</p></div>
       <div className="ob-acts"><button className="btn ob-primary" onClick={() => next("ready")}>Sign in</button></div>
     </div>
   );

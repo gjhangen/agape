@@ -1,5 +1,6 @@
 // "Bring Agape to your venue": the one way to reach the team from anywhere on the site.
 import { React, useEffect, useState } from "./r";
+import { Wordmark } from "./logo";
 
 export function TalkToUs({ close, version, role = "venue" }: { close: () => void; version?: string | null; role?: string }) {
   const [f, setF] = useState({ name: "", contact: "", org: "", role, note: "" });
@@ -19,7 +20,7 @@ export function TalkToUs({ close, version, role = "venue" }: { close: () => void
   };
   return (
     <div className="talk-page" role="dialog" aria-modal="true" aria-label="Talk to the Agape team">
-      <header className="talk-top"><span className="site-mark"><b>agape</b><span>to your seat</span></span><button type="button" className="btn ghost sm" onClick={close}>Close</button></header>
+      <header className="talk-top"><span className="site-mark"><Wordmark tag /></span><button type="button" className="btn ghost sm" onClick={close}>Close</button></header>
       <div className="talk-body">
         <div className="talk-pitch">
           <h1>Talk to the Agape team</h1>

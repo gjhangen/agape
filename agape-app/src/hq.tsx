@@ -1,6 +1,7 @@
 // Agape HQ: the app Agape's own people run the company on. Every venue at once, support, crew,
 // partners, payouts and the company's own money. On a laptop, in the story of one shift at HQ.
 import { React, ReactDOM, useEffect, useState } from "./r";
+import { Wordmark } from "./logo";
 import { boot, kernel, setWorldOverride } from "./kernel";
 import { BRAND, Icon, money, MeasureTile, venueTime } from "./parts";
 import { OpsView } from "./roles";
@@ -21,10 +22,10 @@ const NOTES: Note[] = [
 
 function HQ({ o, c, stage, next, toast, refresh }: { o: OpsView | null; c: CareView | null; stage: Stage; next: (s: Stage) => void; toast: (t: string) => void; refresh: () => void }) {
   const [tab, setTab] = useState<Tab>("venues");
-  if (stage === "boot") return <div className="ob ob-boot"><div className="ob-mark"><b>agape</b><small>hq</small></div></div>;
+  if (stage === "boot") return <div className="ob ob-boot"><div className="ob-mark"><Wordmark /><small>hq</small></div></div>;
   if (stage === "signin") return (
     <form className="ob lp-signin" onSubmit={e => { e.preventDefault(); next("app"); }}>
-      <div className="lp-card"><b className="ob-logo dark">agape hq</b><h2>Sign in</h2>
+      <div className="lp-card"><span className="ob-logo dark"><Wordmark /><small>hq</small></span><h2>Sign in</h2>
         <label className="sf wide"><span>Agape email</span><input defaultValue="sam@agapetoyourseat.com" /></label>
         <label className="sf wide"><span>Security key</span><input defaultValue="Touch your key" readOnly /></label>
         <button className="btn ob-primary">Sign in</button><small className="ob-fine">Staff only. Every action here is recorded.</small></div>
@@ -42,7 +43,7 @@ function HQ({ o, c, stage, next, toast, refresh }: { o: OpsView | null; c: CareV
   return (
     <div className="lp-app">
       <aside className="lp-nav">
-        <b className="sx-logo">agape</b>
+        <span className="sx-logo"><Wordmark /></span>
         {([["venues", "store", "Venues"], ["support", "help", "Care"], ["crew", "people", "Crew"], ["money", "chart", "Money"], ["policies", "list", "Policies"], ["people", "user", "Staff"]] as [Tab, any, string][]).map(([id, ic, l]) =>
           <button key={id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}><Icon name={ic} /><small>{l}{id === "support" && open ? ` · ${open}` : ""}</small></button>)}
       </aside>

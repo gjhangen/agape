@@ -1,5 +1,6 @@
 // agapetoyourseat.com: what Agape is, why there's a demo, and a way into it from every seat.
 import { React, ReactDOM, useEffect, useState } from "./r";
+import { Wordmark } from "./logo";
 import { TalkToUs } from "./talk";
 import { Icon, LEVELS } from "./parts";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
@@ -41,7 +42,7 @@ function Site() {
   return (
     <div className="site">
       <header className="site-top">
-        <span className="site-mark"><b>agape</b><span>to your seat</span></span>
+        <span className="site-mark"><Wordmark tag /></span>
         <nav><a href="#how">How it works</a><a className="btn sm" href="#demo">Try the demo</a><button className="btn sm primary" onClick={open}>Talk to us</button></nav>
       </header>
 

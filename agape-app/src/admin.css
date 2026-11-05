@@ -283,3 +283,6 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
 
 .var-line.short { display: inline-block; width: 110px; vertical-align: bottom; }
 .var-sheet .var-line { min-height: 22px; }
+.ox-mark svg.wordmark { display: block; height: 40px; width: auto; color: var(--brand); margin-left: -4px; }
+.ox-mark { align-items: center; }
+.var-brand svg.wordmark { display: block; height: 58px; width: auto; color: #B8174F; --wm-tag: #14161B; margin-left: -6px; }

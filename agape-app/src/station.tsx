@@ -1,5 +1,6 @@
 // Agape Station: the stand's screen, on a tablet at the counter, inside the story of one kitchen's night.
 import { React, ReactDOM, useEffect, useState } from "./r";
+import { Wordmark } from "./logo";
 import { boot, kernel, setWorldOverride } from "./kernel";
 import { Icon, money, venueTime, BRAND, countdown } from "./parts";
 import { StandView } from "./roles";
@@ -34,10 +35,10 @@ function Station({ s, stage, next, toast, refresh }: { s: StandView | null; stag
   const [pin, setPin] = useState("");
   const [stopSure, setStopSure] = useState(false);
   const act = (a: Record<string, unknown>, ok: string) => { const x = kernel.act({ ...a, as: STAND }); toast(x.ok ? ok : x.error); refresh(); };
-  if (stage === "boot") return <div className="ob ob-boot"><div className="ob-mark"><b>agape</b><small>station</small></div></div>;
+  if (stage === "boot") return <div className="ob ob-boot"><div className="ob-mark"><Wordmark /><small>station</small></div></div>;
   if (stage === "pin") return (
     <div className="ob sx-pin">
-      <b className="ob-logo dark">agape station</b>
+      <span className="ob-logo dark"><Wordmark /><small>station</small></span>
       <h2>{s?.name ?? "Grill 104"}</h2>
       <p className="ob-sub">Stand manager, enter your PIN</p>
       <div className="pin-dots">{[0, 1, 2, 3].map(i => <i key={i} className={pin.length > i ? "on" : ""} />)}</div>
@@ -71,7 +72,7 @@ function Station({ s, stage, next, toast, refresh }: { s: StandView | null; stag
   return (
     <div className="sx-app">
       <aside className="sx-nav">
-        <b className="sx-logo">agape</b>
+        <span className="sx-logo"><Wordmark /></span>
         {([["orders", "list", "Orders"], ["tonight", "chart", "Tonight"], ["settings", "store", "Stand"]] as [Tab, any, string][]).map(([id, ic, l]) =>
           <button key={id} className={tab === id ? "on" : ""} onClick={() => setTab(id)}><Icon name={ic} /><small>{l}</small></button>)}
       </aside>
