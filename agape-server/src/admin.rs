@@ -767,6 +767,7 @@ impl Admin {
 
     /// Someone printed or downloaded a VAR sheet: worth knowing who and when.
     pub fn printed(&mut self, by: &User, id: &str) {
+        if id == "blank" { self.note(&by.clone(), "Printed a blank VAR sheet".into()); self.save(); return; }
         if let Some(m) = self.s.merchants.iter().find(|m| m.id == id) {
             let name = m.fields.get("dba").cloned().unwrap_or_default();
             self.note(&by.clone(), format!("Printed the VAR sheet for {name}"));

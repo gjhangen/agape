@@ -270,6 +270,9 @@ function Head({ title, sub, children }: { title: string; sub?: React.ReactNode; 
 
 function StatusTag({ s }: { s: Status }) { return <span className={"ox-tag " + s}>{STATUS.find(x => x[0] === s)?.[1] ?? s}</span>; }
 
+/** A VAR sheet with nothing filled in but Agape's own software details, to print and fill in by hand. */
+const BLANK = (): Merchant => ({ id: "blank", fields: { software: DEFAULTS.software, software_version: DEFAULTS.software_version, integration: DEFAULTS.integration }, status: "draft", at: Math.floor(Date.now() / 1000), by: "" });
+
 function Merchants({ me, toast }: { me: Me; toast: (s: string) => void }) {
   const [list, setList] = useState<Merchant[] | null>(null);
   const [venues, setVenues] = useState<{ id: string; name: string }[]>([]);
@@ -278,11 +281,12 @@ function Merchants({ me, toast }: { me: Me; toast: (s: string) => void }) {
   const load = async () => { const r = await api("merchants"); if (r.ok) { setList(r.merchants); setVenues(r.venues); } else setError(r.error); };
   useEffect(() => { load(); }, []);
   const can = me.perms.includes("merchants_edit");
-  if (open?.sheet && open.m) return <Sheet m={open.m} back={() => setOpen({ m: open.m, sheet: false })} close={() => setOpen(null)} />;
+  if (open?.sheet && open.m) return <Sheet m={open.m} back={open.m.id === "blank" ? () => setOpen(null) : () => setOpen({ m: open.m, sheet: false })} close={() => setOpen(null)} />;
   if (open) return <Editor m={open.m} can={can} owner={me.perms.includes("merchants_delete")} venues={venues} toast={toast}
     saved={m => { load(); setOpen({ m, sheet: false }); }} sheet={m => setOpen({ m, sheet: true })} close={() => { setOpen(null); load(); }} />;
   return <>
     <Head title="Merchants" sub="Each business Agape takes payments for: its processor, the numbers the processor issued, and the VAR sheet to send.">
+      <button className="ox-btn" onClick={() => setOpen({ m: BLANK(), sheet: true })}>Blank VAR sheet</button>
       {can && <button className="ox-btn primary" onClick={() => setOpen({ m: null, sheet: false })}>Add a merchant</button>}
     </Head>
     {error && <p className="ox-err">{error}</p>}
@@ -375,8 +379,9 @@ function Sheet({ m, back, close }: { m: Merchant; back: () => void; close: () =>
   const secret = new Set(ALL.filter(x => x.secret).map(x => x.k));
   const val = (k: string) => { const v = (f[k] ?? "").trim(); return v && hide && secret.has(k) ? mask(v) : v; };
   const pending = NEEDED.filter(k => !(f[k] ?? "").trim());
-  const ref = `VAR-${m.id.slice(1).toUpperCase()}-${new Date(m.at * 1000).toISOString().slice(0, 10).replace(/-/g, "")}`;
-  const print = () => { api("printed", { id: m.id }); const t = document.title; document.title = `${ref} ${f.dba} VAR sheet`; window.print(); document.title = t; };
+  const blank = m.id === "blank";
+  const ref = blank ? "" : `VAR-${m.id.slice(1).toUpperCase()}-${new Date(m.at * 1000).toISOString().slice(0, 10).replace(/-/g, "")}`;
+  const print = () => { api("printed", { id: m.id }); const t = document.title; document.title = blank ? "Agape blank VAR sheet" : `${ref} ${f.dba} VAR sheet`; window.print(); document.title = t; };
   const text = () => {
     const lines = [`VAR SHEET · ${f.dba}`, `Reference ${ref} · Prepared ${day()} by Agape`, ""];
     for (const s of SECTIONS) { lines.push(s.title.toUpperCase()); for (const fd of s.fields) { const v = val(fd.k); if (v) lines.push(`${fd.l}: ${v}`); } lines.push(""); }
@@ -387,30 +392,33 @@ function Sheet({ m, back, close }: { m: Merchant; back: () => void; close: () =>
     <div className="ox-head noprint">
       <div><h1>VAR sheet</h1><p className="ox-sub">Print it or save it as a PDF from the print window. Every print is noted in Activity.</p></div>
       <div className="ox-acts">
-        <button className="ox-btn ghost" onClick={back}>Edit details</button>
+        {!blank && <button className="ox-btn ghost" onClick={back}>Edit details</button>}
         <button className="ox-btn ghost" onClick={close}>All merchants</button>
-        <button className="ox-btn" onClick={text}>{copied ? "Copied" : "Copy as text"}</button>
+        {!blank && <button className="ox-btn" onClick={text}>{copied ? "Copied" : "Copy as text"}</button>}
         <button className="ox-btn primary" onClick={print}>Print or save PDF</button>
       </div>
     </div>
-    <div className="ox-copy noprint" role="group" aria-label="Who this copy is for">
+    {!blank && <div className="ox-copy noprint" role="group" aria-label="Who this copy is for">
       <span>This copy is for</span>
       {([["processor", "The processor", "Every number, in full"], ["venue", "The venue", "Every number, in full"], ["investor", "Investors", "Account numbers masked to the last four"]] as [Copy, string, string][]).map(([k, l, d]) =>
         <button key={k} className={copy === k ? "on" : ""} aria-pressed={copy === k} onClick={() => setCopy(k)}><b>{l}</b><small>{d}</small></button>)}
-    </div>
+    </div>}
     <article className="var-sheet">
       <header className="var-top">
         <div className="var-brand"><b>agape</b><span>to your seat</span></div>
         <div className="var-title"><h1>VAR Sheet</h1><span>Merchant processing setup</span></div>
-        <dl className="var-ref"><div><dt>Reference</dt><dd className="mono">{ref}</dd></div><div><dt>Prepared</dt><dd>{day()}</dd></div><div><dt>Status</dt><dd>{STATUS.find(s => s[0] === m.status)?.[1]}</dd></div></dl>
+        {blank ? <dl className="var-ref"><div><dt>Date</dt><dd><span className="var-line short" /></dd></div><div><dt>Reference</dt><dd><span className="var-line short" /></dd></div></dl>
+          : <dl className="var-ref"><div><dt>Reference</dt><dd className="mono">{ref}</dd></div><div><dt>Prepared</dt><dd>{day()}</dd></div><div><dt>Status</dt><dd>{STATUS.find(s => s[0] === m.status)?.[1]}</dd></div></dl>}
       </header>
-      <div className="var-who"><h2>{f.dba}</h2><p>{[f.legal_name && f.legal_name !== f.dba ? f.legal_name : "", [f.address, f.city, [f.state, f.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ")].filter(Boolean).join(" · ")}</p></div>
-      {pending.length > 0 && <p className="var-pending"><b>Pending from the processor or merchant:</b> {pending.map(k => LABEL[k]).join(", ")}.</p>}
+      {blank ? null
+      : <div className="var-who"><h2>{f.dba}</h2><p>{[f.legal_name && f.legal_name !== f.dba ? f.legal_name : "", [f.address, f.city, [f.state, f.zip].filter(Boolean).join(" ")].filter(Boolean).join(", ")].filter(Boolean).join(" · ")}</p></div>}
+      {!blank && pending.length > 0 && <p className="var-pending"><b>Pending from the processor or merchant:</b> {pending.map(k => LABEL[k]).join(", ")}.</p>}
       {SECTIONS.filter(s => s.id !== "notes").map(s => <section key={s.id} className="var-sec">
         <h3>{s.title}</h3>
         <dl className="var-grid">{s.fields.filter(fd => s.id !== "software" || val(fd.k)).map(fd => { const v = val(fd.k); return <div key={fd.k} className={(fd.wide ? "wide " : "") + (v ? "" : "blank")}>
           <dt>{fd.l}</dt><dd className={fd.num ? "mono" : ""}>{v || <span className="var-line" aria-label="Blank" />}</dd></div>; })}</dl>
       </section>)}
+      {blank && <section className="var-sec"><h3>Notes</h3>{[0, 1, 2].map(i => <span key={i} className="var-line" />)}</section>}
       {val("notes") && <section className="var-sec"><h3>Notes</h3><p className="var-notes">{val("notes")}</p></section>}
       <section className="var-sec var-sign">
         <h3>Confirmed by</h3>

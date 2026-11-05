@@ -280,3 +280,6 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
 .ox-checkline { display: flex; gap: 8px; align-items: center; font-weight: 600; font-size: 14px; cursor: pointer; }
 .ox-checkline input { accent-color: var(--brand); width: 18px; height: 18px; }
 @media (max-width: 760px) { .ox-channels { grid-template-columns: 1fr; } .ox-chanlist { position: static; max-height: none; flex-direction: row; overflow-x: auto; } .ox-chanlist button { flex: none; } }
+
+.var-line.short { display: inline-block; width: 110px; vertical-align: bottom; }
+.var-sheet .var-line { min-height: 22px; }
