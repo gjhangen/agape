@@ -341,6 +341,7 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/read", post(office_read))
         .route("/api/office/mute", post(office_mute))
         .route("/api/office/user/delete", post(office_user_delete))
+        .route("/api/office/attachment/{note}/{index}", get(office_attachment))
         .route("/api/office/trouble", post(office_trouble).get(office_trouble_list))
         .layer(axum::extract::DefaultBodyLimit::max(3_500_000))
         .with_state(app);
@@ -644,7 +645,16 @@ async fn mail_inbound(State(app): State<S>, h: HeaderMap, body: axum::body::Byte
     if !ok { return err(StatusCode::FORBIDDEN, "Not from Agape's mail worker"); }
     let hv = |k: &str| h.get(k).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
     let m = mail::parse(&body, &hv("x-envelope-to"), &hv("x-envelope-from"));
-    let n = app.office.lock().unwrap().receive(&m.from, &m.from_name, &m.to, &m.subject, &m.body, m.attachments, &app.mail.domain);
+    let (n, note) = app.office.lock().unwrap().receive(&m.from, &m.from_name, &m.to, &m.subject, &m.body, m.attachments, &app.mail.domain);
+    // attachments are kept on disk beside the mail, readable only by people who can see the message
+    if !m.files.is_empty() {
+        let dir = app.data.join("mail-files").join(&note);
+        let _ = std::fs::create_dir_all(&dir);
+        for (i, (name, ctype, bytes)) in m.files.iter().enumerate() {
+            let _ = std::fs::write(dir.join(format!("{i}.bin")), bytes);
+            let _ = std::fs::write(dir.join(format!("{i}.json")), json!({ "name": name, "type": ctype, "size": bytes.len() }).to_string());
+        }
+    }
     Json(json!({ "ok": true, "kept_for": n })).into_response()
 }
 
@@ -692,4 +702,16 @@ async fn office_trouble_list(State(app): State<S>, h: HeaderMap) -> Response {
     let mut all: Vec<Value> = std::fs::read_to_string(app.data.join("admin-trouble.jsonl")).unwrap_or_default().lines().filter_map(|l| serde_json::from_str(l).ok()).collect();
     all.reverse(); all.truncate(200);
     Json(json!({ "ok": true, "trouble": all })).into_response()
+}
+
+/// One attachment from a received email, for someone allowed to see that email. Always offered as a
+/// download, never shown inline, so a file can't run as a page on Agape's domain.
+async fn office_attachment(State(app): State<S>, h: HeaderMap, Path((note, index)): Path<(String, usize)>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    if !note.chars().all(|c| c.is_ascii_alphanumeric()) || !app.office.lock().unwrap().may_see(&u, &note) { return err(StatusCode::NOT_FOUND, "No such attachment"); }
+    let dir = app.data.join("mail-files").join(&note);
+    let (Ok(meta), Ok(bytes)) = (std::fs::read_to_string(dir.join(format!("{index}.json"))), std::fs::read(dir.join(format!("{index}.bin")))) else { return err(StatusCode::NOT_FOUND, "No such attachment") };
+    let meta: Value = serde_json::from_str(&meta).unwrap_or(json!({}));
+    let name: String = meta["name"].as_str().unwrap_or("attachment").chars().map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | ' ') { c } else { '_' }).collect();
+    (StatusCode::OK, [("content-type", "application/octet-stream".to_string()), ("content-disposition", format!("attachment; filename=\"{name}\"")), ("x-content-type-options", "nosniff".to_string())], bytes).into_response()
 }

@@ -135,22 +135,27 @@ impl Mail {
 }
 
 /// A received message, as Agape keeps it.
-pub struct Incoming { pub from: String, pub from_name: String, pub to: Vec<String>, pub subject: String, pub body: String, pub attachments: Vec<String> }
+pub struct Incoming { pub from: String, pub from_name: String, pub to: Vec<String>, pub subject: String, pub body: String, pub attachments: Vec<String>, pub files: Vec<(String, String, Vec<u8>)> }
 
 pub fn parse(raw: &[u8], envelope_to: &str, envelope_from: &str) -> Incoming {
     let m = mail_parser::MessageParser::default().parse(raw);
     let (mut from, mut from_name) = (envelope_from.to_string(), String::new());
     let mut to: Vec<String> = vec![];
-    let (mut subject, mut body, mut attachments) = (String::new(), String::new(), vec![]);
+    let (mut subject, mut body, mut attachments, mut files) = (String::new(), String::new(), vec![], vec![]);
     if let Some(m) = &m {
         if let Some(a) = m.from().and_then(|f| f.first()) { if let Some(e) = a.address() { from = e.to_string(); } from_name = a.name().unwrap_or("").to_string(); }
         for list in [m.to(), m.cc()].into_iter().flatten() { for a in list.iter() { if let Some(e) = a.address() { to.push(e.to_lowercase()); } } }
         subject = m.subject().unwrap_or("").to_string();
         body = m.body_text(0).map(|b| b.to_string()).unwrap_or_default();
-        for a in m.attachments() { attachments.push(a.attachment_name().unwrap_or("attachment").to_string()); }
+        for a in m.attachments() {
+            let name: String = a.attachment_name().unwrap_or("attachment").chars().filter(|c| !matches!(c, '/' | '\\' | '\0')).take(120).collect();
+            let ctype = a.content_type().map(|c| match c.subtype() { Some(sub) => format!("{}/{}", c.ctype(), sub), None => c.ctype().to_string() }).unwrap_or_else(|| "application/octet-stream".into());
+            attachments.push(name.clone());
+            files.push((name, ctype, a.contents().to_vec()));
+        }
     }
     if !envelope_to.is_empty() && !to.iter().any(|t| t.eq_ignore_ascii_case(envelope_to)) { to.insert(0, envelope_to.to_lowercase()); }
-    Incoming { from, from_name, to, subject: subject.chars().take(300).collect(), body: body.chars().take(100_000).collect(), attachments }
+    Incoming { from, from_name, to, subject: subject.chars().take(300).collect(), body: body.chars().take(100_000).collect(), attachments, files }
 }
 
 /// The Cloudflare Worker that hands each incoming message to Agape. Pasted once into Cloudflare.

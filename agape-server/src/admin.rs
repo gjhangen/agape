@@ -685,17 +685,20 @@ impl Admin {
 
     /// Keep an email that came in from outside, for whoever it was addressed to. Mail for an address
     /// nobody has goes to the host, so nothing is lost.
-    pub fn receive(&mut self, from: &str, from_name: &str, to: &[String], subject: &str, body: &str, attachments: Vec<String>, domain: &str) -> usize {
+    pub fn receive(&mut self, from: &str, from_name: &str, to: &[String], subject: &str, body: &str, attachments: Vec<String>, domain: &str) -> (usize, String) {
         let mut ids: Vec<String> = vec![];
         for t in to { if let Some((local, d)) = t.split_once('@') { if d.eq_ignore_ascii_case(domain) { if let Some(id) = self.by_mailbox(local.split('+').next().unwrap_or(local)) { if !ids.contains(&id) { ids.push(id); } } } } }
         if ids.is_empty() { if let Some(h) = self.s.users.iter().find(|u| u.role == HOST && !u.off) { ids.push(h.id.clone()); } }
         let n = ids.len();
+        let nid = format!("n{}", token(5));
         let from_full = if from_name.trim().is_empty() { from.to_string() } else { format!("{} <{}>", from_name.trim(), from) };
-        self.s.notes.push(Note { id: format!("n{}", token(5)), at: now(), from: String::new(), to: ids, subject: if subject.trim().is_empty() { "(no subject)".into() } else { subject.into() }, body: body.into(), kind: "email".into(), read: vec![], ext_from: from_full, ext_to: to.to_vec(), status: vec![], attachments, retry: vec![] });
+        self.s.notes.push(Note { id: nid.clone(), at: now(), from: String::new(), to: ids, subject: if subject.trim().is_empty() { "(no subject)".into() } else { subject.into() }, body: body.into(), kind: "email".into(), read: vec![], ext_from: from_full, ext_to: to.to_vec(), status: vec![], attachments, retry: vec![] });
         if self.s.notes.len() > 20000 { self.s.notes.drain(0..2000); }
         self.save();
-        n
+        (n, nid)
     }
+    /// Whether the viewer may see this note (for its attachments).
+    pub fn may_see(&self, viewer: &User, note: &str) -> bool { self.s.notes.iter().any(|n| n.id == note && self.sees(viewer, &n.from, &n.to)) }
 
     /// Sent emails with addresses due another try: (note id, sender name, sender address, to, subject, body, tries).
     pub fn due_retries(&self) -> Vec<(String, String, String, String, String, String, u32)> {
@@ -903,7 +906,7 @@ mod channel_tests {
         let (_, phil) = a.accept(&c, "", "longenough1").unwrap();
         assert_eq!(phil.mailbox, "phillip");
         let base = a.unread(&host);
-        a.receive("sam@venue.example", "Sam", &["phillip@agapetoyourseat.com".into()], "Pilot", "March?", vec![], "agapetoyourseat.com");
+        a.receive("sam@venue.example", "Sam", &["phillip@agapetoyourseat.com".into()], "Pilot", "March?", vec![], "agapetoyourseat.com").0;
         let phil = a.s.users.iter().find(|u| u.id == phil.id).cloned().unwrap();
         assert_eq!(a.unread(&phil).0, 1, "it goes straight to Phillip");
         assert_eq!(a.unread(&host).1, base.1 + 1, "and pings the host in Phillip's channel");

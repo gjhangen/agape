@@ -118,6 +118,17 @@ async function api(path: string, body?: unknown): Promise<any> {
   return { ok: false, retried, error: "Agape couldn't be reached after a few tries. It may be updating: wait a minute and try again. If it keeps happening, check your internet connection." };
 }
 
+/** Download an email attachment (it needs the signed-in session, so it can't be a plain link). */
+async function download(note: string, i: number, name: string) {
+  try {
+    const r = await fetch(`/api/office/attachment/${note}/${i}`, { headers: { authorization: "Bearer " + token } });
+    if (!r.ok) { alert("That attachment isn't available. It may have arrived before Agape kept attachments."); return; }
+    const url = URL.createObjectURL(await r.blob());
+    const a = document.createElement("a"); a.href = url; a.download = name; document.body.append(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 5000);
+  } catch { alert("Couldn't download it. Check your connection and try again."); }
+}
+
 const when = (s: number) => new Date(s * 1000).toLocaleString(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 const day = (d = new Date()) => d.toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" });
 const mask = (v: string) => v.length <= 4 ? v : "•••• " + v.slice(-4);
@@ -670,7 +681,7 @@ function MsgList({ notes, setNotes, seen, reply, empty, showWho }: { notes: Msg[
     {open === n.id && <div className="ox-body">
       <p className="ox-meta">From {n.from_name} to {n.to_names.join(", ") || "—"} · {when(n.at)}</p>
       <p>{n.body}</p>
-      {n.attachments.length > 0 && <p className="ox-note">Attachments (names only; Agape doesn't keep the files yet): {n.attachments.join(", ")}</p>}
+      {n.attachments.length > 0 && <div className="ox-files"><span>Attachments</span>{n.attachments.map((name, i) => <button key={i} className="ox-btn sm" onClick={() => download(n.id, i, name)}>{name}</button>)}</div>}
       {n.status.length > 0 && <ul className="ox-status">{n.status.map((x, i) => <li key={i} className={x.includes("not delivered") ? "bad" : "good"}>{x}</li>)}</ul>}
       {reply && n.mine && n.kind !== "lead" && n.kind !== "joined" && !n.sent && <button className="ox-btn sm" onClick={() => reply(n)}>Reply</button>}
     </div>}
