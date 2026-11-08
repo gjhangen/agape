@@ -43,7 +43,7 @@ const page = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta n
 <meta name="theme-color" content="#B8174F">
 <meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Agape"><meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="icon" href="/favicon.png"><link rel="manifest" href="/manifest.json">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="icon" href="/favicon.png"><link rel="manifest" href="/manifest.json">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@700;800&family=Public+Sans:wght@400;500;600;700;800&family=IBM+Plex+Mono:wght@500;600&family=IBM+Plex+Sans:wght@400;600;700&family=Oswald:wght@600;700&family=Inter:wght@400;500;600;700&family=Anton&family=Work+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;700&family=DM+Sans:wght@400;500;700&family=Fraunces:opsz,wght@9..144,700&family=Nunito:wght@400;600;700;900&family=Bebas+Neue&family=Barlow:wght@400;500;600;700&display=swap">
@@ -75,7 +75,7 @@ const head = (title, desc, dir = null, app = "") => `<!doctype html><html lang="
 <meta property="og:title" content="${title}"><meta property="og:description" content="${desc}">
 <meta property="og:image" content="https://agapetoyourseat.com/og.png"><meta property="og:image:width" content="1200"><meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image"><meta name="theme-color" content="#B8174F">
-<link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">${appMeta(dir, app)}${FONTS}<style>${css}</style></head><body>`;
+<link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">${appMeta(dir, app)}${FONTS}<style>${css}</style></head><body>`;
 const siteJs = await bundle("src/site.tsx");
 const sitePage = head("Agape · order from your seat", "Agape brings food, drinks and gear to your seat at live events, so you never miss the moment.") +
   `<div id="root"><div class="site"><section class="site-hero"><h1>Order from your seat.<br>It comes to you.</h1></section></div></div>${REACT}<script>var AGAPE_WORLD=${world};var AGAPE_TEMPLATE=${tpl};</script><script>${siteJs}</script></body></html>`;
@@ -113,6 +113,7 @@ console.log("dist/server/for/*");
 // the icons, share image and manifest that make it feel like an app on a phone
 import { copyFileSync } from "fs";
 for (const f of ["og.png", "icon-512.png", "icon-192.png", "apple-touch-icon.png", "favicon.png"]) copyFileSync(`brand/${f}`, `dist/server/${f}`);
+copyFileSync("brand/icon-small.svg", "dist/server/favicon.svg");
 writeFileSync("dist/server/manifest.json", JSON.stringify({ name: "Agape", short_name: "Agape", start_url: "/app/", display: "standalone", background_color: "#F3F4F7", theme_color: "#B8174F",
   icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png" }] }));
 
@@ -122,7 +123,7 @@ writeFileSync("dist/server/demo/index.html", `<!doctype html><html lang="en"><he
 <meta name="description" content="A whole arena night on Agape, simulated in your browser. See every seat, speed up time, and put your own team on it.">
 <meta property="og:title" content="Agape Simulator"><meta property="og:description" content="A whole arena night on Agape, simulated in your browser.">
 <meta property="og:image" content="https://agapetoyourseat.com/og.png"><meta name="twitter:card" content="summary_large_image">
-<meta name="theme-color" content="#B8174F"><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#B8174F"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 </head><body>${html.replace("<title>Agape Simulator</title>", "<title>Agape Simulator</title>")}</body></html>`);
 console.log("dist/server/demo/index.html");
 
@@ -151,6 +152,6 @@ const adminCss = readFileSync("src/admin.css", "utf8");
 mkdirSync("dist/server/admin", { recursive: true });
 writeFileSync("dist/server/admin/index.html", `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="robots" content="noindex, nofollow"><meta name="referrer" content="no-referrer"><title>Agape Admin</title>
-<meta name="theme-color" content="#B8174F"><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<meta name="theme-color" content="#B8174F"><link rel="icon" type="image/svg+xml" href="/favicon.svg"><link rel="icon" href="/favicon.png"><link rel="apple-touch-icon" href="/apple-touch-icon.png">
 ${FONTS}<style>${adminCss}</style></head><body><div id="root"></div>${REACT}<script>${adminJs}</script></body></html>`);
 console.log("dist/server/admin/index.html");
