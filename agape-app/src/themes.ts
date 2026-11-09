@@ -3,17 +3,23 @@
 export type Look = { palette: string; shape: string; cards: string; board: string; type: string };
 
 export const AXES: { key: keyof Look; label: string; options: [string, string][] }[] = [
-  { key: "palette", label: "Palette", options: [["rose", "Agape Rose"], ["night", "Night Game"], ["court", "Hardwood"], ["concrete", "Concrete & Citrus"], ["gold", "Ink & Gold"],
+  { key: "palette", label: "Palette", options: [["agape", "Agape Night (finalist)"], ["rose", "Agape Rose"], ["night", "Night Game"], ["court", "Hardwood"], ["concrete", "Concrete & Citrus"], ["gold", "Ink & Gold"],
     ["sunset", "Sunset"], ["ice", "Ice"], ["electric", "Electric"], ["royal", "Royal"], ["sand", "Terracotta"], ["mono", "Black & Red"], ["ocean", "Harbor Blue"], ["forest", "Forest"]] },
   { key: "shape", label: "Corners", options: [["soft", "Soft"], ["sharp", "Sharp"], ["round", "Round"]] },
   { key: "cards", label: "Cards", options: [["outline", "Outlined"], ["filled", "Filled"], ["raised", "Raised"], ["flat", "Flat list"]] },
   { key: "board", label: "Scoreboard", options: [["dark", "Dark band"], ["accent", "Team color"], ["light", "Light"]] },
-  { key: "type", label: "Type", options: [["stadium", "Big Shoulders + Public Sans"], ["condensed", "Oswald + Inter"], ["poster", "Anton + Work Sans"], ["grotesk", "Space Grotesk + DM Sans"],
+  { key: "type", label: "Type", options: [["agape-barlow-instrument", "Barlow + Instrument"], ["agape-barlow", "Barlow Condensed"], ["agape-bricolage", "Bricolage"], ["agape-instrument", "Instrument Sans"], ["agape-rubik", "Rubik"], ["agape-sora", "Sora"],["stadium", "Big Shoulders + Public Sans"], ["condensed", "Oswald + Inter"], ["poster", "Anton + Work Sans"], ["grotesk", "Space Grotesk + DM Sans"],
     ["editorial", "Fraunces + Public Sans"], ["rounded", "Nunito"], ["mono", "Plex Mono + Plex Sans"], ["bebas", "Bebas Neue + Barlow"]] },
 ];
 
 const L = (palette: string, shape: string, cards: string, board: string, type: string): Look => ({ palette, shape, cards, board, type });
 export const PRESETS: [string, Look][] = [
+  ["Finalist: Barlow + Instrument", L("agape", "soft", "raised", "dark", "agape-barlow-instrument")],
+  ["Finalist: Barlow", L("agape", "soft", "raised", "dark", "agape-barlow")],
+  ["Finalist: Bricolage", L("agape", "soft", "raised", "dark", "agape-bricolage")],
+  ["Finalist: Instrument", L("agape", "soft", "raised", "dark", "agape-instrument")],
+  ["Finalist: Rubik", L("agape", "soft", "raised", "dark", "agape-rubik")],
+  ["Finalist: Sora", L("agape", "soft", "raised", "dark", "agape-sora")],
   ["Agape Rose", L("rose", "soft", "outline", "dark", "stadium")],
   ["Night Game", L("night", "soft", "raised", "dark", "condensed")],
   ["Hardwood", L("court", "round", "filled", "dark", "bebas")],
@@ -40,8 +46,14 @@ export const PRESETS: [string, Look][] = [
   ["Glacier", L("ice", "soft", "outline", "dark", "mono")],
 ];
 
-const DEFAULT = PRESETS[0][1];
-export function savedLook(): Look { try { return { ...DEFAULT, ...JSON.parse(localStorage.getItem("agape.look") || "{}") }; } catch { return DEFAULT; } }
+const DEFAULT = PRESETS.find(([n]) => n === "Agape Rose")![1];
+/** A link can carry a look: ?look=bricolage picks "Finalist: Bricolage", so a finalist can be sent to anyone. */
+function lookFromUrl(): Look | null {
+  try { const q = new URLSearchParams(location.search).get("look"); if (!q) return null;
+    const p = PRESETS.find(([n]) => n.toLowerCase().replace(/[^a-z]+/g, "-").replace(/^-|-$/g, "").endsWith(q.toLowerCase())); return p ? p[1] : null; } catch { return null; }
+}
+export function savedLook(): Look { const u = lookFromUrl(); if (u) return u;
+  try { return { ...DEFAULT, ...JSON.parse(localStorage.getItem("agape.look") || "{}") }; } catch { return DEFAULT; } }
 export function applyLook(l: Look) {
   const root = document.documentElement;
   const set = (k: string, v: string, none: string) => v === none ? root.removeAttribute(`data-${k}`) : root.setAttribute(`data-${k}`, v);

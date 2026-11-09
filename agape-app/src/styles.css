@@ -1245,7 +1245,7 @@ html.calm *, html.calm *::before, html.calm *::after { animation: none !importan
 .st-hint { color: rgb(255 255 255 / .55); font-size: 12.5px; margin: 0; text-align: center; animation: ob-in .4s ease both; }
 .st-story { grid-column: 3; position: relative; z-index: 2; display: grid; gap: 12px; align-content: center; }
 .st-story .eyebrow { color: #FF8BAA; }
-.st-story h2 { font: 800 34px/1.02 var(--display); text-transform: uppercase; color: #fff; margin: 0; animation: ob-in .4s ease both; }
+.st-story h2 { font: 800 34px/1.02 var(--display); text-transform: var(--case, uppercase); color: #fff; margin: 0; animation: ob-in .4s ease both; }
 .st-story p { color: rgb(255 255 255 / .82); font-size: 16px; line-height: 1.55; margin: 0; animation: ob-in .5s .05s ease both; }
 .st-meta { display: grid; gap: 4px; font-size: 13px; color: rgb(255 255 255 / .55); padding-top: 8px; border-top: 1px solid rgb(255 255 255 / .1); }
 .st-more { display: flex; gap: 8px; flex-wrap: wrap; padding-top: 8px; }
@@ -1842,3 +1842,22 @@ svg.wordmark { display: block; width: auto; overflow: visible; }
   .device-screen .ob { padding-top: calc(40px + env(safe-area-inset-top, 0px)); }
   .sheet { max-height: calc(92% - env(safe-area-inset-top, 0px)); }
 }
+
+/* ---- Brand finalists (dark-first, electric pink). Not final: switch between them in Looks. ---- */
+:root[data-palette="agape"], :root[data-palette="agape"][data-theme="light"], :root[data-palette="agape"][data-theme="dark"] {
+  --bg: #0B0B0D; --surface: #151518; --sunk: #1D1D22; --ink: #F5F5F7; --ink-2: #C9C9D1; --muted: #8F8F9A; --line: #2A2A31;
+  --accent: #FF2D95; --accent-ink: #FFFFFF; --board: #000000; --board-2: #111114; --board-dim: #8F8F9A;
+  --map-floor: #2A2A31; --map-ground: #151518; --map-sec: #2E2E36; --map-conc: #111114; --map-line: #2A2A31;
+  --accent-soft: color-mix(in srgb, #FF2D95 16%, #151518); --wm-accent: #FF2D95; color-scheme: dark;
+}
+:root[data-palette="agape"] .btn.primary, :root[data-palette="agape"] .ob-primary { font-weight: 700; }
+/* the food gradient means heat: only on food that is hot and ready right now */
+.hot-ready { position: relative; }
+:root[data-palette="agape"] .hot-ready::after { content: ""; position: absolute; left: 10px; right: 10px; bottom: 0; height: 3px; border-radius: 3px; background: linear-gradient(90deg, #FF2D95, #FF6F7F, #FF9A62); }
+:root[data-type="agape-barlow"] { --display: "Barlow Condensed", "Arial Narrow", sans-serif; --body: "Inter", system-ui, sans-serif; --case: none; --display-weight: 800; --display-track: 0; }
+:root[data-type="agape-barlow-instrument"] { --display: "Barlow Condensed", "Arial Narrow", sans-serif; --body: "Instrument Sans", system-ui, sans-serif; --case: none; --display-weight: 800; --display-track: 0; }
+:root[data-type="agape-bricolage"] { --display: "Bricolage Grotesque", system-ui, sans-serif; --body: "Bricolage Grotesque", system-ui, sans-serif; --case: none; --display-weight: 800; --display-track: -.03em; }
+:root[data-type="agape-instrument"] { --display: "Instrument Sans", system-ui, sans-serif; --body: "Instrument Sans", system-ui, sans-serif; --case: none; --display-weight: 700; --display-track: -.03em; }
+:root[data-type="agape-rubik"] { --display: "Rubik", system-ui, sans-serif; --body: "Rubik", system-ui, sans-serif; --case: none; --display-weight: 700; --display-track: -.02em; }
+:root[data-type="agape-sora"] { --display: "Sora", system-ui, sans-serif; --body: "Sora", system-ui, sans-serif; --case: none; --display-weight: 700; --display-track: -.04em; }
+.site-mark svg.wordmark, .ob-logo svg.wordmark { --wm-accent: var(--accent); }
