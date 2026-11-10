@@ -1480,6 +1480,17 @@ fn price_for(rarity: &str, rng: &mut Rng) -> i64 {
 pub fn pass_unit(place: &str) -> Unit { Unit::Thing(format!("pass:{place}")) }
 
 impl Night {
+    /// The fan's card was declined: the order closes, nothing is charged, and the stand stops on it.
+    pub fn payment_failed(&mut self, order: usize) -> Result<(), String> {
+        let o = self.orders.get_mut(order).ok_or("Unknown order")?;
+        o.c.act(Action::PaymentFailed, "agape", &mut self.ledger, &self.terms).map_err(|e| format!("{e:?}"))?;
+        let stand = o.c.quote.stand.clone();
+        for q in self.queues.values_mut() { q.retain(|&i| i != order); }
+        self.scheduled.retain(|(_, i)| *i != order);
+        if let Some(v) = self.stations.get_mut(&stand) { for x in v.iter_mut() { if x.1 == Some(order) { *x = (self.t, None); } } }
+        Ok(())
+    }
+
     /// Fans whose own screen an action by `who` changes: themselves, the fan of the order it names,
     /// and the fans of a runner's trip. Everyone else's screen can catch up on the next refresh.
     pub fn fans_touched(&self, who: &str, v: &serde_json::Value) -> Vec<String> {

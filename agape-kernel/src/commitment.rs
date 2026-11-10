@@ -87,7 +87,7 @@ impl Commitment {
         let next = match (&self.stage, &a) {
             (Accepted, Action::StartPrep) => Preparing,
             (Accepted, Action::Cancel) => { self.release(ledger)?; Closed(Exit::FanCancelled) }
-            (Accepted, Action::PaymentFailed) => { self.release(ledger)?; Closed(Exit::PaymentFailed) }
+            (Accepted | Preparing, Action::PaymentFailed) => { self.release(ledger)?; Closed(Exit::PaymentFailed) }
             (Accepted | Preparing, Action::CannotFulfil) => { self.release(ledger)?; Closed(Exit::StandCannotFulfil) }
             (Accepted | Preparing, Action::VenueHalt) => { self.release(ledger)?; Closed(Exit::VenueHalted) }
             (Preparing, Action::MarkReady) => Ready,

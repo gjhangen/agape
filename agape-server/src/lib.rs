@@ -9,6 +9,7 @@ pub mod admin;
 pub mod mail;
 pub mod pilot;
 pub mod ops;
+pub mod pay;
 
 use auth::{Account, Auth, Role};
 use axum::extract::{Path, State};
@@ -34,6 +35,7 @@ pub struct App {
     office: Mutex<admin::Admin>,
     pub mail: mail::Mail,
     limits: Mutex<Limits>,
+    pay: Mutex<pay::Payments>,
 }
 pub type S = Arc<App>;
 
@@ -177,7 +179,12 @@ async fn act(State(app): State<S>, Path(vid): Path<String>, h: HeaderMap, Json(m
         if what == "join" { o.insert("name".into(), json!(acc.handle)); }
     }
     if what == "join" { return join(&app, &acc, &v, b).await; }
-    Json(v.act(&acc.party, b).await).into_response()
+    let r = v.act(&acc.party, b).await;
+    // a real night: every new order's card is held for its price before anyone makes it
+    if v.init.real() && r["ok"] == true && matches!(what.as_str(), "order" | "cart" | "gift" | "reorder") {
+        if let Some(e) = hold_new_orders(&app, &v, &acc).await { return Json(json!({ "ok": false, "error": e })).into_response(); }
+    }
+    Json(r).into_response()
 }
 
 /// Joining a venue brings the fan's passport: their points leave wherever they were and arrive
@@ -478,7 +485,7 @@ pub fn app(data: &std::path::Path, ticks_per_sec: f64, admin_token: Option<Strin
         let h = venue::spawn(&dir, Some(harbor_init(7)), "harbor", ticks_per_sec).expect("venue starts");
         venues.insert(h.id.clone(), h);
     }
-    Arc::new(App { auth: Mutex::new(Auth::open(data.join("accounts.jsonl"))), venues: Mutex::new(venues), passports: tokio::sync::Mutex::new(passport::Passports::open(data.join("passports.json"))), data: data.to_path_buf(), speed: ticks_per_sec, admin_token, office: Mutex::new(admin::Admin::open(data.to_path_buf())), limits: Mutex::new(Limits::default()), mail: mail::Mail::open(data, &std::env::var("AGAPE_MAIL_DOMAIN").ok().filter(|d| !d.is_empty()).unwrap_or_else(|| "agapetoyourseat.com".into())) })
+    Arc::new(App { auth: Mutex::new(Auth::open(data.join("accounts.jsonl"))), venues: Mutex::new(venues), passports: tokio::sync::Mutex::new(passport::Passports::open(data.join("passports.json"))), data: data.to_path_buf(), speed: ticks_per_sec, admin_token, office: Mutex::new(admin::Admin::open(data.to_path_buf())), limits: Mutex::new(Limits::default()), pay: Mutex::new(pay::Payments::open(data)), mail: mail::Mail::open(data, &std::env::var("AGAPE_MAIL_DOMAIN").ok().filter(|d| !d.is_empty()).unwrap_or_else(|| "agapetoyourseat.com".into())) })
 }
 
 /// A venue whose night is over opens the next one: every fan's points go home to their passport,
@@ -835,7 +842,11 @@ fn nights_dir(app: &App) -> std::path::PathBuf { let d = app.data.join("nights")
 /// A finished real night: its full report is kept, its journal is kept under a new name, and the
 /// venue waits for its next night to be opened from Admin.
 pub async fn archive_real(app: &App, v: &venue::Handle) -> Option<String> {
-    let night = v.view("agape", json!({ "lens": "night" })).await;
+    // every card settled before the books are written down
+    let due = v.view("agape", json!({ "lens": "payments" })).await;
+    app.pay.lock().unwrap().reconcile(&v.id, v.init.opened, due["due"].as_array().map(|a| a.as_slice()).unwrap_or(&[]));
+    let mut night = v.view("agape", json!({ "lens": "night" })).await;
+    night["cards"] = app.pay.lock().unwrap().summary(&v.id, v.init.opened);
     let staff: Vec<Value> = app.auth.lock().unwrap().at_venue(&v.id).iter().map(|a| json!({ "handle": a.handle, "role": a.role, "party": a.party })).collect();
     let closed = now_s();
     let file = format!("{}-{}.json", v.id, closed);
@@ -991,6 +1002,7 @@ async fn office_night(State(app): State<S>, h: HeaderMap, Path(vid): Path<String
     let staff: BTreeMap<String, String> = app.auth.lock().unwrap().at_venue(&vid).into_iter().map(|a| (a.party, a.handle)).collect();
     n["staff"] = json!(staff);
     n["mode"] = json!(v.init.mode); n["opened"] = json!(v.init.opened); n["ok"] = json!(true);
+    n["cards"] = app.pay.lock().unwrap().summary(&v.id, v.init.opened);
     Json(n).into_response()
 }
 
@@ -1091,4 +1103,34 @@ async fn office_backup(State(app): State<S>, h: HeaderMap) -> Response {
     app.office.lock().unwrap().logged(&u, "downloaded a full backup".into());
     let b = ops::bundle(&app.data);
     ([("content-type", "application/json"), ("content-disposition", "attachment; filename=\"agape-backup.json\"")], serde_json::to_vec(&b).unwrap_or_default()).into_response()
+}
+
+
+// ---------------- cards on a real night ----------------
+
+/// Hold the price of every order this fan just placed. A declined card closes the order at once.
+async fn hold_new_orders(app: &App, v: &venue::Handle, acc: &Account) -> Option<String> {
+    let due = v.view("agape", json!({ "lens": "payments" })).await;
+    let mut declined = None;
+    for d in due["due"].as_array().cloned().unwrap_or_default() {
+        let order = d["order"].as_u64().unwrap_or(0) as usize;
+        if d["fan"] != acc.party.as_str() || d["final"] == true { continue; }
+        let r = { let mut p = app.pay.lock().unwrap(); if p.known(&v.id, v.init.opened, order) { continue; } p.authorize(&v.id, v.init.opened, order, &acc.party, &acc.handle, d["quoted"].as_i64().unwrap_or(0)) };
+        if let Err(e) = r {
+            let _ = v.act("agape", json!({ "do": "payment_failed", "order": order })).await;
+            declined = Some(format!("{e}. The order wasn't placed and nothing was charged."));
+        }
+    }
+    declined
+}
+
+/// Bring every card in line with the books: capture what's final, release what didn't happen,
+/// refund what was put right.
+pub async fn settle_cards(app: &App) {
+    let venues: Vec<venue::Handle> = app.venues.lock().unwrap().values().filter(|v| v.init.real()).cloned().collect();
+    for v in venues {
+        let due = v.view("agape", json!({ "lens": "payments" })).await;
+        let did = app.pay.lock().unwrap().reconcile(&v.id, v.init.opened, due["due"].as_array().map(|a| a.as_slice()).unwrap_or(&[]));
+        if !did.is_empty() { println!("{}: cards {}", v.id, did.join(", ")); }
+    }
 }

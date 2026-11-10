@@ -1245,11 +1245,11 @@ function Console({ id, toast, back, ended }: { id: string; toast: (s: string) =>
           <td><small>{o.runner ? staff[o.runner] ?? o.runner : ""}</small></td><td className="mono">{money(o.charge)}</td></tr>)}</tbody>
       </table></div>}
     </section>
-    <Books b={b} />
+    <Books b={b} cards={n.cards} />
   </>;
 }
 
-function Books({ b }: { b: any }) {
+function Books({ b, cards }: { b: any; cards?: any }) {
   const t = b.totals ?? {};
   const rows: [string, number, string][] = [["Fans paid", b.fans_paid, "Every card charge for delivered orders, tips included"], ["Food and drink sold", t.sales, "Before tax and fees"], ["Sales tax collected", b.tax, "Owed to the state"],
     ["Delivery fees", t.fees, ""], ["Tips", b.runners_tips, "Every cent to the runner who carried it"], ["Runner pay", b.runners_pay, "Paid by Agape per trip"], ["To the stands", b.stands, "After Agape's share and card processing"],
@@ -1257,6 +1257,17 @@ function Books({ b }: { b: any }) {
   return <section className="ox-card"><h2>The books</h2>
     <p className="ox-sub">Straight from the ledger: every dollar in equals every dollar out. {b.conserved ? <b className="ox-okt">They balance to the cent.</b> : <b className="ox-badt">They don't balance. Don't close the night; tell the host.</b>}</p>
     <table className="ox-table tight books"><tbody>{rows.map(([l, v, h]) => <tr key={l}><td>{l}{h && <small>{h}</small>}</td><td className="mono num">{money(v ?? 0)}</td></tr>)}</tbody></table>
+    {cards && <>
+      <h3>Cards {cards.processor === "test" && <span className="ox-tag requested">Test processor: no real money moves</span>}</h3>
+      <p className="ox-sub">Each order's card is held for its price when it's placed, and charged only when the order is final: what the fan owes, less any credit. Holds for orders that didn't happen are released.</p>
+      <table className="ox-table tight books"><tbody>
+        <tr><td>Still held<small>{cards.holds} order{cards.holds === 1 ? "" : "s"} not final yet</small></td><td className="mono num">{money(cards.held)}</td></tr>
+        <tr><td>Charged</td><td className="mono num">{money(cards.captured)}</td></tr>
+        <tr><td>Refunded</td><td className="mono num">{money(cards.refunded)}</td></tr>
+        <tr><td>Declined at the order<small>Closed at once; never made</small></td><td className="mono num">{cards.declined}</td></tr>
+        <tr><td><b>Cards, net</b><small>{cards.holds > 0 ? "Matches the books once every order is final" : cards.net === b.fans_paid ? "Equals what the books say fans paid" : "Doesn't equal the books yet; it settles every 15 seconds"}</small></td><td className={"mono num " + (cards.holds === 0 && cards.net === b.fans_paid ? "ox-okt" : "")}>{money(cards.net)}</td></tr>
+      </tbody></table>
+    </>}
   </section>;
 }
 
@@ -1281,7 +1292,7 @@ function Report({ file, back }: { file: string; back: () => void }) {
       <div><small>Nine in ten within</small><b className="mono">{n.wait_p90 != null ? `${Math.round(n.wait_p90 / 60)} min` : "—"}</b></div>
       <div><small>Fans paid</small><b className="mono">{money(n.books.fans_paid)}</b></div>
     </section>
-    <Books b={n.books} />
+    <Books b={n.books} cards={n.cards} />
     <section className="ox-card"><h2>By stand</h2><table className="ox-table tight"><thead><tr><th>Stand</th><th>Orders</th><th>Sales</th><th>Stand receives</th></tr></thead>
       <tbody>{n.stands.map((s: any) => <tr key={s.id}><td>{s.name}</td><td className="mono">{s.settled}</td><td className="mono">{money(s.sales)}</td><td className="mono">{money(s.revenue)}</td></tr>)}</tbody></table></section>
     <section className="ox-card"><h2>By runner</h2><table className="ox-table tight"><thead><tr><th>Runner</th><th>Delivered</th><th>Pay</th><th>Tips</th><th>Total</th></tr></thead>

@@ -405,6 +405,27 @@ impl Night {
                 "problems": self.problems_json(), "books": books, "feed": self.feed.iter().rev().take(30).map(|f| json!({ "t": f.t, "kind": f.kind, "team": f.team, "text": f.text })).collect::<Vec<_>>() })
     }
 
+    /// What each order's fan owes their card, from the ledger's own rules: for a processor to
+    /// capture (once the order is final) and refund (after a problem is put right). Nothing else is
+    /// ever charged: an order that didn't happen captures nothing.
+    pub fn payments_due(&self) -> Vec<Value> {
+        let usd = Unit::usd();
+        self.orders.iter().enumerate().map(|(i, o)| {
+            let q = &o.c.quote;
+            let (fin, capture) = match &o.c.stage {
+                Stage::Settled => (true, breakdown(q, &self.terms).map(|b| b.charge).unwrap_or(0) - o.credit_used),
+                Stage::Closed(crate::commitment::Exit::FanUnreachable) => { let mut x = q.clone(); x.tip = 0; (true, breakdown(&x, &self.terms).map(|b| b.charge).unwrap_or(0) - o.credit_used) }
+                Stage::Closed(_) => (true, 0),
+                _ => (false, 0),
+            };
+            let tag = format!("remedy {i} ");
+            let refund: i64 = self.ledger.txns.iter().filter(|t| t.memo.starts_with(&tag)).flat_map(|t| t.postings.iter())
+                .filter(|p| p.account == acct(&q.fan, "card") && p.unit == usd).map(|p| p.amount).sum();
+            json!({ "order": i, "fan": q.fan, "final": fin, "capture": capture.max(0), "refund": refund.max(0),
+                    "quoted": breakdown(q, &self.terms).map(|b| b.charge).unwrap_or(0) })
+        }).collect()
+    }
+
     fn feed_json(&self, f: &crate::sim::FeedItem, viewer: &str) -> Value {
         let drop = f.edition.as_ref().and_then(|e| self.edition_json(e, viewer).into());
         json!({ "t": f.t, "kind": f.kind, "team": f.team, "text": f.text, "party": f.party, "group": self.group_of(&f.team),

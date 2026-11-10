@@ -21,6 +21,8 @@ pub fn view(n: &mut Night, who: &str, v: &Value) -> Value {
         Some("glance") => n.view_glance(),
         // the night's books and the game's controls: the venue's console and Agape's team
         Some("night") if who == "agape" || who == "ops" => n.view_night(),
+        // what each fan's card owes: the server's payments only
+        Some("payments") if who == "agape" => json!({ "due": n.payments_due() }),
         // problems, remedies and every fan's record: Agape's own team only
         Some("care") if who == "agape" || who == "hq" => n.view_care(),
         _ => json!({ "error": "unknown lens" }),
@@ -114,6 +116,7 @@ pub fn act(n: &mut Night, who: &str, v: &Value) -> Value {
         // a real night: the venue's team marks the game and keeps the score
         Some("game") if who == "ops" || who == "agape" => n.mark_game(&s("what")),
         Some("score") if who == "ops" || who == "agape" => n.keep_score(&s("team"), v["points"].as_i64().unwrap_or(0), &s("player")),
+        Some("payment_failed") if who == "agape" => n.payment_failed(v["order"].as_u64().unwrap_or(u64::MAX) as usize).map(|_| String::new()),
         Some("halt") => n.halt(&s("reason")).map(|_| String::new()),
         Some("resume") => n.resume().map(|_| String::new()),
         Some("join") => n.join_named(who, &s("seat"), &s("name"), v["welcome"].as_bool().unwrap_or(true)).and_then(|_| n.set_spot(who, &s("row"), &s("place"))).map(|_| String::new()),

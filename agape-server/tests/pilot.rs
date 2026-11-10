@@ -228,3 +228,48 @@ async fn a_backup_restores_onto_a_new_machine_mid_night() {
     assert_eq!(night["orders"].as_array().unwrap().len(), 1, "the night carries on with its order: {night}");
     assert!(!s2.signin("jeff", "correct horse").await.is_empty(), "fans can still sign in");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn cards_are_held_at_the_order_taken_when_final_and_match_the_books() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = start(dir.path()).await;
+    let boss = owner(&s, dir.path()).await;
+    let (_, list) = s.get("/api/office/venues", Some(&boss)).await;
+    let mut form = list["starter"].clone();
+    form["id"] = json!("rupp"); form["name"] = json!("Rupp Arena");
+    s.post("/api/office/venue", Some(&boss), json!({ "form": form })).await;
+    let (_, g) = s.post("/api/office/venue/staff", Some(&boss), json!({ "venue": "rupp", "role": "stand", "handle": "rupp.grill", "stand": "grill" })).await;
+    s.post("/api/office/venue/open", Some(&boss), json!({ "id": "rupp", "mode": "rehearsal" })).await;
+    let grill = s.signin("rupp.grill", g["password"].as_str().unwrap()).await;
+    s.act(&grill, json!({ "do": "clock_in" })).await;
+    let mut toks = vec![];
+    for h in ["gabe", "declinejoe"] { let (_, up) = s.post("/api/signup", None, json!({ "handle": h, "password": "correct horse" })).await; toks.push(up["token"].as_str().unwrap().to_string()); }
+    let (gabe, joe) = (toks[0].clone(), toks[1].clone());
+    for t in [&gabe, &joe] { s.act(t, json!({ "do": "join", "seat": "s105" })).await; }
+    // a declined card: the order closes and the stand never sees it
+    let d = s.act(&joe, json!({ "do": "order", "thing": "nachos", "qty": 1, "delivery": false, "tip": 0 })).await;
+    assert_eq!(d["ok"], false); assert!(d["error"].as_str().unwrap().contains("declined"), "{d}");
+    // two pickups: one handed over, one the stand can't make
+    let a: u64 = s.act(&gabe, json!({ "do": "order", "thing": "hotdog", "qty": 2, "delivery": false, "tip": 0 })).await["id"].as_str().unwrap().parse().unwrap();
+    let b: u64 = s.act(&gabe, json!({ "do": "order", "thing": "nachos", "qty": 1, "delivery": false, "tip": 0 })).await["id"].as_str().unwrap().parse().unwrap();
+    let (_, n) = s.get("/api/office/night/rupp", Some(&boss)).await;
+    assert_eq!(n["cards"]["holds"], 2, "both held: {}", n["cards"]);
+    assert_eq!(n["cards"]["captured"], 0, "nothing taken yet");
+    assert_eq!(n["cards"]["declined"], 1);
+    assert!(n["orders"].as_array().unwrap().iter().any(|o| o["stage"].as_str().unwrap().contains("PaymentFailed")));
+    s.act(&grill, json!({ "do": "ready", "order": a })).await;
+    s.act(&grill, json!({ "do": "handed_over", "order": a })).await;
+    s.act(&grill, json!({ "do": "cannot_make", "order": b })).await;
+    agape_server::settle_cards(&s.app).await;
+    let (_, n) = s.get("/api/office/night/rupp", Some(&boss)).await;
+    assert_eq!(n["cards"]["holds"], 0); assert_eq!(n["cards"]["voided"], 1);
+    assert_eq!(n["cards"]["net"], n["books"]["fans_paid"], "the cards equal the books: {} vs {}", n["cards"], n["books"]["fans_paid"]);
+    // a problem reported: Agape credit by default, so the card stays as it is and still equals the books
+    assert_eq!(s.act(&gabe, json!({ "do": "report", "order": a, "reason": "quality", "note": "cold" })).await["ok"], true);
+    agape_server::settle_cards(&s.app).await;
+    let (_, n) = s.get("/api/office/night/rupp", Some(&boss)).await;
+    assert_eq!(n["cards"]["net"], n["books"]["fans_paid"]);
+    let (_, end) = s.post("/api/office/night/rupp/end", Some(&boss), json!({})).await;
+    let (_, rep) = s.get(&format!("/api/office/report/{}", end["report"].as_str().unwrap()), Some(&boss)).await;
+    assert_eq!(rep["night"]["cards"]["net"], rep["night"]["books"]["fans_paid"]);
+}

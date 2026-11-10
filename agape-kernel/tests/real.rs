@@ -125,3 +125,25 @@ fn every_screen_opens_on_a_real_night() {
     assert!(menu > 0, "the fan sees a menu");
     assert_eq!(n.view_glance()["provenance"]["simulated_fans"], 0);
 }
+
+#[test]
+fn what_each_card_owes_matches_the_books() {
+    let mut n = night();
+    n.join_named("u1", "s104", "Gabe", true).unwrap();
+    n.join_named("u2", "s110", "Jeff", true).unwrap();
+    let stand = n.world.thing("burger").unwrap().stand.clone();
+    n.clock_in(&stand).unwrap();
+    let a: usize = n.order_as("u1", "burger", 2, false, 0, None).unwrap().parse().unwrap();
+    let b: usize = n.order_as("u2", "burger", 1, false, 0, None).unwrap().parse().unwrap();
+    let c: usize = n.order_as("u2", "burger", 1, false, 0, None).unwrap().parse().unwrap();
+    let due = |n: &Night, i: usize| n.payments_due()[i].clone();
+    assert_eq!(due(&n, a)["final"], false, "nothing to capture until it's handed over");
+    n.mark_ready(&stand, a).unwrap(); n.handed_over(&stand, a).unwrap();
+    n.mark_ready(&stand, b).unwrap(); n.handed_over(&stand, b).unwrap();
+    n.cannot_make(&stand, c).unwrap();
+    assert_eq!(due(&n, c)["capture"], 0, "a stand that couldn't make it charges nothing");
+    let paid = -n.ledger.balance(&acct("u1", "card"), &Unit::usd()) - n.ledger.balance(&acct("u2", "card"), &Unit::usd());
+    let captured: i64 = n.payments_due().iter().map(|d| d["capture"].as_i64().unwrap() - d["refund"].as_i64().unwrap()).sum();
+    assert_eq!(captured, paid, "what processors capture is exactly what the ledger says fans paid");
+    assert!(conserved(&n));
+}

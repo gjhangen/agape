@@ -24,6 +24,8 @@ async fn main() {
     // a copy of everything once a day, and a check every minute
     let keeper = app.clone();
     tokio::spawn(async move { loop { match ops::snapshot(&keeper.data_dir()) { Ok(Some(d)) => println!("backup: {}", d.display()), Ok(None) => {}, Err(e) => eprintln!("backup failed: {e}") } tokio::time::sleep(std::time::Duration::from_secs(3600)).await; } });
+    let carder = app.clone();
+    tokio::spawn(async move { loop { tokio::time::sleep(std::time::Duration::from_secs(15)).await; settle_cards(&carder).await; } });
     let watcher = app.clone();
     tokio::spawn(async move { let mut was = None; loop { tokio::time::sleep(std::time::Duration::from_secs(60)).await; watch(&watcher, &mut was).await; } });
     let port = env("PORT").unwrap_or_else(|| "8080".into());
