@@ -39,6 +39,11 @@ function Onboarding({ stage, next, seatChosen, onLocated }: { stage: Stage; next
   if (stage === "welcome") return (
     <div className="ob ob-welcome">
       <div className="ob-hero"><span className="ob-logo"><Wordmark /></span><h1>Order from your seat.<br />It comes to you.</h1><p>Food, drinks and gear at live events, brought to you by the venue's own kitchens, so you never miss the moment.</p></div>
+      <div className="ob-show" aria-hidden="true">
+        <div className="ob-card back"><b>Draft beer</b><span>Runner 2 min away</span></div>
+        <div className="ob-card"><small>Section 104 · Row F · Seat 7</small><b>Hot dog, nachos</b><span>At your seat by <strong>7:42 PM</strong></span>
+          <ol><li className="done">Ordered</li><li className="now">Being made</li><li>On the way</li><li>At your seat</li></ol></div>
+      </div>
       <div className="ob-acts"><button className="btn ob-primary" onClick={() => next("signup")}>Create an account</button><button className="btn ob-second" onClick={() => next("signin")}>Sign in</button><button className="link-inline" onClick={() => { try { localStorage.setItem("agape.profile", JSON.stringify({ guest: true })); } catch { /* fine */ } next("perms"); }}>Continue as a guest</button></div>
     </div>
   );
@@ -235,6 +240,7 @@ function Story() {
     <div className={"story phone-demo" + (full ? " full" : "")} style={{ ["--venue" as any]: BRAND.home.color }}>
       <header className="st-top">
         <a className="st-brand" href="/"><b>agape</b><span>Fan · Agape</span></a>
+        <button className="btn h-btn st-menu" aria-label="Demo controls" onClick={e => { const h = (e.currentTarget as HTMLElement).closest(".st-top")!; h.classList.toggle("open"); (e.currentTarget as HTMLElement).setAttribute("aria-expanded", String(h.classList.contains("open"))); }}>Controls</button>
         <div className="st-strip">
         <nav className="st-seats" aria-label="Other roles">{[["Fan", "/try/"], ["Runner", "/try/runner/"], ["Stand", "/try/kitchen/"], ["Venue", "/try/venue/"], ["Partner", "/try/partner/"], ["HQ", "/try/hq/"]].map(([l, h]) => <a key={h} href={h + (EVENT === "concert" ? "?event=concert" : "")} className={l === "Fan" ? "on" : ""}>{l}</a>)}</nav>
         <div className="st-levels" role="group" aria-label="Level">

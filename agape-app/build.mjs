@@ -114,6 +114,9 @@ console.log("dist/server/for/*");
 import { copyFileSync } from "fs";
 for (const f of ["og.png", "icon-512.png", "icon-192.png", "apple-touch-icon.png", "favicon.png"]) copyFileSync(`brand/${f}`, `dist/server/${f}`);
 copyFileSync("brand/icon-small.svg", "dist/server/favicon.svg");
+// screens from the product itself, shown on the front pages
+mkdirSync("dist/server/img", { recursive: true });
+for (const f of ["fan-menu", "fan-item", "fan-track", "runner", "stand", "venue"]) copyFileSync(`brand/shots/${f}.jpg`, `dist/server/img/${f}.jpg`);
 writeFileSync("dist/server/manifest.json", JSON.stringify({ name: "Agape", short_name: "Agape", start_url: "/app/", display: "standalone", background_color: "#F3F4F7", theme_color: "#B8174F",
   icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png" }] }));
 

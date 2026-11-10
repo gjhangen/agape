@@ -63,6 +63,7 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
     <div className={"story " + (device === "phone" ? "phone-demo" : device) + (full ? " full" : "")} style={{ ["--venue" as any]: BRAND.home.color }}>
       <header className="st-top">
         <a className="st-brand" href="/"><b>agape</b><span>{tag}</span></a>
+        <button className="btn h-btn st-menu" aria-label="Demo controls" onClick={e => { const h = (e.currentTarget as HTMLElement).closest(".st-top")!; h.classList.toggle("open"); (e.currentTarget as HTMLElement).setAttribute("aria-expanded", String(h.classList.contains("open"))); }}>Controls</button>
         <div className="st-strip">
         <nav className="st-seats" aria-label="Other roles">
           {[["Fan", "/try/"], ["Runner", "/try/runner/"], ["Stand", "/try/kitchen/"], ["Venue", "/try/venue/"], ["Partner", "/try/partner/"], ["HQ", "/try/hq/"]].map(([l, h]) =>

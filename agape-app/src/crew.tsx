@@ -61,6 +61,11 @@ function Crew({ r, stage, next, toast, refresh }: { r: RunnerView | null; stage:
   if (stage === "welcome") return (
     <div className="ob ob-welcome crew">
       <div className="ob-hero"><span className="ob-logo"><Wordmark /><small>crew</small></span><h1>Earn at live events, on your schedule.</h1><p>Pick your nights. See the pay before you take a trip. Keep every tip.</p></div>
+      <div className="ob-show" aria-hidden="true">
+        <div className="ob-card back"><b>Tonight · Harbor Arena</b><span>4h 10m on shift · $96 so far</span></div>
+        <div className="ob-card"><small>New trip · Grill 104</small><b className="pay">$7.40 <em>+ tips</em></b><span>3 orders · sections 104, 105, 107 · 6 min walk</span>
+          <div className="ob-take"><i>Take it</i><i>Pass</i></div></div>
+      </div>
       <div className="ob-acts"><button className="btn ob-primary" onClick={() => next("ready")}>Sign in</button></div>
     </div>
   );
