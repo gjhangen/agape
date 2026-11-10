@@ -332,3 +332,17 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
 @media (max-width: 860px) { .ox-console, .ox-console.two { grid-template-columns: 1fr; } .ox-score b { font-size: 34px; } }
 @media print { .ox-report .ox-card { break-inside: avoid; border: 1px solid #ccc; } .ox-report .ox-acts { display: none; } }
 .ox-formtable + .ox-btn, .ox-table-wrap + .ox-btn { margin-top: 10px; }
+
+/* seat signs: four to a letter page */
+.ox-signs { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+.ox-sign { background: #fff; color: #111; border: 1px dashed #bbb; border-radius: 14px; padding: 22px 18px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 8px; break-inside: avoid; }
+.ox-sign-mark svg { height: 34px; width: auto; }
+.ox-sign-head { font-weight: 800; font-size: 22px; margin: 0; letter-spacing: -.01em; }
+.ox-sign-sec { font-size: 20px; margin: 0; } .ox-sign-sec b { font-size: 34px; }
+.ox-sign-how { font-size: 13px; color: #444; margin: 0; max-width: 32ch; }
+.ox-sign-url { font-size: 10.5px; color: #777; margin: 0; font-family: var(--mono); word-break: break-all; }
+@media print {
+  .ox-signs-page .ox-head, .ox-signs-page .noprint, .ox-nav { display: none !important; }
+  .ox-signs { grid-template-columns: 1fr 1fr; gap: 0; }
+  .ox-sign { height: 4.9in; border-radius: 0; justify-content: center; }
+}

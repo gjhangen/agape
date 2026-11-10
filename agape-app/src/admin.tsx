@@ -3,6 +3,7 @@
 // Everything here comes from the server and needs an Agape Admin account; nothing is simulated.
 import { React, ReactDOM, useEffect, useMemo, useState } from "./r";
 import { Wordmark } from "./logo";
+import qrcode from "qrcode-generator";
 
 type Me = { mailbox: string; domain: string; id: string; email: string; name: string; role: string; role_name: string; perms: string[]; oversees: boolean; title?: string; boss?: string | null };
 type Merchant = { id: string; fields: Record<string, string>; status: Status; at: number; by: string };
@@ -957,11 +958,12 @@ const fanLink = (id: string) => `${location.origin}/app/?v=${id}`;
 function Venues({ me, toast }: { me: Me; toast: (s: string) => void }) {
   const [data, setData] = useState<{ venues: VenueRow[]; reports: any[]; starter: VForm; optional: string[] } | null>(null);
   const [error, setError] = useState("");
-  const [view, setView] = useState<{ k: "edit"; v: VenueRow | null } | { k: "staff"; id: string } | { k: "console"; id: string } | { k: "report"; file: string } | null>(null);
+  const [view, setView] = useState<{ k: "edit"; v: VenueRow | null } | { k: "signs"; v: VenueRow } | { k: "staff"; id: string } | { k: "console"; id: string } | { k: "report"; file: string } | null>(null);
   const load = async () => { const r = await api("venues"); if (r.ok) setData(r); else setError(r.error); };
   useEffect(() => { load(); }, [view]);
   if (error) return <p className="ox-err">{error}</p>;
   if (!data) return <p className="ox-empty">Loading…</p>;
+  if (view?.k === "signs") return <SeatSigns v={view.v} back={() => setView(null)} />;
   if (view?.k === "edit") return <VenueEditor v={view.v} starter={data.starter} optional={data.optional} toast={toast} done={() => setView(null)} />;
   if (view?.k === "staff") { const v = data.venues.find(x => x.id === view.id); return v ? <Staff v={v} toast={toast} reload={load} back={() => setView(null)} /> : null; }
   if (view?.k === "console") return <Console id={view.id} toast={toast} back={() => setView(null)} ended={file => setView({ k: "report", file })} />;
@@ -995,6 +997,7 @@ function Venues({ me, toast }: { me: Me; toast: (s: string) => void }) {
             <button className="ox-btn primary" onClick={() => open(v, "live")}>Open a live night</button>
           </>}
           <button className="ox-btn ghost" onClick={() => setView({ k: "staff", id: v.id })}>Staff ({v.staff.length})</button>
+          <button className="ox-btn ghost" onClick={() => setView({ k: "signs", v })}>Seat signs</button>
           <button className="ox-btn ghost" onClick={() => setView({ k: "edit", v })} disabled={!!n} title={n ? "End the night to change the venue" : undefined}>Edit venue</button>
         </div>
         <p className="ox-fine">Fans open <a href={fanLink(v.id)} target="_blank" rel="noopener">{fanLink(v.id).replace(/^https?:\/\//, "")}</a> <button className="ox-link" onClick={() => { navigator.clipboard?.writeText(fanLink(v.id)); toast("Link copied"); }}>Copy</button></p>
@@ -1303,5 +1306,36 @@ function Report({ file, back }: { file: string; back: () => void }) {
         <td>{n.stands.find((s: any) => s.id === o.stand)?.name ?? o.stand}</td><td>{stageWord(o.stage)}{o.late && <small>Late</small>}</td><td className="mono">{o.delivered ? Math.round((o.delivered - o.placed) / 60000) : "—"}</td><td><small>{o.runner ? staff[o.runner] ?? o.runner : ""}</small></td><td className="mono">{money(o.charge)}</td></tr>)}</tbody>
     </table></div></section>
     <p className="ox-fine">Ledger entries: {n.books.txns}. Report written by Agape when the night closed; it can't be edited.</p>
+  </div>;
+}
+
+/** A QR code as an SVG path: crisp at any print size. */
+function QR({ text, size = 150 }: { text: string; size?: number }) {
+  const q = qrcode(0, "M"); q.addData(text); q.make();
+  const n = q.getModuleCount(); let d = "";
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (q.isDark(r, c)) d += `M${c + 4} ${r + 4}h1v1h-1z`;
+  return <svg viewBox={`0 0 ${n + 8} ${n + 8}`} width={size} height={size} role="img" aria-label={`QR code for ${text}`} shapeRendering="crispEdges"><rect width={n + 8} height={n + 8} fill="#fff" /><path d={d} fill="#000" /></svg>;
+}
+
+/** One sign per section, to print and put on seat backs, rails and stand counters. Scanning one
+ *  opens Agape at this venue with the section already chosen. */
+function SeatSigns({ v, back }: { v: VenueRow; back: () => void }) {
+  const f = v.form, L = f.levels ?? 1, n = f.sections_per_level ?? 12;
+  const all: string[] = []; for (let l = 1; l <= L; l++) for (let i = 1; i <= n; i++) all.push(`s${l * 100 + i}`);
+  const [pick, setPick] = useState<string>("all");
+  const shown = pick === "all" ? all : pick === "venue" ? [""] : all.filter(x => x.startsWith("s" + pick));
+  return <div className="ox-signs-page">
+    <Head title={`Seat signs for ${f.name}`} sub="Print these and put them where fans sit: seat backs, rails, cup holders. Scanning one opens Agape at this venue with the section already picked, so ordering takes a few taps. They print four to a page.">
+      <button className="ox-btn ghost" onClick={back}>Back to venues</button><button className="ox-btn primary" onClick={() => print()}>Print</button>
+    </Head>
+    <div className="ox-seg noprint">{[["all", "Every section"], ...Array.from({ length: L }, (_, k) => [String(k + 1), `Level ${k + 1}`]), ["venue", "One for the whole venue"]].map(([k, l]) => <button key={k} className={pick === k ? "on" : ""} onClick={() => setPick(k)}>{l}</button>)}</div>
+    <div className="ox-signs">{shown.map(sec => { const url = `${location.origin}/app/?v=${v.id}${sec ? `&s=${sec}` : ""}`; return <div key={sec || "venue"} className="ox-sign">
+      <div className="ox-sign-mark"><Wordmark /></div>
+      <p className="ox-sign-head">Order to your seat</p>
+      <QR text={url} size={190} />
+      <p className="ox-sign-sec">{sec ? <>Section <b>{sec.slice(1)}</b></> : f.name}</p>
+      <p className="ox-sign-how">Point your phone's camera here. Food and drinks come to you; no app to download.</p>
+      <p className="ox-sign-url">{url.replace(/^https?:\/\//, "")}</p>
+    </div>; })}</div>
   </div>;
 }
