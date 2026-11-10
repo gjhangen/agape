@@ -187,7 +187,8 @@ function ItemRow({ it, now, onPick, showStand = true }: { it: Item; now: number;
     <button className="item-row" disabled={!it.available && it.why_not !== "AgeUnverified"} onClick={onPick}>
       <ItemArt name={it.name} size={44} />
       <span className="grow"><b>{it.name}</b>
-        <small>{it.available ? <>At your seat {venueTime(it.eta)} · {rel(it.eta, now)}{showStand ? ` · ${it.stand}` : ""}{it.left != null ? ` · ${it.left} left` : ""}</> : <>{whyNot(it.why_not)}{showStand ? ` · ${it.stand}` : ""}</>}</small></span>
+        <small>{it.available ? <><span className="eta">At your seat {venueTime(it.eta)}</span> · {rel(it.eta, now)}</> : whyNot(it.why_not)}</small>
+        {(showStand || it.left != null) && <small className="from">{[showStand ? it.stand : null, it.left != null ? `${it.left} left` : null].filter(Boolean).join(" · ")}</small>}</span>
       <span className="num price-tag">{money(it.price)}</span>
     </button>
   );

@@ -129,7 +129,7 @@ function beatFor(stage: Stage, v: FanView | null, level: number, seen: Set<strin
   const done = v.me.receipts.find(r => r.delivery && (r.stage === "Settled" || r.stage === "Delivered"));
   const show = EVENT === "concert" ? "show" : "game";
   if (o && o.stage !== "Settled" && o.stage !== "Delivered") {
-    if (o.stage === "Accepted" || o.stage === "Preparing") return { id: "kitchen", title: `${o.stand} is making it`, body: <>Your order went straight to the stand's screen. The arrival time you were shown is measured from how fast this stand and its runners are going right now. Keep watching the {show}: wherever you go in the app, your order's progress comes with you.</> };
+    if (o.stage === "Accepted" || o.stage === "Preparing") return { id: "kitchen", title: o.stage === "Accepted" ? `${o.stand} has your order` : `${o.stand} is making it`, body: <>Your order went straight to the stand's screen. The arrival time you were shown is measured from how fast this stand and its runners are going right now. Keep watching the {show}: wherever you go in the app, your order's progress comes with you.</> };
     if (o.stage === "Ready" || o.stage === "Assigned") return { id: "runner", title: "A runner takes the trip", body: <>It's on the ready shelf, and the nearest runner has been offered the trip, with its route and pay shown up front. Runners keep every tip.</> };
     if (o.stage === "PickedUp") return { id: "walk", title: `${v.runner ? runnerName(v.runner.id) : "Your runner"} is on the way`, body: <>Walking the concourse to section {v.you.seat.slice(1)}. The map under your order shows them coming.</> };
   }
@@ -290,6 +290,7 @@ function Story() {
           {stage === "app" && <p className="st-status"><b className={"lv-" + LEVELS[level - 1].status.toLowerCase().replace(" ", "-")}>{LEVELS[level - 1].status}</b> {LEVELS[level - 1].gaps}</p>}
           {stage === "app" && v && <div className="st-meta">
             <span>{profileName() || "You"} · section {v.you.seat.slice(1)}</span>
+            {v.orders[0] && speed < SPEEDS.length - 1 && <button className="btn sm st-ff" onClick={() => setSpeed(SPEEDS.length - 1)}>Fast-forward until it arrives</button>}
             {v.orders[0] && <span>Order: {v.orders[0].items[0]?.name} · {({ Accepted: "placed", Preparing: "being made", Ready: "ready", Assigned: "runner on it", PickedUp: "on the way" } as Record<string, string>)[v.orders[0].stage] ?? "on its way"} · here by {venueTime(v.orders[0].eta)}</span>}
           </div>}
           </>}
