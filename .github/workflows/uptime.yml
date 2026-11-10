@@ -1,0 +1,24 @@
+# Is agapetoyourseat.com up? Every five minutes GitHub asks the server's own health check. If it
+# fails three times in a row (a minute apart), this run fails and GitHub emails the repo owner.
+# Free for a public repository; nothing to sign up for.
+name: Uptime
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Agape answers
+        run: |
+          for try in 1 2 3; do
+            health=$(curl -s -o /tmp/h.json -w "%{http_code}" --max-time 15 https://agapetoyourseat.com/api/health || echo 000)
+            app=$(curl -s -o /dev/null -w "%{http_code}" --max-time 15 https://agapetoyourseat.com/app/ || echo 000)
+            echo "try $try: health $health, app $app"; cat /tmp/h.json 2>/dev/null; echo
+            if [ "$health" = "200" ] && [ "$app" = "200" ]; then exit 0; fi
+            sleep 60
+          done
+          echo "::error::agapetoyourseat.com is down or unhealthy (health $health, app $app)"
+          exit 1
