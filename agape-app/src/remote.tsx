@@ -200,7 +200,7 @@ function Signed({ a, signOut }: { a: Account; signOut: () => void }) {
   const [sheet, setSheet] = useState<Sheet>(null);
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
   const [info, setInfo] = useState(false);
-  useEffect(() => { const es = server.connect(VENUE, store.get("agape.token") ?? ""); const off = server.subscribe(() => bump(n => n + 1)); return () => { off(); es.close(); }; }, []);
+  useEffect(() => { const es = server.connect(VENUE, store.get("agape.token") ?? "", a.role === "fan" ? a.party : null); const off = server.subscribe(() => bump(n => n + 1)); return () => { off(); es.close(); }; }, []);
   const refresh = () => bump(n => n + 1);
   const toast = (text: string) => { const id = Date.now() + Math.random(); setToasts(t => t.some(x => x.text === text) ? t : [{ id, text }]); setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), 4200); };
   const lens = a.role === "fan" ? "fan" : a.role;

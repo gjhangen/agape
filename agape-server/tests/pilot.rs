@@ -181,3 +181,50 @@ async fn a_live_night_survives_a_restart_mid_event() {
     assert_eq!(night["game"]["period"], 1, "and so is the game");
     assert_eq!(night["stands"].as_array().unwrap().iter().find(|x| x["id"] == "bar").unwrap()["open"], true);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn guessing_a_password_is_slowed_down() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = start(dir.path()).await;
+    s.post("/api/signup", None, json!({ "handle": "staffer", "password": "the right one" })).await;
+    for _ in 0..10 { assert_eq!(s.post("/api/signin", None, json!({ "handle": "staffer", "password": "wrong guess" })).await.0, StatusCode::UNAUTHORIZED); }
+    assert_eq!(s.post("/api/signin", None, json!({ "handle": "Staffer", "password": "the right one" })).await.0, StatusCode::TOO_MANY_REQUESTS, "even the right password waits");
+    assert!(s.signin("someoneelse", "x").await.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_backup_restores_onto_a_new_machine_mid_night() {
+    let dir = tempfile::tempdir().unwrap();
+    let s = start(dir.path()).await;
+    let boss = owner(&s, dir.path()).await;
+    let (_, list) = s.get("/api/office/venues", Some(&boss)).await;
+    let mut form = list["starter"].clone();
+    form["id"] = json!("rupp"); form["name"] = json!("Rupp Arena");
+    s.post("/api/office/venue", Some(&boss), json!({ "form": form })).await;
+    let (_, g) = s.post("/api/office/venue/staff", Some(&boss), json!({ "venue": "rupp", "role": "stand", "handle": "rupp.bar", "stand": "bar" })).await;
+    s.post("/api/office/venue/open", Some(&boss), json!({ "id": "rupp", "mode": "live" })).await;
+    let bar = s.signin("rupp.bar", g["password"].as_str().unwrap()).await;
+    s.act(&bar, json!({ "do": "clock_in" })).await;
+    let (_, up) = s.post("/api/signup", None, json!({ "handle": "jeff", "password": "correct horse" })).await;
+    let fan = up["token"].as_str().unwrap().to_string();
+    s.act(&fan, json!({ "do": "join", "seat": "s110" })).await;
+    assert_eq!(s.act(&fan, json!({ "do": "order", "thing": "water", "qty": 1, "delivery": false, "tip": 0 })).await["ok"], true);
+    let (st, health) = s.get("/api/health", None).await;
+    assert_eq!(st, StatusCode::OK, "{health}");
+    assert_eq!(s.get("/api/office/backup", None).await.0, StatusCode::UNAUTHORIZED);
+    let bundle = s.c.get(format!("{}/api/office/backup", s.base)).bearer_auth(&boss).send().await.unwrap().json::<Value>().await.unwrap();
+    assert!(agape_server::ops::snapshot(dir.path()).unwrap().is_some(), "today's copy is made");
+    assert!(agape_server::ops::snapshot(dir.path()).unwrap().is_none(), "once a day");
+    s.app.shutdown();
+    drop(s);
+    // the server is gone; a new machine with an empty folder
+    let fresh = tempfile::tempdir().unwrap();
+    assert!(agape_server::ops::restore(&bundle, fresh.path()).unwrap() >= 4);
+    assert!(agape_server::ops::restore(&bundle, fresh.path()).is_err(), "never over existing data");
+    let s2 = start(fresh.path()).await;
+    let (_, me) = s2.post("/api/office/signin", None, json!({ "email": "owner@venue.example", "password": "a long owner password" })).await;
+    let boss2 = me["token"].as_str().unwrap().to_string();
+    let (_, night) = s2.get("/api/office/night/rupp", Some(&boss2)).await;
+    assert_eq!(night["orders"].as_array().unwrap().len(), 1, "the night carries on with its order: {night}");
+    assert!(!s2.signin("jeff", "correct horse").await.is_empty(), "fans can still sign in");
+}

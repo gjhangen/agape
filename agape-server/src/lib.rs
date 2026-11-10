@@ -8,6 +8,7 @@ pub mod passport;
 pub mod admin;
 pub mod mail;
 pub mod pilot;
+pub mod ops;
 
 use auth::{Account, Auth, Role};
 use axum::extract::{Path, State};
@@ -32,10 +33,12 @@ pub struct App {
     admin_token: Option<String>,
     office: Mutex<admin::Admin>,
     pub mail: mail::Mail,
+    limits: Mutex<Limits>,
 }
 pub type S = Arc<App>;
 
 impl App {
+    pub fn data_dir(&self) -> std::path::PathBuf { self.data.clone() }
     pub fn venue(&self, id: &str) -> Option<venue::Handle> { self.venues.lock().unwrap().get(id).cloned() }
     /// Stop every venue's thread after writing out its journal.
     pub fn shutdown(&self) { for v in self.venues.lock().unwrap().values() { v.stop(); } }
@@ -76,18 +79,54 @@ fn act_allowed(role: Role, act: &str) -> bool {
     }
 }
 
-async fn signup(State(app): State<S>, Json(b): Json<Value>) -> Response {
-    let (h, p) = (b["handle"].as_str().unwrap_or(""), b["password"].as_str().unwrap_or(""));
+/// Who is asking, as far as limits go: Cloudflare's view of the address, or the connection's.
+fn client_ip(h: &HeaderMap) -> String { h.get("cf-connecting-ip").or_else(|| h.get("x-forwarded-for")).and_then(|v| v.to_str().ok()).map(|s| s.split(',').next().unwrap_or("").trim().to_string()).unwrap_or_else(|| "local".into()) }
+
+/// Counts per key in a window. `hit` says whether one more is allowed (and counts it).
+#[derive(Default)]
+pub struct Limits { seen: std::collections::HashMap<String, (u32, u64)> }
+impl Limits {
+    pub fn hit(&mut self, key: &str, max: u32, window_s: u64) -> bool {
+        let now = now_s();
+        if self.seen.len() > 50_000 { self.seen.retain(|_, v| v.1 + 3600 > now); }
+        let e = self.seen.entry(key.to_string()).or_insert((0, now));
+        if e.1 + window_s <= now { *e = (0, now); }
+        if e.0 >= max { return false; }
+        e.0 += 1; true
+    }
+    pub fn clear(&mut self, key: &str) { self.seen.remove(key); }
+}
+const SLOW_DOWN: &str = "Too many tries. Wait a few minutes and try again.";
+
+async fn signup(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let (hd, p) = (b["handle"].as_str().unwrap_or("").to_string(), b["password"].as_str().unwrap_or("").to_string());
+    // a whole venue can share one address (its Wi-Fi), so this only stops a script
+    if !app.limits.lock().unwrap().hit(&format!("signup:{}", client_ip(&h)), 5000, 3600) { return err(StatusCode::TOO_MANY_REQUESTS, SLOW_DOWN); }
+    if let Err(e) = app.auth.lock().unwrap().can_create(&hd, &p) { return err(StatusCode::BAD_REQUEST, &e); }
+    // hashing takes a moment of CPU: never while holding the lock every request needs
+    let pw = p.clone();
+    let hash = match tokio::task::spawn_blocking(move || auth::hash_password(&pw)).await { Ok(Ok(x)) => x, _ => return err(StatusCode::INTERNAL_SERVER_ERROR, "Couldn't make the account; try again") };
     let mut a = app.auth.lock().unwrap();
-    match a.create(h, p, Role::Fan, None, None) {
-        Ok(_) => match a.sign_in(h, p) { Ok((token, acc)) => Json(json!({ "ok": true, "token": token, "account": acc.public() })).into_response(), Err(e) => err(StatusCode::BAD_REQUEST, &e) },
+    match a.create_hashed(&hd, hash, Role::Fan, None, None) {
+        Ok(acc) => match a.open_session(&acc.id) { Some((token, acc)) => Json(json!({ "ok": true, "token": token, "account": acc.public() })).into_response(), None => err(StatusCode::INTERNAL_SERVER_ERROR, "Try signing in") },
         Err(e) => err(StatusCode::BAD_REQUEST, &e),
     }
 }
 
-async fn signin(State(app): State<S>, Json(b): Json<Value>) -> Response {
-    let r = app.auth.lock().unwrap().sign_in(b["handle"].as_str().unwrap_or(""), b["password"].as_str().unwrap_or(""));
-    match r { Ok((token, acc)) => Json(json!({ "ok": true, "token": token, "account": acc.public() })).into_response(), Err(e) => err(StatusCode::UNAUTHORIZED, &e) }
+async fn signin(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let (hd, p) = (b["handle"].as_str().unwrap_or("").trim().to_lowercase(), b["password"].as_str().unwrap_or("").to_string());
+    {
+        let mut l = app.limits.lock().unwrap();
+        // ten wrong passwords for one name in fifteen minutes, and it waits: guessing a staff password is slow
+        if !l.hit(&format!("signin-ip:{}", client_ip(&h)), 300, 900) || !l.hit(&format!("signin-try:{hd}"), 10, 900) { return err(StatusCode::TOO_MANY_REQUESTS, SLOW_DOWN); }
+    }
+    let wrong = || err(StatusCode::UNAUTHORIZED, "That name and password don't match");
+    let Some((id, hash)) = app.auth.lock().unwrap().credentials(&hd) else { return wrong() };
+    let pw = p.clone();
+    let ok = tokio::task::spawn_blocking(move || auth::verify_password(&hash, &pw)).await.unwrap_or(false);
+    if !ok { return wrong(); }
+    app.limits.lock().unwrap().clear(&format!("signin-try:{hd}"));
+    match app.auth.lock().unwrap().open_session(&id) { Some((token, acc)) => Json(json!({ "ok": true, "token": token, "account": acc.public() })).into_response(), None => wrong() }
 }
 
 async fn signout(State(app): State<S>, h: HeaderMap) -> Response {
@@ -113,6 +152,8 @@ fn venue_for(app: &App, acc: &Account, id: &str) -> Result<venue::Handle, Respon
 async fn view(State(app): State<S>, Path(vid): Path<String>, h: HeaderMap, Json(mut b): Json<Value>) -> Response {
     let acc = match account(&app, &h) { Ok(a) => a, Err(r) => return r };
     let v = match venue_for(&app, &acc, &vid) { Ok(v) => v, Err(r) => return r };
+    // one phone asking hundreds of times a minute would slow the venue for everyone
+    if !app.limits.lock().unwrap().hit(&format!("view:{}", acc.id), 120, 10) { return err(StatusCode::TOO_MANY_REQUESTS, SLOW_DOWN); }
     let lens = b["lens"].as_str().unwrap_or("").to_string();
     if !view_allowed(acc.role, &lens) { return err(StatusCode::FORBIDDEN, "Not your screen"); }
     // a role's own screen is always its own party's; only ops may look at a stand or runner by id
@@ -127,6 +168,7 @@ async fn act(State(app): State<S>, Path(vid): Path<String>, h: HeaderMap, Json(m
     let acc = match account(&app, &h) { Ok(a) => a, Err(r) => return r };
     let v = match venue_for(&app, &acc, &vid) { Ok(v) => v, Err(r) => return r };
     let what = b["do"].as_str().unwrap_or("").to_string();
+    if !app.limits.lock().unwrap().hit(&format!("act:{}", acc.id), 40, 10) { return err(StatusCode::TOO_MANY_REQUESTS, SLOW_DOWN); }
     if !act_allowed(acc.role, &what) { return err(StatusCode::FORBIDDEN, "That isn't something your account can do"); }
     // nobody names who they are inside a request
     if let Some(o) = b.as_object_mut() {
@@ -385,6 +427,8 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/user/delete", post(office_user_delete))
         .route("/api/office/attachment/{note}/{index}", get(office_attachment))
         .route("/api/office/trouble", post(office_trouble).get(office_trouble_list))
+        .route("/api/health", get(health))
+        .route("/api/office/backup", get(office_backup))
         .route("/api/office/venues", get(office_venues))
         .route("/api/office/venue", post(office_venue_save))
         .route("/api/office/venue/check", post(office_venue_check))
@@ -398,7 +442,14 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/report/{file}", get(office_report))
         .layer(axum::extract::DefaultBodyLimit::max(3_500_000))
         .with_state(app);
-    match static_dir { Some(d) => api.fallback_service(tower_http::services::ServeDir::new(d)), None => api }
+    let r = match static_dir { Some(d) => api.fallback_service(tower_http::services::ServeDir::new(d)), None => api };
+    // every response: no sniffing types, no framing by other sites, and links don't leak paths
+    use axum::http::{header, HeaderValue};
+    use tower_http::set_header::SetResponseHeaderLayer as H;
+    r.layer(H::if_not_present(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")))
+     .layer(H::if_not_present(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY")))
+     .layer(H::if_not_present(header::REFERRER_POLICY, HeaderValue::from_static("strict-origin-when-cross-origin")))
+     .layer(H::if_not_present(header::HeaderName::from_static("permissions-policy"), HeaderValue::from_static("camera=(), microphone=(), geolocation=()")))
 }
 
 /// The pilot venue, from the kernel's own templates.
@@ -427,7 +478,7 @@ pub fn app(data: &std::path::Path, ticks_per_sec: f64, admin_token: Option<Strin
         let h = venue::spawn(&dir, Some(harbor_init(7)), "harbor", ticks_per_sec).expect("venue starts");
         venues.insert(h.id.clone(), h);
     }
-    Arc::new(App { auth: Mutex::new(Auth::open(data.join("accounts.jsonl"))), venues: Mutex::new(venues), passports: tokio::sync::Mutex::new(passport::Passports::open(data.join("passports.json"))), data: data.to_path_buf(), speed: ticks_per_sec, admin_token, office: Mutex::new(admin::Admin::open(data.to_path_buf())), mail: mail::Mail::open(data, &std::env::var("AGAPE_MAIL_DOMAIN").ok().filter(|d| !d.is_empty()).unwrap_or_else(|| "agapetoyourseat.com".into())) })
+    Arc::new(App { auth: Mutex::new(Auth::open(data.join("accounts.jsonl"))), venues: Mutex::new(venues), passports: tokio::sync::Mutex::new(passport::Passports::open(data.join("passports.json"))), data: data.to_path_buf(), speed: ticks_per_sec, admin_token, office: Mutex::new(admin::Admin::open(data.to_path_buf())), limits: Mutex::new(Limits::default()), mail: mail::Mail::open(data, &std::env::var("AGAPE_MAIL_DOMAIN").ok().filter(|d| !d.is_empty()).unwrap_or_else(|| "agapetoyourseat.com".into())) })
 }
 
 /// A venue whose night is over opens the next one: every fan's points go home to their passport,
@@ -988,4 +1039,56 @@ async fn office_report(State(app): State<S>, h: HeaderMap, Path(file): Path<Stri
     if let Err(r) = venue_lead(&app, &h) { return r; }
     if file.contains('/') || file.contains("..") || !file.ends_with(".json") { return err(StatusCode::NOT_FOUND, "No such report"); }
     match std::fs::read(nights_dir(&app).join(&file)) { Ok(b) => ([("content-type", "application/json")], b).into_response(), Err(_) => err(StatusCode::NOT_FOUND, "No such report") }
+}
+
+
+// ---------------- staying up ----------------
+
+/// Is Agape working: every venue answers, there's room on the disk. 503 if not, so an outside
+/// check (GitHub's, every few minutes) emails the owner.
+async fn health(State(app): State<S>) -> Response {
+    let (ok, detail) = check_health(&app).await;
+    (if ok { StatusCode::OK } else { StatusCode::SERVICE_UNAVAILABLE }, Json(json!({ "ok": ok, "detail": detail }))).into_response()
+}
+
+pub async fn check_health(app: &App) -> (bool, Value) {
+    let venues: Vec<venue::Handle> = app.venues.lock().unwrap().values().cloned().collect();
+    let mut vs = serde_json::Map::new();
+    let mut ok = true;
+    for v in venues {
+        let r = tokio::time::timeout(std::time::Duration::from_secs(5), v.view("", json!({ "lens": "glance" }))).await;
+        let fine = matches!(&r, Ok(x) if x.get("error").is_none());
+        if !fine { ok = false; }
+        vs.insert(v.id.clone(), json!(if fine { "ok" } else { "not answering" }));
+    }
+    let free = ops::disk_free_mb(&app.data);
+    if free.map_or(false, |f| f < 1024) { ok = false; }
+    (ok, json!({ "venues": vs, "disk_free_mb": free }))
+}
+
+/// Every minute: if something is wrong, the people who run venues hear about it in Admin, once
+/// per problem, and again when it's fixed.
+pub async fn watch(app: &App, was: &mut Option<String>) {
+    let (ok, d) = check_health(app).await;
+    let now = if ok { None } else {
+        let mut why = vec![];
+        if let Some(m) = d["venues"].as_object() { for (k, v) in m { if v != "ok" { why.push(format!("{k} isn't answering")); } } }
+        if d["disk_free_mb"].as_u64().map_or(false, |f| f < 1024) { why.push(format!("only {} MB of disk left", d["disk_free_mb"])); }
+        Some(why.join("; "))
+    };
+    if now != *was {
+        let mut o = app.office.lock().unwrap();
+        match &now { Some(w) => o.notify_perm("venues", "alert", "Agape needs attention", &format!("Something is wrong on the server: {w}.\n\nThis was noticed by Agape's own check, which runs every minute.")),
+                     None => o.notify_perm("venues", "alert", "Agape is fine again", "The problem the server's check found has cleared.") }
+        *was = now;
+    }
+}
+
+/// The host downloads everything as one file, to keep somewhere other than this server.
+async fn office_backup(State(app): State<S>, h: HeaderMap) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    if u.role != admin::HOST { return err(StatusCode::FORBIDDEN, "Only the host downloads backups"); }
+    app.office.lock().unwrap().logged(&u, "downloaded a full backup".into());
+    let b = ops::bundle(&app.data);
+    ([("content-type", "application/json"), ("content-disposition", "attachment; filename=\"agape-backup.json\"")], serde_json::to_vec(&b).unwrap_or_default()).into_response()
 }

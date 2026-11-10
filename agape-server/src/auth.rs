@@ -37,6 +37,17 @@ enum Rec { Account(Account), Session { token: String, account: String }, Ended {
 
 pub struct Auth { path: PathBuf, accounts: HashMap<String, Account>, by_handle: HashMap<String, String>, sessions: HashMap<String, String> }
 
+pub fn hash_password(password: &str) -> Result<String, String> {
+    let mut raw = [0u8; 16];
+    rand::rng().fill_bytes(&mut raw);
+    let salt = SaltString::encode_b64(&raw).map_err(|e| e.to_string())?;
+    Ok(Argon2::default().hash_password(password.as_bytes(), &salt).map_err(|e| e.to_string())?.to_string())
+}
+
+pub fn verify_password(hash: &str, password: &str) -> bool {
+    PasswordHash::new(hash).map(|p| Argon2::default().verify_password(password.as_bytes(), &p).is_ok()).unwrap_or(false)
+}
+
 pub fn valid_handle(h: &str) -> bool { (3..=24).contains(&h.len()) && h.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '.') }
 
 impl Auth {
@@ -68,22 +79,50 @@ impl Auth {
         if self.sessions.remove(token).is_some() { self.append(&Rec::Ended { token: token.into() }); }
     }
 
-    pub fn create(&mut self, handle: &str, password: &str, role: Role, party: Option<String>, venue: Option<String>) -> Result<Account, String> {
+    /// Whether a new account could be made with these (checked again when it's made).
+    pub fn can_create(&self, handle: &str, password: &str) -> Result<(), String> {
         let handle = handle.trim();
         if !valid_handle(handle) { return Err("Pick a name of 3 to 24 letters, numbers, dots or underscores".into()); }
         if password.chars().count() < 8 { return Err("Use a password of at least 8 characters".into()); }
         if self.by_handle.contains_key(&handle.to_lowercase()) { return Err("That name is taken".into()); }
+        Ok(())
+    }
+
+    pub fn create(&mut self, handle: &str, password: &str, role: Role, party: Option<String>, venue: Option<String>) -> Result<Account, String> {
+        self.can_create(handle, password)?;
+        let hash = hash_password(password)?;
+        self.create_hashed(handle, hash, role, party, venue)
+    }
+
+    /// Make an account from a password already hashed (hashing is slow, so it's done without the lock).
+    pub fn create_hashed(&mut self, handle: &str, hash: String, role: Role, party: Option<String>, venue: Option<String>) -> Result<Account, String> {
+        let handle = handle.trim();
+        if !valid_handle(handle) { return Err("Pick a name of 3 to 24 letters, numbers, dots or underscores".into()); }
+        if self.by_handle.contains_key(&handle.to_lowercase()) { return Err("That name is taken".into()); }
         let id = format!("u{}", self.accounts.len() + 1);
-        let mut raw = [0u8; 16];
-        rand::rng().fill_bytes(&mut raw);
-        let salt = SaltString::encode_b64(&raw).map_err(|e| e.to_string())?;
-        let hash = Argon2::default().hash_password(password.as_bytes(), &salt).map_err(|e| e.to_string())?.to_string();
         let party = match role { Role::Fan => id.clone(), _ => party.ok_or("Staff accounts need a party")? };
         let acc = Account { id: id.clone(), handle: handle.into(), hash, role, party, venue };
         self.append(&Rec::Account(acc.clone()));
         self.by_handle.insert(handle.to_lowercase(), id.clone());
         self.accounts.insert(id, acc.clone());
         Ok(acc)
+    }
+
+    /// The stored hash for a name, to check a password against without holding the lock.
+    pub fn credentials(&self, handle: &str) -> Option<(String, String)> {
+        let id = self.by_handle.get(&handle.trim().to_lowercase())?.clone();
+        Some((id.clone(), self.accounts[&id].hash.clone()))
+    }
+
+    /// A new session for an account whose password was just checked.
+    pub fn open_session(&mut self, id: &str) -> Option<(String, Account)> {
+        let acc = self.accounts.get(id)?.clone();
+        let mut b = [0u8; 32];
+        rand::rng().fill_bytes(&mut b);
+        let token: String = b.iter().map(|x| format!("{x:02x}")).collect();
+        self.append(&Rec::Session { token: token.clone(), account: id.into() });
+        self.sessions.insert(token.clone(), acc.id.clone());
+        Some((token, acc))
     }
 
     pub fn sign_in(&mut self, handle: &str, password: &str) -> Result<(String, Account), String> {

@@ -889,6 +889,19 @@ function Account({ me, toast, out }: { me: Me; toast: (s: string) => void; out: 
   const f = useForm({ old: "", new: "", again: "" });
   return <>
     <Head title="Your account" sub={<>{me.name} · {me.email} · {me.role_name}</>} />
+    {me.role === "host" && <section className="ox-card narrow">
+      <h2>Back up everything</h2>
+      <p className="ox-sub">The server keeps a copy of everything each day for two weeks, but on the same machine. Download one now and then and keep it somewhere else (your computer, a drive). It holds every account, venue, night and message. Passwords are only in protected form, but treat it as private.</p>
+      <button className="ox-btn" onClick={async () => {
+        try {
+          const r = await fetch("/api/office/backup", { headers: { authorization: "Bearer " + token } });
+          if (!r.ok) { toast("Couldn't make the backup. Try again."); return; }
+          const url = URL.createObjectURL(await r.blob());
+          const a = document.createElement("a"); a.href = url; a.download = `agape-backup-${new Date().toISOString().slice(0, 10)}.json`; document.body.append(a); a.click(); a.remove();
+          setTimeout(() => URL.revokeObjectURL(url), 5000);
+        } catch { toast("Couldn't download it. Check your connection."); }
+      }}>Download a backup</button>
+    </section>}
     <section className="ox-card narrow">
       <h2>Your email address</h2>
       <p className="ox-sub">Mail to it lands in Messages. People above you can read it, as with everything here.</p>
@@ -1074,6 +1087,7 @@ function VenueEditor({ v, starter, optional, toast, done }: { v: VenueRow | null
           <div className="ox-grid">
             <label className="ox-f"><span>Delivery fee</span><input inputMode="decimal" defaultValue={((f.fees?.delivery_fee ?? 0) / 100).toFixed(2)} onBlur={e => set(["fees", "delivery_fee"], Math.round(parseFloat(e.target.value.replace(/[$,]/g, "")) * 100) || 0)} /><small>Per delivered order; pickup is free</small></label>
             <label className="ox-f"><span>Sales tax (%)</span><input inputMode="decimal" defaultValue={((f.fees?.tax_bps ?? 0) / 100).toString()} onBlur={e => set(["fees", "tax_bps"], Math.round(parseFloat(e.target.value) * 100) || 0)} /></label>
+            <label className="ox-f wide"><span>How fans pay tonight</span><input value={f.pay_note ?? ""} placeholder="Payments aren't connected yet, so nothing is charged to your card in the app." onChange={e => set(["pay_note"], e.target.value)} /><small>Shown to fans on a real night. Leave empty for the wording above.</small></label>
             <label className="ox-f"><span>Runner places</span><input inputMode="numeric" value={num(f.runners)} onChange={e => set(["runners"], parseInt(e.target.value) || 0)} /><small>The most runners on at once; each gets an account</small></label>
           </div>
         </section>

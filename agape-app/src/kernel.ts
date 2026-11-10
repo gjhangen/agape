@@ -61,23 +61,31 @@ async function post(path: string, body: unknown): Promise<any> {
   const r = await fetch(path, { method: "POST", headers: { "content-type": "application/json", ...(remote.token ? { authorization: `Bearer ${remote.token}` } : {}) }, body: JSON.stringify(body) });
   return r.json();
 }
-let refreshing = false;
+let refreshing = false, again = false, lastRefresh = 0;
 async function refreshRemote() {
-  if (refreshing) return;
-  refreshing = true;
+  if (refreshing) { again = true; return; }
+  refreshing = true; again = false; lastRefresh = Date.now();
   try {
     const keys = [...remote.cache.keys()];
     const got = await Promise.all(keys.map(k => { const [lens, ...rest] = k.split(":"); return post(`/api/v/${remote.venue}/view`, { lens, id: rest.join(":") }); }));
     keys.forEach((k, i) => remote.cache.set(k, got[i]));
     remote.listeners.forEach(f => f());
-  } finally { refreshing = false; }
+  } finally { refreshing = false; if (again) setTimeout(refreshRemote, 300); }
 }
 export const server = {
   get on() { return remote.on; },
-  connect(venue: string, token: string) {
+  /** Listen to the venue. A fan (`fan` is their party) refreshes at once when the change is theirs,
+   *  and otherwise every 15 seconds, so thousands of phones don't all ask after every order. Staff
+   *  (no `fan`) refresh on every change. */
+  connect(venue: string, token: string, fan: string | null = null) {
     remote.on = true; remote.venue = venue; remote.token = token;
     const es = new EventSource(`/api/v/${venue}/events`);
-    es.addEventListener("tick", () => { refreshRemote(); });
+    es.addEventListener("tick", (e: MessageEvent) => {
+      if (!fan) { refreshRemote(); return; }
+      let mine = false;
+      try { const d = JSON.parse(e.data); mine = Array.isArray(d.fans) && d.fans.includes(fan); } catch { /* an old server: treat as general */ }
+      if (mine || Date.now() - lastRefresh >= 15000) refreshRemote();
+    });
     return es;
   },
   subscribe(f: () => void) { remote.listeners.add(f); return () => { remote.listeners.delete(f); }; },

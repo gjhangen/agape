@@ -1479,6 +1479,21 @@ fn price_for(rarity: &str, rng: &mut Rng) -> i64 {
 
 pub fn pass_unit(place: &str) -> Unit { Unit::Thing(format!("pass:{place}")) }
 
+impl Night {
+    /// Fans whose own screen an action by `who` changes: themselves, the fan of the order it names,
+    /// and the fans of a runner's trip. Everyone else's screen can catch up on the next refresh.
+    pub fn fans_touched(&self, who: &str, v: &serde_json::Value) -> Vec<String> {
+        let mut out: Vec<String> = vec![];
+        if self.fans.iter().any(|f| f.id == who) { out.push(who.into()); }
+        if let Some(o) = v["order"].as_u64().and_then(|i| self.orders.get(i as usize)) { out.push(o.c.quote.fan.clone()); }
+        if let Some(tr) = self.trips.get(who) { for &i in &tr.orders { if let Some(o) = self.orders.get(i) { out.push(o.c.quote.fan.clone()); } } }
+        // a gift lands on another fan's screen
+        if let Some(to) = v["to"].as_str() { if self.fans.iter().any(|f| f.id == to) { out.push(to.into()); } }
+        out.sort(); out.dedup();
+        out
+    }
+}
+
 // ---------------- a real night's game, as the venue's team marks it ----------------
 
 impl Night {

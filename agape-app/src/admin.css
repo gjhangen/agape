@@ -331,3 +331,4 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
 .ox-problem { border-top: 1px solid var(--line); padding: 8px 0; }
 @media (max-width: 860px) { .ox-console, .ox-console.two { grid-template-columns: 1fr; } .ox-score b { font-size: 34px; } }
 @media print { .ox-report .ox-card { break-inside: avoid; border: 1px solid #ccc; } .ox-report .ox-acts { display: none; } }
+.ox-formtable + .ox-btn, .ox-table-wrap + .ox-btn { margin-top: 10px; }

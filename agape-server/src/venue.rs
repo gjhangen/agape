@@ -168,18 +168,23 @@ pub fn spawn(dir: &Path, init: Option<Init>, id: &str, ticks_per_sec: f64) -> Re
     std::thread::Builder::new().name(format!("venue-{id}")).spawn(move || {
         let mut due = 0.0f64;
         let mut last = Instant::now();
+        // Each announcement says whose own screen changed. Staff screens (few) refresh on every one;
+        // fans' (thousands) refresh at once only when it's theirs, otherwise every so often.
         let announce = |n: &Night| { let _ = events.send(json!({ "t": n.t }).to_string()); };
+        let announce_to = |n: &Night, fans: &[String]| { let _ = events.send(json!({ "t": n.t, "fans": fans }).to_string()); };
         loop {
             let wait = if ticks_per_sec > 0.0 { Duration::from_millis(100) } else { Duration::from_secs(3600) };
             match rx.recv_timeout(wait) {
                 Ok(Cmd::View { who, v, reply }) => { let _ = reply.send(agape_kernel::api::view(&mut night, &who, &v)); }
                 Ok(Cmd::Act { who, v, reply }) => {
+                    let before = if changes_world(&v) { night.fans_touched(&who, &v) } else { vec![] };
                     let out = agape_kernel::api::act(&mut night, &who, &v);
                     if changes_world(&v) {
+                        let mut fans = before; fans.extend(night.fans_touched(&who, &v)); fans.sort(); fans.dedup();
                         journal.flush_steps();
                         journal.write(&Entry::Act { who, v });
                         journal.sync();
-                        announce(&night);
+                        announce_to(&night, &fans);
                     }
                     let _ = reply.send(out);
                 }
