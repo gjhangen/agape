@@ -106,4 +106,9 @@ export const kernel = {
   },
 };
 
-export const world = () => worldOverride() ?? AGAPE_WORLD;
+/** The venue the server runs, when the app talks to one (its own teams, stands and sections). */
+let remoteWorld: any = null;
+export function setRemoteWorld(w: any) { remoteWorld = w; }
+export const world = () => remoteWorld ?? worldOverride() ?? AGAPE_WORLD;
+/** Every section of the venue, level by level: s101, s102… */
+export function sectionIds(): string[] { const w = world(); const L = w?.levels ?? 2, n = w?.sections_per_level ?? 24; const out: string[] = []; for (let l = 1; l <= L; l++) for (let i = 1; i <= n; i++) out.push(`s${l * 100 + i}`); return out; }

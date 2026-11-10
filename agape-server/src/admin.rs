@@ -34,6 +34,7 @@ pub const PERMS: &[(&str, &str)] = &[
     ("invite", "Invite people to report to them or to someone below them"),
     ("people", "Change the role, reporting line and access of people below them"),
     ("structure", "Create and edit roles, templates and groups below them"),
+    ("venues", "Set up venues, give their staff accounts, and run their nights"),
 ];
 pub const HOST: &str = "host";
 /// Addresses nobody can take: they belong to Agape itself.
@@ -96,12 +97,19 @@ struct State {
     #[serde(default)] templates: Vec<Template>,
     #[serde(default)] roles: Vec<Role>,
     #[serde(default)] groups: Vec<Group>,
+    /// One-time changes already made to this store, by name.
+    #[serde(default)] migrated: Vec<String>,
+    /// Real venues as set up in Admin: the form each night opens from.
+    #[serde(default)] venues: Vec<VenueDraft>,
 }
+
+#[derive(Clone, Serialize, Deserialize)]
+pub struct VenueDraft { pub id: String, pub form: serde_json::Value, pub at: u64, pub by: String }
 
 fn starting_templates() -> Vec<Template> {
     let t = |id: &str, name: &str, about: &str, p: &[&str]| Template { id: id.into(), name: name.into(), about: about.into(), perms: p.iter().map(|x| x.to_string()).collect() };
     vec![
-        t("t-admin", "Admin", "Runs the company day to day: merchants, people, structure", &["merchants_view", "merchants_edit", "leads", "accounts", "invite", "people", "structure"]),
+        t("t-admin", "Admin", "Runs the company day to day: merchants, people, structure", &["merchants_view", "merchants_edit", "leads", "accounts", "invite", "people", "structure", "venues"]),
         t("t-manager", "Manager", "Runs a team", &["merchants_view", "invite", "people"]),
         t("t-member", "Team member", "Does the work; sees their own messages", &[]),
         t("t-board", "Board member", "Oversees the company; sees merchants, leads and accounts", &["merchants_view", "leads", "accounts"]),
@@ -176,6 +184,12 @@ impl Admin {
             for t in self.s.templates.iter_mut().filter(|t| t.id == "t-admin" || t.id == "t-board") { t.perms.push("accounts".into()); }
             for r in self.s.roles.iter_mut().filter(|r| r.id == "r-admin") { if !r.perms.iter().any(|p| p == "accounts") { r.perms.push("accounts".into()); } }
         }
+        // "venues" came later: the admin template and role get it once
+        if !self.s.migrated.iter().any(|m| m == "venues") {
+            for t in self.s.templates.iter_mut().filter(|t| t.id == "t-admin") { if !t.perms.iter().any(|p| p == "venues") { t.perms.push("venues".into()); } }
+            for r in self.s.roles.iter_mut().filter(|r| r.id == "r-admin") { if !r.perms.iter().any(|p| p == "venues") { r.perms.push("venues".into()); } }
+            self.s.migrated.push("venues".into());
+        }
         let map = |l: &str| match l { "owner" | "host" => HOST, "admin" | "editor" => "r-admin", "manager" => "r-manager", _ => "r-member" }.to_string();
         for u in self.s.users.iter_mut() { if u.role.is_empty() { u.role = map(u.legacy.as_deref().unwrap_or("member")); } }
         for id in self.s.users.iter().filter(|u| u.mailbox.is_empty()).map(|u| u.id.clone()).collect::<Vec<_>>() { self.give_mailbox(&id); }
@@ -204,10 +218,35 @@ impl Admin {
         let _ = std::fs::rename(&tmp, &self.path);
     }
 
-    fn note(&mut self, who: &User, what: String) {
+    pub fn note(&mut self, who: &User, what: String) {
         self.s.log.push(Entry { at: now(), who: who.name.clone(), what, actor: who.id.clone() });
         if self.s.log.len() > 5000 { self.s.log.drain(0..1000); }
     }
+
+    pub fn venue_drafts(&self) -> Vec<VenueDraft> { self.s.venues.clone() }
+    pub fn venue_draft(&self, id: &str) -> Option<VenueDraft> { self.s.venues.iter().find(|v| v.id == id).cloned() }
+    pub fn save_venue(&mut self, by: &User, form: serde_json::Value) -> Result<(), String> {
+        let id = form["id"].as_str().unwrap_or("").trim().to_string();
+        if id.is_empty() { return Err("Give the venue an id".into()); }
+        let name = form["name"].as_str().unwrap_or(&id).to_string();
+        match self.s.venues.iter_mut().find(|v| v.id == id) {
+            Some(v) => { v.form = form; v.at = now(); v.by = by.id.clone(); }
+            None => self.s.venues.push(VenueDraft { id: id.clone(), form, at: now(), by: by.id.clone() }),
+        }
+        self.note(by, format!("saved venue {name}"));
+        self.save();
+        Ok(())
+    }
+    pub fn delete_venue(&mut self, by: &User, id: &str) -> Result<(), String> {
+        let before = self.s.venues.len();
+        self.s.venues.retain(|v| v.id != id);
+        if self.s.venues.len() == before { return Err("No such venue".into()); }
+        self.note(by, format!("deleted venue {id}"));
+        self.save();
+        Ok(())
+    }
+    /// Write it down in the activity log and save.
+    pub fn logged(&mut self, by: &User, what: String) { self.note(by, what); self.save(); }
 
     pub fn setup_needed(&self) -> bool { !self.s.setup_hash.is_empty() }
 

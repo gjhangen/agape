@@ -7,6 +7,7 @@ pub mod venue;
 pub mod passport;
 pub mod admin;
 pub mod mail;
+pub mod pilot;
 
 use auth::{Account, Auth, Role};
 use axum::extract::{Path, State};
@@ -40,6 +41,8 @@ impl App {
     pub fn shutdown(&self) { for v in self.venues.lock().unwrap().values() { v.stop(); } }
 }
 
+pub fn now_s() -> u64 { std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0) }
+
 fn err(code: StatusCode, msg: &str) -> Response { (code, Json(json!({ "ok": false, "error": msg }))).into_response() }
 
 fn account(app: &App, h: &HeaderMap) -> Result<Account, Response> {
@@ -55,7 +58,7 @@ fn view_allowed(role: Role, lens: &str) -> bool {
         Role::Stand => matches!(lens, "stand"),
         Role::Business => matches!(lens, "business" | "page"),
         Role::Player => matches!(lens, "player" | "page"),
-        Role::Ops => matches!(lens, "ops" | "page" | "stand" | "runner"),
+        Role::Ops => matches!(lens, "ops" | "page" | "stand" | "runner" | "night"),
     }
 }
 
@@ -69,7 +72,7 @@ fn act_allowed(role: Role, act: &str) -> bool {
         Role::Business => matches!(act, "deal" | "withdraw" | "confirm" | "redeem" | "reply" | "message"),
         Role::Runner => matches!(act, "clock_in" | "clock_out" | "accept_trip" | "decline_trip" | "picked_up" | "delivered" | "unreachable"),
         Role::Stand => matches!(act, "clock_in" | "clock_out" | "ready" | "cannot_make" | "handed_over"),
-        Role::Ops => matches!(act, "clock_in" | "clock_out" | "halt" | "resume" | "resolve"),
+        Role::Ops => matches!(act, "clock_in" | "clock_out" | "halt" | "resume" | "resolve" | "game" | "score"),
     }
 }
 
@@ -114,7 +117,10 @@ async fn view(State(app): State<S>, Path(vid): Path<String>, h: HeaderMap, Json(
     if !view_allowed(acc.role, &lens) { return err(StatusCode::FORBIDDEN, "Not your screen"); }
     // a role's own screen is always its own party's; only ops may look at a stand or runner by id
     if lens != "page" && !(acc.role == Role::Ops && lens != "ops") { b["id"] = json!(acc.party); }
-    Json(v.view(&acc.party, b).await).into_response()
+    let mut out = v.view(&acc.party, b).await;
+    // every screen knows whether tonight is real, a rehearsal, or the simulated demo
+    if let Some(o) = out.as_object_mut() { o.insert("venue_mode".into(), json!(v.init.mode)); o.insert("venue_id".into(), json!(v.id)); }
+    Json(out).into_response()
 }
 
 async fn act(State(app): State<S>, Path(vid): Path<String>, h: HeaderMap, Json(mut b): Json<Value>) -> Response {
@@ -232,7 +238,42 @@ async fn admin_leads(State(app): State<S>, h: HeaderMap) -> Response {
 
 /// Before signing in: the game and the night at a glance. Nothing about any person.
 async fn glance(State(app): State<S>, Path(vid): Path<String>) -> Response {
-    match app.venue(&vid) { Some(v) => Json(v.view("", json!({ "lens": "glance" })).await).into_response(), None => err(StatusCode::NOT_FOUND, "No such venue") }
+    match app.venue(&vid) {
+        Some(v) => {
+            let mut g = v.view("", json!({ "lens": "glance" })).await;
+            // what the join screen needs: the venue's own sections, and whether tonight is real
+            if let Some(o) = g.as_object_mut() {
+                o.insert("venue_id".into(), json!(v.id)); o.insert("mode".into(), json!(v.init.mode));
+                o.insert("levels".into(), v.init.world["levels"].clone()); o.insert("sections_per_level".into(), v.init.world["sections_per_level"].clone());
+            }
+            Json(g).into_response()
+        }
+        None => err(StatusCode::NOT_FOUND, "No such venue"),
+    }
+}
+
+/// The venue as its template describes it (names, stands, menu, sections): public, for the apps to draw it.
+async fn venue_world(State(app): State<S>, Path(vid): Path<String>) -> Response {
+    match app.venue(&vid) {
+        Some(v) => {
+            let mut w = v.init.world.clone();
+            // how fans pay tonight, as the venue's team wrote it
+            if let Some(d) = app.office.lock().unwrap().venue_draft(&vid) { w["pay_note"] = d.form["pay_note"].clone(); }
+            w["mode"] = json!(v.init.mode);
+            if v.init.real() {
+                w["opened"] = json!(v.init.opened);
+                // runners are shown to fans by their first name: "rupp.maria" is Maria
+                let names: serde_json::Map<String, Value> = app.auth.lock().unwrap().at_venue(&vid).into_iter().filter(|a| a.role == Role::Runner).map(|a| {
+                    let n = a.handle.rsplit('.').next().unwrap_or(&a.handle).replace('_', " ");
+                    let mut c = n.chars(); let n = c.next().map(|f| f.to_uppercase().collect::<String>() + c.as_str()).unwrap_or_default();
+                    (a.party, json!(n))
+                }).collect();
+                w["staff_names"] = Value::Object(names);
+            }
+            Json(w).into_response()
+        }
+        None => err(StatusCode::NOT_FOUND, "No such venue"),
+    }
 }
 
 async fn events(State(app): State<S>, Path(vid): Path<String>) -> Result<Sse<impl Stream<Item = Result<Event, std::convert::Infallible>>>, Response> {
@@ -267,7 +308,7 @@ async fn admin_venue(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -
     let issues = agape_kernel::setup::check(&w, &t);
     if issues.iter().any(|i| i.blocking) { return (StatusCode::BAD_REQUEST, Json(json!({ "ok": false, "error": "The template has problems to fix", "issues": issues }))).into_response(); }
     let init = venue::Init { id: id.clone(), name: b["name"].as_str().unwrap_or(&id).to_string(), world: b["world"].clone(), template: b["template"].clone(),
-        seed: b["seed"].as_u64().unwrap_or(1), fans: b["fans"].as_u64().unwrap_or(3000) as usize, runners: b["runners"].as_u64().unwrap_or(40) as usize, start_min: b["start_min"].as_i64().unwrap_or(0), build: venue::BUILD.to_string() };
+        seed: b["seed"].as_u64().unwrap_or(1), fans: b["fans"].as_u64().unwrap_or(3000) as usize, runners: b["runners"].as_u64().unwrap_or(40) as usize, start_min: b["start_min"].as_i64().unwrap_or(0), build: venue::BUILD.to_string(), mode: String::new(), opened: now_s() };
     match venue::spawn(&app.data.join("venues"), Some(init), &id, app.speed) {
         Ok(hd) => { app.venues.lock().unwrap().insert(id.clone(), hd); Json(json!({ "ok": true, "id": id, "issues": issues })).into_response() }
         Err(e) => err(StatusCode::INTERNAL_SERVER_ERROR, &e),
@@ -298,6 +339,7 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/v/{venue}/act", post(act))
         .route("/api/v/{venue}/events", get(events))
         .route("/api/v/{venue}/glance", get(glance))
+        .route("/api/v/{venue}/world", get(venue_world))
         .route("/api/studio", post(studio_save))
         .route("/api/leads", post(lead))
         .route("/api/admin/leads", get(admin_leads))
@@ -343,6 +385,17 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/user/delete", post(office_user_delete))
         .route("/api/office/attachment/{note}/{index}", get(office_attachment))
         .route("/api/office/trouble", post(office_trouble).get(office_trouble_list))
+        .route("/api/office/venues", get(office_venues))
+        .route("/api/office/venue", post(office_venue_save))
+        .route("/api/office/venue/check", post(office_venue_check))
+        .route("/api/office/venue/delete", post(office_venue_delete))
+        .route("/api/office/venue/open", post(office_venue_open))
+        .route("/api/office/venue/staff", post(office_venue_staff))
+        .route("/api/office/venue/staff/reset", post(office_venue_staff_reset))
+        .route("/api/office/night/{venue}", get(office_night))
+        .route("/api/office/night/{venue}/act", post(office_night_act))
+        .route("/api/office/night/{venue}/end", post(office_night_end))
+        .route("/api/office/report/{file}", get(office_report))
         .layer(axum::extract::DefaultBodyLimit::max(3_500_000))
         .with_state(app);
     match static_dir { Some(d) => api.fallback_service(tower_http::services::ServeDir::new(d)), None => api }
@@ -354,7 +407,7 @@ pub fn harbor_init(seed: u64) -> venue::Init {
         id: "harbor".into(), name: "Harbor Arena".into(),
         world: serde_json::from_str(include_str!("../../agape-kernel/templates/arena.json")).unwrap(),
         template: serde_json::from_str(include_str!("../../agape-kernel/templates/basketball.json")).unwrap(),
-        seed, fans: 3000, runners: 40, start_min: 38, build: venue::BUILD.to_string(),
+        seed, fans: 3000, runners: 40, start_min: 38, build: venue::BUILD.to_string(), mode: String::new(), opened: now_s(),
     }
 }
 
@@ -396,6 +449,7 @@ pub async fn roll_finished(app: &App) {
                 ps.all.insert(id, p); ps.save();
             }
         }
+        if v.init.real() { archive_real(app, &v).await; continue; }
         v.stop();
         let dir = app.data.join("venues");
         let stamp = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0);
@@ -714,4 +768,224 @@ async fn office_attachment(State(app): State<S>, h: HeaderMap, Path((note, index
     let meta: Value = serde_json::from_str(&meta).unwrap_or(json!({}));
     let name: String = meta["name"].as_str().unwrap_or("attachment").chars().map(|c| if c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | '_' | ' ') { c } else { '_' }).collect();
     (StatusCode::OK, [("content-type", "application/octet-stream".to_string()), ("content-disposition", format!("attachment; filename=\"{name}\"")), ("x-content-type-options", "nosniff".to_string())], bytes).into_response()
+}
+
+
+// ---------------- real venues and their nights (Agape Admin → Venues) ----------------
+
+fn venue_lead(app: &App, h: &HeaderMap) -> Result<admin::User, Response> {
+    let u = staffer(app, h)?;
+    if !app.office.lock().unwrap().can(&u, "venues") { return Err(err(StatusCode::FORBIDDEN, "Your role doesn't include venues")); }
+    Ok(u)
+}
+
+fn nights_dir(app: &App) -> std::path::PathBuf { let d = app.data.join("nights"); let _ = std::fs::create_dir_all(&d); d }
+
+/// A finished real night: its full report is kept, its journal is kept under a new name, and the
+/// venue waits for its next night to be opened from Admin.
+pub async fn archive_real(app: &App, v: &venue::Handle) -> Option<String> {
+    let night = v.view("agape", json!({ "lens": "night" })).await;
+    let staff: Vec<Value> = app.auth.lock().unwrap().at_venue(&v.id).iter().map(|a| json!({ "handle": a.handle, "role": a.role, "party": a.party })).collect();
+    let closed = now_s();
+    let file = format!("{}-{}.json", v.id, closed);
+    let rep = json!({ "venue": v.id, "name": v.name, "mode": v.init.mode, "opened": v.init.opened, "closed": closed, "staff": staff, "night": night });
+    let path = nights_dir(app).join(&file);
+    let tmp = path.with_extension("tmp");
+    if std::fs::write(&tmp, serde_json::to_vec_pretty(&rep).unwrap_or_default()).and_then(|_| std::fs::rename(&tmp, &path)).is_err() {
+        eprintln!("{}: couldn't write the night's report; keeping the night open", v.id);
+        return None;
+    }
+    v.stop();
+    let dir = app.data.join("venues");
+    let _ = std::fs::rename(dir.join(format!("{}.journal", v.id)), dir.join(format!("{}.{closed}.night", v.id)));
+    app.venues.lock().unwrap().remove(&v.id);
+    let b = &rep["night"]["books"];
+    let money = |k: &str| format!("${:.2}", b[k].as_i64().unwrap_or(0) as f64 / 100.0);
+    let n = b["totals"]["n_settled"].as_i64().unwrap_or(0);
+    let what = if v.init.mode == "rehearsal" { "Rehearsal" } else { "Night" };
+    app.office.lock().unwrap().notify_perm("venues", "venue", &format!("{what} closed: {}", v.name),
+        &format!("{} closed. {n} orders delivered, {} paid by fans, {} to the stands, {} to runners. The books {}.\n\nThe full report is in Admin → Venues.",
+            v.name, money("fans_paid"), money("stands"), money("runners_pay"), if b["conserved"] == true { "balance to the cent" } else { "DO NOT balance: look at the report" }));
+    println!("{}: real night closed, report {file}", v.id);
+    Some(file)
+}
+
+fn reports(app: &App) -> Vec<Value> {
+    let mut v: Vec<Value> = std::fs::read_dir(nights_dir(app)).map(|rd| rd.flatten().filter_map(|e| {
+        let name = e.file_name().to_string_lossy().to_string();
+        if !name.ends_with(".json") { return None; }
+        let r: Value = serde_json::from_slice(&std::fs::read(e.path()).ok()?).ok()?;
+        let b = &r["night"]["books"];
+        Some(json!({ "file": name, "venue": r["venue"], "name": r["name"], "mode": r["mode"], "opened": r["opened"], "closed": r["closed"],
+            "orders": b["totals"]["n_settled"], "fans_paid": b["fans_paid"], "conserved": b["conserved"] }))
+    }).collect()).unwrap_or_default();
+    v.sort_by_key(|r| std::cmp::Reverse(r["closed"].as_u64().unwrap_or(0)));
+    v
+}
+
+async fn office_venues(State(app): State<S>, h: HeaderMap) -> Response {
+    if let Err(r) = venue_lead(&app, &h) { return r; }
+    let drafts = app.office.lock().unwrap().venue_drafts();
+    let mut out = vec![];
+    for d in drafts {
+        let open = app.venue(&d.id);
+        let night = match &open { Some(v) => { let n = v.view("agape", json!({ "lens": "night" })).await; Some(json!({ "mode": v.init.mode, "opened": v.init.opened, "game": n["game"], "clock": n["clock"], "halt": n["halt"],
+            "orders": n["orders"].as_array().map(|a| a.len()).unwrap_or(0), "people": n["people"], "stands_open": n["stands"].as_array().map(|a| a.iter().filter(|s| s["open"] == true).count()).unwrap_or(0),
+            "runners_on": n["runners"].as_array().map(|a| a.iter().filter(|s| s["on_shift"] == true).count()).unwrap_or(0) })) } None => None };
+        let staff: Vec<Value> = app.auth.lock().unwrap().at_venue(&d.id).iter().map(|a| json!({ "id": a.id, "handle": a.handle, "role": a.role, "party": a.party })).collect();
+        out.push(json!({ "id": d.id, "form": d.form, "at": d.at, "night": night, "staff": staff }));
+    }
+    Json(json!({ "ok": true, "venues": out, "reports": reports(&app), "starter": pilot::starter_form(), "optional": pilot::OPTIONAL })).into_response()
+}
+
+async fn office_venue_check(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    if let Err(r) = venue_lead(&app, &h) { return r; }
+    let (_, issues) = pilot::check(&b["form"]);
+    Json(json!({ "ok": true, "issues": issues })).into_response()
+}
+
+async fn office_venue_save(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match venue_lead(&app, &h) { Ok(u) => u, Err(r) => return r };
+    let (_, issues) = pilot::check(&b["form"]);
+    // saved even with problems (a form is filled in over days); opening is what needs it right
+    let r = app.office.lock().unwrap().save_venue(&u, b["form"].clone());
+    match r { Ok(()) => Json(json!({ "ok": true, "issues": issues })).into_response(), Err(e) => err(StatusCode::BAD_REQUEST, &e) }
+}
+
+async fn office_venue_delete(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match venue_lead(&app, &h) { Ok(u) => u, Err(r) => return r };
+    let id = s(&b, "id");
+    if app.venue(&id).is_some() { return err(StatusCode::BAD_REQUEST, "A night is open there: end it first"); }
+    done(app.office.lock().unwrap().delete_venue(&u, &id))
+}
+
+async fn office_venue_open(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match venue_lead(&app, &h) { Ok(u) => u, Err(r) => return r };
+    let (id, mode) = (s(&b, "id"), s(&b, "mode"));
+    if mode != "live" && mode != "rehearsal" { return err(StatusCode::BAD_REQUEST, "Open it live or as a rehearsal"); }
+    let Some(d) = app.office.lock().unwrap().venue_draft(&id) else { return err(StatusCode::NOT_FOUND, "No such venue") };
+    if app.venue(&id).is_some() { return err(StatusCode::BAD_REQUEST, "A night is already open there"); }
+    let (world, issues) = pilot::check(&d.form);
+    if issues.iter().any(|i| i.blocking) { return (StatusCode::BAD_REQUEST, Json(json!({ "ok": false, "error": "Fix what's flagged in the venue first", "issues": issues }))).into_response(); }
+    let name = d.form["name"].as_str().unwrap_or(&id).to_string();
+    let mut seed = [0u8; 8];
+    rand::RngCore::fill_bytes(&mut rand::rng(), &mut seed);
+    let init = venue::Init { id: id.clone(), name: name.clone(), world, template: pilot::plain_template(), seed: u64::from_le_bytes(seed) >> 1,
+        fans: 0, runners: d.form["runners"].as_u64().unwrap_or(6) as usize, start_min: 0, build: venue::BUILD.to_string(), mode: mode.clone(), opened: now_s() };
+    // a journal left from an earlier night that never closed cleanly is kept, not replayed into this one
+    let dir = app.data.join("venues");
+    let jp = dir.join(format!("{id}.journal"));
+    if jp.exists() { let _ = std::fs::rename(&jp, dir.join(format!("{id}.{}.orphan", now_s()))); }
+    match venue::spawn(&dir, Some(init), &id, app.speed) {
+        Ok(hd) => {
+            app.venues.lock().unwrap().insert(id.clone(), hd);
+            app.office.lock().unwrap().logged(&u, format!("opened {} at {name}", if mode == "live" { "a live night" } else { "a rehearsal" }));
+            Json(json!({ "ok": true })).into_response()
+        }
+        Err(e) => err(StatusCode::INTERNAL_SERVER_ERROR, &e),
+    }
+}
+
+/// Staff accounts for a venue: a runner takes the next free runner slot, a stand account works that
+/// stand, an ops account runs the venue's console. The password is shown once, to hand over.
+async fn office_venue_staff(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match venue_lead(&app, &h) { Ok(u) => u, Err(r) => return r };
+    let (vid, role, handle) = (s(&b, "venue"), s(&b, "role"), s(&b, "handle"));
+    let Some(d) = app.office.lock().unwrap().venue_draft(&vid) else { return err(StatusCode::NOT_FOUND, "No such venue") };
+    let mut a = app.auth.lock().unwrap();
+    let here = a.at_venue(&vid);
+    let (r, party) = match role.as_str() {
+        "runner" => {
+            let slots = d.form["runners"].as_u64().unwrap_or(6) as usize;
+            match (0..slots).map(|i| format!("runner{i}")).find(|p| !here.iter().any(|x| &x.party == p)) {
+                Some(p) => (Role::Runner, p),
+                None => return err(StatusCode::BAD_REQUEST, &format!("All {slots} runner places have accounts: plan for more runners in the venue first")),
+            }
+        }
+        "stand" => {
+            let st = s(&b, "stand");
+            if !d.form["stands"].as_array().map_or(false, |a| a.iter().any(|x| x["id"] == st.as_str())) { return err(StatusCode::BAD_REQUEST, "Pick one of the venue's stands"); }
+            (Role::Stand, st)
+        }
+        "ops" => (Role::Ops, "ops".to_string()),
+        _ => return err(StatusCode::BAD_REQUEST, "A runner, a stand or ops"),
+    };
+    let pw = pilot::readable_password();
+    match a.create(&handle, &pw, r, Some(party.clone()), Some(vid.clone())) {
+        Ok(acc) => {
+            drop(a);
+            app.office.lock().unwrap().logged(&u, format!("gave {} a {role} account at {vid}", acc.handle));
+            Json(json!({ "ok": true, "account": acc.public(), "password": pw })).into_response()
+        }
+        Err(e) => err(StatusCode::BAD_REQUEST, &e),
+    }
+}
+
+async fn office_venue_staff_reset(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match venue_lead(&app, &h) { Ok(u) => u, Err(r) => return r };
+    let id = s(&b, "account");
+    let pw = pilot::readable_password();
+    let r = {
+        let mut a = app.auth.lock().unwrap();
+        // only staff accounts: a fan's own account is theirs
+        match a.all().into_iter().find(|x| x.id == id) { Some(x) if x.role != Role::Fan && x.venue.is_some() => a.reset_password(&id, &pw), _ => Err("Only a venue's staff accounts can be reset here".into()) }
+    };
+    match r { Ok(acc) => { app.office.lock().unwrap().logged(&u, format!("reset the password of {}", acc.handle)); Json(json!({ "ok": true, "password": pw })).into_response() } Err(e) => err(StatusCode::BAD_REQUEST, &e) }
+}
+
+async fn office_night(State(app): State<S>, h: HeaderMap, Path(vid): Path<String>) -> Response {
+    if let Err(r) = venue_lead(&app, &h) { return r; }
+    let Some(v) = app.venue(&vid).filter(|v| v.init.real()) else { return err(StatusCode::NOT_FOUND, "No night is open there") };
+    let mut n = v.view("agape", json!({ "lens": "night" })).await;
+    let staff: BTreeMap<String, String> = app.auth.lock().unwrap().at_venue(&vid).into_iter().map(|a| (a.party, a.handle)).collect();
+    n["staff"] = json!(staff);
+    n["mode"] = json!(v.init.mode); n["opened"] = json!(v.init.opened); n["ok"] = json!(true);
+    Json(n).into_response()
+}
+
+async fn office_night_act(State(app): State<S>, h: HeaderMap, Path(vid): Path<String>, Json(b): Json<Value>) -> Response {
+    let u = match venue_lead(&app, &h) { Ok(u) => u, Err(r) => return r };
+    let Some(v) = app.venue(&vid).filter(|v| v.init.real()) else { return err(StatusCode::NOT_FOUND, "No night is open there") };
+    let what = s(&b, "do");
+    if !matches!(what.as_str(), "game" | "score" | "halt" | "resume" | "resolve") { return err(StatusCode::BAD_REQUEST, "Not something the console does"); }
+    let r = v.act("ops", b.clone()).await;
+    if r["ok"] == true && what != "score" {
+        let detail = match what.as_str() { "game" => format!("marked {} at {}", s(&b, "what"), v.name), "halt" => format!("paused ordering at {}: {}", v.name, s(&b, "reason")), "resume" => format!("resumed ordering at {}", v.name), _ => format!("settled a problem at {}", v.name) };
+        app.office.lock().unwrap().logged(&u, detail);
+    }
+    Json(r).into_response()
+}
+
+/// End a night now (the event is over and nothing is still on its way).
+async fn office_night_end(State(app): State<S>, h: HeaderMap, Path(vid): Path<String>) -> Response {
+    let u = match venue_lead(&app, &h) { Ok(u) => u, Err(r) => return r };
+    let Some(v) = app.venue(&vid).filter(|v| v.init.real()) else { return err(StatusCode::NOT_FOUND, "No night is open there") };
+    let n = v.view("agape", json!({ "lens": "night" })).await;
+    let open = n["books"]["totals"]["n_open"].as_i64().unwrap_or(0);
+    if open > 0 { return err(StatusCode::BAD_REQUEST, &format!("{open} order{} still on {}: finish or cancel {} first", if open == 1 { " is" } else { "s are" }, if open == 1 { "its way" } else { "their way" }, if open == 1 { "it" } else { "them" })); }
+    if n["game"]["final"] != true { let _ = v.act("ops", json!({ "do": "game", "what": "final" })).await; }
+    // everyone's points go home to their passport first, as when any night ends
+    {
+        let mut ps = app.passports.lock().await;
+        let here: Vec<String> = ps.all.iter().filter(|(_, p)| p.at.as_deref() == Some(&v.id) && p.pending.is_none()).map(|(k, _)| k.clone()).collect();
+        for id in here {
+            let party = app.auth.lock().unwrap().party_of(&id).unwrap_or_default();
+            let mut p = ps.all[&id].clone();
+            p.seq += 1;
+            p.pending = Some((v.id.clone(), format!("{}-{}-out", id, p.seq), "out".into()));
+            ps.all.insert(id.clone(), p.clone()); ps.save();
+            finish_move(&app, &party, &mut p).await;
+            ps.all.insert(id, p); ps.save();
+        }
+    }
+    match archive_real(&app, &v).await {
+        Some(file) => { app.office.lock().unwrap().logged(&u, format!("ended the night at {}", v.name)); Json(json!({ "ok": true, "report": file })).into_response() }
+        None => err(StatusCode::INTERNAL_SERVER_ERROR, "Couldn't write the night's report; the night is still open"),
+    }
+}
+
+async fn office_report(State(app): State<S>, h: HeaderMap, Path(file): Path<String>) -> Response {
+    if let Err(r) = venue_lead(&app, &h) { return r; }
+    if file.contains('/') || file.contains("..") || !file.ends_with(".json") { return err(StatusCode::NOT_FOUND, "No such report"); }
+    match std::fs::read(nights_dir(&app).join(&file)) { Ok(b) => ([("content-type", "application/json")], b).into_response(), Err(_) => err(StatusCode::NOT_FOUND, "No such report") }
 }

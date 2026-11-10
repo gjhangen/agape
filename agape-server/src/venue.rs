@@ -29,6 +29,18 @@ pub struct Init {
     /// Which kernel this night was started on. A journal only replays exactly on the same one.
     #[serde(default)]
     pub build: String,
+    /// "" (a simulated night, the public demo), "live" (a real event with real people) or
+    /// "rehearsal" (real people, a practice event: the same as live, labelled so nobody mistakes it).
+    #[serde(default)]
+    pub mode: String,
+    /// When this night was opened (seconds since 1970), for its report.
+    #[serde(default)]
+    pub opened: u64,
+}
+
+impl Init {
+    /// Real people only: nothing simulated, the clock is the wall clock, the game is marked by hand.
+    pub fn real(&self) -> bool { matches!(self.mode.as_str(), "live" | "rehearsal") }
 }
 
 /// This server's kernel, as a hash of its sources (set when the image is built).
@@ -95,7 +107,8 @@ impl Journal {
 fn build(init: &Init) -> Result<Night, String> {
     let w: WorldDef = serde_json::from_value(init.world.clone()).map_err(|e| e.to_string())?;
     let t: Template = serde_json::from_value(init.template.clone()).map_err(|e| e.to_string())?;
-    let mut n = Night::new(w, t, Config { seed: init.seed, fans: init.fans, runners: init.runners, you_seat: None, ..Config::default() });
+    let real = init.real();
+    let mut n = Night::new(w, t, Config { seed: init.seed, fans: if real { 0 } else { init.fans }, runners: init.runners, you_seat: None, real, ..Config::default() });
     for _ in 0..init.start_min * 6 { n.step(); }
     Ok(n)
 }
@@ -146,7 +159,11 @@ pub fn spawn(dir: &Path, init: Option<Init>, id: &str, ticks_per_sec: f64) -> Re
     let (tx, rx) = mpsc::channel::<Cmd>();
     let (events, _) = broadcast::channel(64);
     // a night begun on a different kernel won't replay exactly: finish it now and open the next
-    let over = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(night.done || init.build != BUILD));
+    // A simulated night begun on a different kernel won't replay exactly: finish it and open the next.
+    // A real night is never cut short by a new version: it carries on from its journal.
+    let over = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(night.done || (init.build != BUILD && !init.real())));
+    // a real night runs on the wall clock, whatever speed the demo runs at (0 stays 0, for tests)
+    let ticks_per_sec = if init.real() && ticks_per_sec > 0.0 { 0.1 } else { ticks_per_sec };
     let h = Handle { id: init.id.clone(), name: init.name.clone(), init: init.clone(), over: over.clone(), tx, events: events.clone() };
     std::thread::Builder::new().name(format!("venue-{id}")).spawn(move || {
         let mut due = 0.0f64;

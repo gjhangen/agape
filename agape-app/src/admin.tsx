@@ -235,7 +235,7 @@ function Accept({ code, enter, toSignin }: { code: string; enter: (t: string, m:
 
 // ---------------- signed in ----------------
 
-type Tab = "mail" | "channels" | "inbox" | "merchants" | "team" | "leads" | "accounts" | "activity" | "account";
+type Tab = "mail" | "channels" | "inbox" | "merchants" | "venues" | "team" | "leads" | "accounts" | "activity" | "account";
 
 function Shell({ me, out }: { me: Me; out: () => void }) {
   const [tab, setTab] = useState<Tab>(() => (location.hash.slice(1) as Tab) || "merchants");
@@ -254,7 +254,7 @@ function Shell({ me, out }: { me: Me; out: () => void }) {
     document.title = total ? `(${total}) Agape Admin` : "Agape Admin";
   });
   useEffect(() => { refresh(); const t = setInterval(refresh, 20000); return () => clearInterval(t); }, []);
-  const tabs: [Tab, string][] = [["inbox", "Messages"], ...(me.oversees ? [["channels", "Channels"]] as [Tab, string][] : []), ...(me.perms.includes("merchants_view") ? [["merchants", "Merchants"]] as [Tab, string][] : []), ["team", "Team"], ...(me.perms.includes("leads") ? [["leads", "Leads"]] as [Tab, string][] : []), ...(me.perms.includes("accounts") ? [["accounts", "App accounts"]] as [Tab, string][] : []), ["activity", "Activity"], ...(me.role === "host" ? [["mail", "Email setup"]] as [Tab, string][] : []), ["account", "Your account"]];
+  const tabs: [Tab, string][] = [["inbox", "Messages"], ...(me.oversees ? [["channels", "Channels"]] as [Tab, string][] : []), ...(me.perms.includes("venues") ? [["venues", "Venues"]] as [Tab, string][] : []), ...(me.perms.includes("merchants_view") ? [["merchants", "Merchants"]] as [Tab, string][] : []), ["team", "Team"], ...(me.perms.includes("leads") ? [["leads", "Leads"]] as [Tab, string][] : []), ...(me.perms.includes("accounts") ? [["accounts", "App accounts"]] as [Tab, string][] : []), ["activity", "Activity"], ...(me.role === "host" ? [["mail", "Email setup"]] as [Tab, string][] : []), ["account", "Your account"]];
   return <div className="ox-app">
     <header className="ox-top">
       <Mark />
@@ -264,6 +264,7 @@ function Shell({ me, out }: { me: Me; out: () => void }) {
     <main className="ox-main">
       {tab === "inbox" && <Inbox me={me} toast={setToast} seen={refresh} />}
       {tab === "channels" && <Channels me={me} seen={refresh} />}
+      {tab === "venues" && <Venues me={me} toast={setToast} />}
       {tab === "merchants" && <Merchants me={me} toast={setToast} />}
       {tab === "team" && <Team me={me} toast={setToast} />}
       {tab === "leads" && <Leads />}
@@ -927,3 +928,355 @@ class Guard extends React.Component<{ children: React.ReactNode }, { error: stri
   }
 }
 ReactDOM.createRoot(document.getElementById("root")!).render(<Guard><App /></Guard>);
+
+// ---------------- venues: set up, staffed, and run for real ----------------
+
+type VForm = any;
+type VenueRow = { id: string; form: VForm; at: number; night: any | null; staff: { id: string; handle: string; role: string; party: string }[] };
+const money = (c: number | null | undefined) => c == null ? "—" : (c < 0 ? "−$" : "$") + (Math.abs(c) / 100).toFixed(2);
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24);
+const FEATURE_NAMES: Record<string, string> = { chat: "Crowd chat", predictions: "Call the quarter", cards: "Moment cards", tickets: "Tickets and resale", around: "Rides, parking and partner offers", offers: "Sponsor offers", players: "Player deals" };
+const STAGE_WORDS: Record<string, string> = { Accepted: "Waiting", Preparing: "Being made", Ready: "Ready", Assigned: "Runner on it", PickedUp: "On the way", Delivered: "Handed over", Settled: "Done", Disputed: "Problem" };
+const stageWord = (s: string) => STAGE_WORDS[s] ?? s.replace(/([a-z])([A-Z])/g, "$1 $2");
+const clockAt = (opened: number, t: number) => new Date((opened * 1000) + t).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+const fanLink = (id: string) => `${location.origin}/app/?v=${id}`;
+
+function Venues({ me, toast }: { me: Me; toast: (s: string) => void }) {
+  const [data, setData] = useState<{ venues: VenueRow[]; reports: any[]; starter: VForm; optional: string[] } | null>(null);
+  const [error, setError] = useState("");
+  const [view, setView] = useState<{ k: "edit"; v: VenueRow | null } | { k: "staff"; id: string } | { k: "console"; id: string } | { k: "report"; file: string } | null>(null);
+  const load = async () => { const r = await api("venues"); if (r.ok) setData(r); else setError(r.error); };
+  useEffect(() => { load(); }, [view]);
+  if (error) return <p className="ox-err">{error}</p>;
+  if (!data) return <p className="ox-empty">Loading…</p>;
+  if (view?.k === "edit") return <VenueEditor v={view.v} starter={data.starter} optional={data.optional} toast={toast} done={() => setView(null)} />;
+  if (view?.k === "staff") { const v = data.venues.find(x => x.id === view.id); return v ? <Staff v={v} toast={toast} reload={load} back={() => setView(null)} /> : null; }
+  if (view?.k === "console") return <Console id={view.id} toast={toast} back={() => setView(null)} ended={file => setView({ k: "report", file })} />;
+  if (view?.k === "report") return <Report file={view.file} back={() => setView(null)} />;
+  const open = async (v: VenueRow, mode: "live" | "rehearsal") => {
+    if (mode === "live" && !confirm(`Open a LIVE night at ${v.form.name}? Real fans will be able to order from the stands that are open.`)) return;
+    const r = await api("venue/open", { id: v.id, mode });
+    if (r.ok) { toast(mode === "live" ? "The night is open." : "The rehearsal is open."); setView({ k: "console", id: v.id }); }
+    else setError(r.error + (r.issues ? ": " + r.issues.filter((i: any) => i.blocking).map((i: any) => i.message).join("; ") : ""));
+  };
+  return <>
+    <Head title="Venues" sub="Real venues and their nights. Set a venue up, give its staff accounts, then open a night: a rehearsal first, with friends walking orders around, then live. Nothing here is simulated.">
+      <button className="ox-btn primary" onClick={() => setView({ k: "edit", v: null })}>Add a venue</button>
+    </Head>
+    {!data.venues.length ? <div className="ox-blank">
+      <h2>No venues yet</h2>
+      <p>Start with the building: its sections, its stands and what each one sells. It takes about fifteen minutes with the venue's menu in front of you, and you can save it half done.</p>
+      <button className="ox-btn primary" onClick={() => setView({ k: "edit", v: null })}>Add a venue</button>
+    </div> : <div className="ox-venues">{data.venues.map(v => {
+      const n = v.night;
+      const stands = (v.form.stands ?? []).length, items = (v.form.menu ?? []).length;
+      return <section key={v.id} className={"ox-card ox-venue" + (n ? " live" : "")}>
+        <div className="ox-row between wrap">
+          <div><h2>{v.form.name || v.id}</h2><small>{[v.form.address, `${v.form.levels} level${v.form.levels == 1 ? "" : "s"} · ${stands} stand${stands === 1 ? "" : "s"} · ${items} item${items === 1 ? "" : "s"} · ${v.form.runners} runner places`].filter(Boolean).join(" · ")}</small></div>
+          {n ? <span className={"ox-tag " + (n.mode === "live" ? "live" : "requested")}>{n.mode === "live" ? "Live now" : "Rehearsal open"}</span> : <span className="ox-tag draft">No night open</span>}
+        </div>
+        {n && <p className="ox-vstat"><b>{n.clock?.label}</b>{n.game && <span>{n.game.score?.[0]}–{n.game.score?.[1]}</span>}<span>{n.orders} order{n.orders === 1 ? "" : "s"}</span><span>{n.stands_open}/{stands} stands open</span><span>{n.runners_on} runner{n.runners_on === 1 ? "" : "s"} on</span><span>{n.people} fan{n.people === 1 ? "" : "s"} in</span>{n.halt && <span className="ox-flag">Ordering paused</span>}</p>}
+        <div className="ox-row wrap">
+          {n ? <button className="ox-btn primary" onClick={() => setView({ k: "console", id: v.id })}>Open the console</button> : <>
+            <button className="ox-btn" onClick={() => open(v, "rehearsal")}>Open a rehearsal</button>
+            <button className="ox-btn primary" onClick={() => open(v, "live")}>Open a live night</button>
+          </>}
+          <button className="ox-btn ghost" onClick={() => setView({ k: "staff", id: v.id })}>Staff ({v.staff.length})</button>
+          <button className="ox-btn ghost" onClick={() => setView({ k: "edit", v })} disabled={!!n} title={n ? "End the night to change the venue" : undefined}>Edit venue</button>
+        </div>
+        <p className="ox-fine">Fans open <a href={fanLink(v.id)} target="_blank" rel="noopener">{fanLink(v.id).replace(/^https?:\/\//, "")}</a> <button className="ox-link" onClick={() => { navigator.clipboard?.writeText(fanLink(v.id)); toast("Link copied"); }}>Copy</button></p>
+      </section>;
+    })}</div>}
+    {data.reports.length > 0 && <>
+      <h3>Past nights</h3>
+      <div className="ox-table-wrap"><table className="ox-table">
+        <thead><tr><th>Venue</th><th>Kind</th><th>Opened</th><th>Closed</th><th>Orders</th><th>Fans paid</th><th>Books</th><th></th></tr></thead>
+        <tbody>{data.reports.map(r => <tr key={r.file}><td><b>{r.name}</b></td><td>{r.mode === "live" ? "Live" : "Rehearsal"}</td><td><small>{when(r.opened)}</small></td><td><small>{when(r.closed)}</small></td>
+          <td className="mono">{r.orders ?? 0}</td><td className="mono">{money(r.fans_paid)}</td><td>{r.conserved ? <span className="ox-tag live">Balance</span> : <span className="ox-tag bad">Check</span>}</td>
+          <td><button className="ox-btn sm" onClick={() => setView({ k: "report", file: r.file })}>Report</button></td></tr>)}</tbody>
+      </table></div>
+    </>}
+  </>;
+}
+
+/** The venue, as a form: the kernel checks it exactly as it checks any venue. */
+function VenueEditor({ v, starter, optional, toast, done }: { v: VenueRow | null; starter: VForm; optional: string[]; toast: (s: string) => void; done: () => void }) {
+  const [f, setF] = useState<VForm>(() => JSON.parse(JSON.stringify(v?.form ?? starter)));
+  const [issues, setIssues] = useState<{ path: string; message: string; blocking: boolean }[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [changed, setChanged] = useState(false);
+  const [error, setError] = useState("");
+  const set = (path: (string | number)[], val: any) => setF((old: VForm) => { const n = JSON.parse(JSON.stringify(old)); let o = n; for (const k of path.slice(0, -1)) o = o[k] ??= {}; o[path[path.length - 1]] = val; setChanged(true); return n; });
+  useEffect(() => { const t = setTimeout(async () => { const r = await api("venue/check", { form: f }); if (r.ok) setIssues(r.issues); }, 500); return () => clearTimeout(t); }, [f]);
+  const save = async () => { setBusy(true); setError(""); const r = await api("venue", { form: f }); setBusy(false); if (r.ok) { setChanged(false); toast("Saved."); if (!v) done(); } else setError(r.error); };
+  const num = (x: any) => x === "" || x == null ? "" : String(x);
+  const blocking = issues.filter(i => i.blocking), warns = issues.filter(i => !i.blocking);
+  const stands: any[] = f.stands ?? [], menu: any[] = f.menu ?? [];
+  const leave = () => { if (changed && !confirm("Leave without saving your changes?")) return; done(); };
+  return <>
+    <Head title={v ? f.name || v.id : "Add a venue"} sub="Everything a night at this venue needs. Save as you go; a night can only open once nothing is flagged.">
+      <button className="ox-btn ghost" onClick={leave}>Back to venues</button>
+    </Head>
+    <div className="ox-edit">
+      <div className="ox-sections">
+        <section className="ox-card"><h2>The venue</h2><p className="ox-sub">How fans know it. The id is used in its link and can't change once saved.</p>
+          <div className="ox-grid">
+            <label className="ox-f"><span>Name</span><input value={f.name} placeholder="Rupp Arena" onChange={e => { set(["name"], e.target.value); if (!v) set(["id"], slug(e.target.value)); }} /></label>
+            <label className="ox-f"><span>Id</span><input className="mono" value={f.id} disabled={!!v} onChange={e => set(["id"], slug(e.target.value))} /><small>Fans open /app/?v={f.id || "id"}</small></label>
+            <label className="ox-f wide"><span>Address</span><input value={f.address} onChange={e => set(["address"], e.target.value)} /></label>
+            <label className="ox-f"><span>Capacity</span><input inputMode="numeric" value={num(f.capacity)} onChange={e => set(["capacity"], parseInt(e.target.value) || 0)} /></label>
+          </div>
+        </section>
+        <section className="ox-card"><h2>Tonight's teams</h2><p className="ox-sub">As the venue shows them. Change these before each night.</p>
+          {(["home", "away"] as const).map(side => <div key={side} className="ox-grid">
+            <label className="ox-f"><span>{side === "home" ? "Home team" : "Visitors"}</span><input value={f[side]?.name ?? ""} placeholder={side === "home" ? "Kentucky Wildcats" : "Louisville Cardinals"} onChange={e => set([side, "name"], e.target.value)} /></label>
+            <label className="ox-f"><span>Short name</span><input value={f[side]?.short ?? ""} placeholder={side === "home" ? "Wildcats" : "Cardinals"} onChange={e => set([side, "short"], e.target.value)} /></label>
+            <label className="ox-f"><span>Abbreviation</span><input value={f[side]?.abbr ?? ""} maxLength={4} placeholder={side === "home" ? "UK" : "UL"} onChange={e => set([side, "abbr"], e.target.value.toUpperCase())} /></label>
+            <label className="ox-f"><span>Color</span><input type="color" value={f[side]?.color || "#888888"} onChange={e => set([side, "color"], e.target.value)} /></label>
+          </div>)}
+        </section>
+        <section className="ox-card"><h2>The building</h2><p className="ox-sub">Sections are numbered by level: level 1 is 101, 102…, level 2 is 201… Stands sit next to a section on their level, which is how runners' walks are worked out.</p>
+          <div className="ox-grid">
+            <label className="ox-f"><span>Levels</span><input inputMode="numeric" value={num(f.levels)} onChange={e => set(["levels"], parseInt(e.target.value) || 0)} /><small>1 to 6</small></label>
+            <label className="ox-f"><span>Sections on each level</span><input inputMode="numeric" value={num(f.sections_per_level)} onChange={e => set(["sections_per_level"], parseInt(e.target.value) || 0)} /><small>4 to 60</small></label>
+            <label className="ox-f"><span>Seconds between neighbouring sections</span><input inputMode="numeric" value={num(f.walk?.ring_s)} onChange={e => set(["walk", "ring_s"], parseInt(e.target.value) || 0)} /><small>Walking the concourse</small></label>
+            <label className="ox-f"><span>Seconds from concourse to a seat</span><input inputMode="numeric" value={num(f.walk?.aisle_s)} onChange={e => set(["walk", "aisle_s"], parseInt(e.target.value) || 0)} /></label>
+            <label className="ox-f"><span>Seconds by stairs, one level</span><input inputMode="numeric" value={num(f.walk?.stairs_s)} onChange={e => set(["walk", "stairs_s"], parseInt(e.target.value) || 0)} /></label>
+          </div>
+        </section>
+        <section className="ox-card"><h2>Stands</h2><p className="ox-sub">Each place that makes orders. Stations are how many orders it can make at once.</p>
+          <div className="ox-table-wrap"><table className="ox-table ox-formtable"><thead><tr><th>Name</th><th>Id</th><th>Level</th><th>Next to section</th><th>Stations</th><th></th></tr></thead>
+            <tbody>{stands.map((s, i) => <tr key={i}>
+              <td><input aria-label="Stand name" value={s.name} onChange={e => { const old = s.id; set(["stands", i, "name"], e.target.value); if (!old || old === slug(s.name)) { const id = slug(e.target.value); set(["stands", i, "id"], id); menu.forEach((m, j) => m.stand === old && set(["menu", j, "stand"], id)); } }} /></td>
+              <td><input aria-label="Stand id" className="mono" value={s.id} onChange={e => { const old = s.id, id = slug(e.target.value); set(["stands", i, "id"], id); menu.forEach((m, j) => m.stand === old && set(["menu", j, "stand"], id)); }} /></td>
+              <td><input aria-label="Level" inputMode="numeric" value={num(s.level)} onChange={e => set(["stands", i, "level"], parseInt(e.target.value) || 0)} /></td>
+              <td><input aria-label="Next to section" inputMode="numeric" value={num(s.near)} onChange={e => set(["stands", i, "near"], parseInt(e.target.value) || 0)} /><small>{s.level && s.near ? `Section ${s.level}${String(s.near).padStart(2, "0")}` : ""}</small></td>
+              <td><input aria-label="Stations" inputMode="numeric" value={num(s.stations)} onChange={e => set(["stands", i, "stations"], parseInt(e.target.value) || 0)} /></td>
+              <td><button className="ox-link danger" onClick={() => set(["stands"], stands.filter((_, j) => j !== i))}>Remove</button></td>
+            </tr>)}</tbody></table></div>
+          <button className="ox-btn sm" onClick={() => set(["stands"], [...stands, { id: "", name: "", level: 1, near: 1, stations: 2 }])}>Add a stand</button>
+        </section>
+        <section className="ox-card"><h2>Menu</h2><p className="ox-sub">What each stand sells, at the venue's prices. Make time is the usual minutes from starting the order to handing it over. Leave stock empty for no limit.</p>
+          <div className="ox-table-wrap"><table className="ox-table ox-formtable"><thead><tr><th>Item</th><th>Stand</th><th>Price</th><th>Make time (min)</th><th>Kind</th><th>21+</th><th>Stock</th><th></th></tr></thead>
+            <tbody>{menu.map((m, i) => <tr key={i}>
+              <td><input aria-label="Item name" value={m.name} onChange={e => { set(["menu", i, "name"], e.target.value); if (!m.id || m.id === slug(m.name)) set(["menu", i, "id"], slug(e.target.value)); }} /></td>
+              <td><select aria-label="Stand" value={m.stand} onChange={e => set(["menu", i, "stand"], e.target.value)}><option value="">—</option>{stands.map(s => <option key={s.id} value={s.id}>{s.name || s.id}</option>)}</select></td>
+              <td><input aria-label="Price in dollars" inputMode="decimal" defaultValue={m.price ? (m.price / 100).toFixed(2) : ""} onBlur={e => set(["menu", i, "price"], Math.round(parseFloat(e.target.value.replace(/[$,]/g, "")) * 100) || 0)} /></td>
+              <td><input aria-label="Make time in minutes" inputMode="decimal" defaultValue={m.prep_s ? String(Math.round(m.prep_s / 6) / 10) : ""} onBlur={e => set(["menu", i, "prep_s"], Math.round(parseFloat(e.target.value) * 60) || 0)} /></td>
+              <td><select aria-label="Kind" value={m.category} onChange={e => set(["menu", i, "category"], e.target.value)}><option value="food">Food</option><option value="drink">Drink</option><option value="merch">Merch</option></select></td>
+              <td><input aria-label="21 and over" type="checkbox" checked={!!m.adult} onChange={e => set(["menu", i, "adult"], e.target.checked)} /></td>
+              <td><input aria-label="Stock" inputMode="numeric" value={m.stock ?? ""} placeholder="No limit" onChange={e => set(["menu", i, "stock"], e.target.value === "" ? undefined : parseInt(e.target.value) || 0)} /></td>
+              <td><button className="ox-link danger" onClick={() => set(["menu"], menu.filter((_, j) => j !== i))}>Remove</button></td>
+            </tr>)}</tbody></table></div>
+          <button className="ox-btn sm" onClick={() => set(["menu"], [...menu, { id: "", name: "", stand: stands[0]?.id ?? "", price: 0, prep_s: 120, category: "food" }])}>Add an item</button>
+        </section>
+        <section className="ox-card"><h2>Fees and runners</h2>
+          <div className="ox-grid">
+            <label className="ox-f"><span>Delivery fee</span><input inputMode="decimal" defaultValue={((f.fees?.delivery_fee ?? 0) / 100).toFixed(2)} onBlur={e => set(["fees", "delivery_fee"], Math.round(parseFloat(e.target.value.replace(/[$,]/g, "")) * 100) || 0)} /><small>Per delivered order; pickup is free</small></label>
+            <label className="ox-f"><span>Sales tax (%)</span><input inputMode="decimal" defaultValue={((f.fees?.tax_bps ?? 0) / 100).toString()} onBlur={e => set(["fees", "tax_bps"], Math.round(parseFloat(e.target.value) * 100) || 0)} /></label>
+            <label className="ox-f"><span>Runner places</span><input inputMode="numeric" value={num(f.runners)} onChange={e => set(["runners"], parseInt(e.target.value) || 0)} /><small>The most runners on at once; each gets an account</small></label>
+          </div>
+        </section>
+        <section className="ox-card"><h2>Optional</h2><p className="ox-sub">At launch fans order to their seat or for pickup, see honest arrival times and earn points. Anything else is off unless the venue wants it.</p>
+          <div className="ox-checks">{optional.map(k => <label key={k} className="ox-checkline"><input type="checkbox" checked={f.features?.[k] === true} onChange={e => set(["features", k], e.target.checked)} /><span>{FEATURE_NAMES[k] ?? k}</span></label>)}</div>
+        </section>
+      </div>
+      <aside className="ox-side">
+        <div className="ox-card sticky">
+          <h2>Ready to open?</h2>
+          {blocking.length ? <><p className="ox-sub">Fix these before a night can open:</p><ul className="ox-missing one">{blocking.map((i, k) => <li key={k}>{i.message}</li>)}</ul></> : <p className="ox-ok">Nothing is in the way of opening a night.</p>}
+          {warns.length > 0 && <><h3>Worth a look</h3><ul className="ox-missing one">{warns.map((i, k) => <li key={k}>{i.message}</li>)}</ul></>}
+          {error && <p className="ox-err" role="alert">{error}</p>}
+          <button className="ox-btn primary block" disabled={busy || !changed || !f.id} onClick={save}>{busy ? "Saving…" : changed ? "Save venue" : "Saved"}</button>
+          {v && <DeleteVenue id={v.id} toast={toast} done={done} />}
+        </div>
+      </aside>
+    </div>
+  </>;
+}
+
+function DeleteVenue({ id, toast, done }: { id: string; toast: (s: string) => void; done: () => void }) {
+  const [sure, setSure] = useState(false);
+  const [error, setError] = useState("");
+  return sure ? <>{error && <p className="ox-err">{error}</p>}<div className="ox-row"><button className="ox-btn ghost sm" onClick={() => setSure(false)}>Keep it</button><button className="ox-btn danger sm" onClick={async () => { const r = await api("venue/delete", { id }); if (r.ok) { toast("Deleted. Its past nights' reports are kept."); done(); } else setError(r.error); }}>Delete the venue</button></div></>
+    : <button className="ox-link danger" onClick={() => setSure(true)}>Delete this venue</button>;
+}
+
+/** Staff accounts: made here, the password shown once to hand over. */
+function Staff({ v, toast, reload, back }: { v: VenueRow; toast: (s: string) => void; reload: () => void; back: () => void }) {
+  const [role, setRole] = useState("runner");
+  const [stand, setStand] = useState(v.form.stands?.[0]?.id ?? "");
+  const [handle, setHandle] = useState("");
+  const [given, setGiven] = useState<{ handle: string; password: string; what: string } | null>(null);
+  const [error, setError] = useState("");
+  const standName = (id: string) => v.form.stands?.find((s: any) => s.id === id)?.name ?? id;
+  const what = (a: { role: string; party: string }) => a.role === "runner" ? `Runner (place ${parseInt(a.party.replace("runner", "")) + 1})` : a.role === "stand" ? `Stand · ${standName(a.party)}` : "Venue operations";
+  const add = async (e: React.FormEvent) => {
+    e.preventDefault(); setError("");
+    const r = await api("venue/staff", { venue: v.id, role, handle: handle.trim(), stand });
+    if (r.ok) { setGiven({ handle: r.account.handle, password: r.password, what: what(r.account) }); setHandle(""); reload(); } else setError(r.error);
+  };
+  const reset = async (a: { id: string; handle: string; role: string; party: string }) => {
+    if (!confirm(`Give ${a.handle} a new password? The old one stops working right away and they're signed out everywhere.`)) return;
+    const r = await api("venue/staff/reset", { account: a.id });
+    if (r.ok) setGiven({ handle: a.handle, password: r.password, what: what(a) }); else toast(r.error);
+  };
+  const order: Record<string, number> = { ops: 0, stand: 1, runner: 2 };
+  return <>
+    <Head title={`Staff at ${v.form.name}`} sub="Each person working a night signs in on their own phone or tablet at the same address fans use. Runners take trips, stands mark food ready, and venue operations can pause ordering and mark the game.">
+      <button className="ox-btn ghost" onClick={back}>Back to venues</button>
+    </Head>
+    {given && <div className="ox-card ox-given" role="status">
+      <h2>Hand this to {given.handle}</h2>
+      <p className="ox-sub">It's shown only now. Write it down or copy it before leaving this page.</p>
+      <dl><dt>Open</dt><dd className="mono">{location.host}/app/</dd><dt>Name</dt><dd className="mono">{given.handle}</dd><dt>Password</dt><dd className="mono big">{given.password}</dd><dt>Works as</dt><dd>{given.what}</dd></dl>
+      <div className="ox-row"><button className="ox-btn" onClick={() => { navigator.clipboard?.writeText(`Agape at ${v.form.name}\nOpen ${location.host}/app/\nName: ${given.handle}\nPassword: ${given.password}\nYou work as: ${given.what}`); toast("Copied"); }}>Copy</button><button className="ox-btn ghost" onClick={() => setGiven(null)}>Done</button></div>
+    </div>}
+    <section className="ox-card"><h2>Give someone an account</h2>
+      <form className="ox-grid" onSubmit={add}>
+        <label className="ox-f"><span>Works as</span><select value={role} onChange={e => setRole(e.target.value)}><option value="runner">Runner</option><option value="stand">Stand</option><option value="ops">Venue operations</option></select></label>
+        {role === "stand" && <label className="ox-f"><span>Stand</span><select value={stand} onChange={e => setStand(e.target.value)}>{(v.form.stands ?? []).map((s: any) => <option key={s.id} value={s.id}>{s.name}</option>)}</select><small>One account per tablet; a stand can have several</small></label>}
+        <label className="ox-f"><span>Sign-in name</span><input value={handle} onChange={e => setHandle(e.target.value.replace(/\s/g, ""))} placeholder={`${v.id}.maria`} required minLength={3} maxLength={24} autoCapitalize="none" /><small>Letters, numbers, dots</small></label>
+        <div className="ox-f"><span>&nbsp;</span><button className="ox-btn primary">Make the account</button></div>
+      </form>
+      {error && <p className="ox-err">{error}</p>}
+    </section>
+    {v.staff.length > 0 && <div className="ox-table-wrap"><table className="ox-table">
+      <thead><tr><th>Name</th><th>Works as</th><th></th></tr></thead>
+      <tbody>{[...v.staff].sort((a, b) => (order[a.role] - order[b.role]) || a.party.localeCompare(b.party, undefined, { numeric: true })).map(a => <tr key={a.id}><td><b className="mono">{a.handle}</b></td><td>{what(a)}</td><td><button className="ox-btn sm ghost" onClick={() => reset(a)}>New password</button></td></tr>)}</tbody>
+    </table></div>}
+  </>;
+}
+
+/** The night as it happens: the game, every stand and runner, every order, and the books. */
+function Console({ id, toast, back, ended }: { id: string; toast: (s: string) => void; back: () => void; ended: (file: string) => void }) {
+  const [n, setN] = useState<any>(null);
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [filter, setFilter] = useState<"open" | "all">("open");
+  const load = async () => { const r = await api(`night/${id}`); if (r.ok) { setN(r); setError(""); } else setError(r.error); };
+  useEffect(() => { load(); const t = setInterval(load, 3000); return () => clearInterval(t); }, [id]);
+  const act = async (body: any, said?: string) => { setBusy(true); const r = await api(`night/${id}/act`, body); setBusy(false); if (r.ok) { if (said) toast(said); load(); } else toast(r.error); };
+  if (error && !n) return <><Head title="Console"><button className="ox-btn ghost" onClick={back}>Back to venues</button></Head><p className="ox-err">{error}</p></>;
+  if (!n) return <p className="ox-empty">Loading…</p>;
+  const g = n.game, b = n.books, tot = b.totals ?? {};
+  const [home, away] = n.teams ?? [];
+  const staff: Record<string, string> = n.staff ?? {};
+  const orders: any[] = (n.orders ?? []).filter((o: any) => filter === "all" || !["Settled"].includes(o.stage) && !o.stage.startsWith("Cancel") && !o.stage.startsWith("Cannot") && !o.stage.startsWith("Refund") && !o.stage.startsWith("Unreach"));
+  const openCount = tot.n_open ?? 0;
+  const end = async () => {
+    if (!confirm(`End the night at ${n.venue}? Fans' points go home to their passports and the report is written.`)) return;
+    setBusy(true); const r = await api(`night/${id}/end`, {}); setBusy(false);
+    if (r.ok) { toast("The night is closed."); ended(r.report); } else toast(r.error);
+  };
+  const pause = () => { const why = prompt("Why is ordering paused? Fans see this.", "Ordering is paused for a few minutes"); if (why) act({ do: "halt", reason: why }, "Ordering paused"); };
+  const period = g.period, next = g.can.start ? `Start ${period === 0 ? "the game" : period === 2 ? "the second half" : `Q${period + 1}`}` : null;
+  return <>
+    <Head title={n.venue} sub={<>{n.mode === "live" ? <span className="ox-tag live">Live</span> : <span className="ox-tag requested">Rehearsal</span>} Opened {when(n.opened)} · it's {clockAt(n.opened, n.clock.t)} · {n.people} fan{n.people === 1 ? "" : "s"} in the app</>}>
+      <button className="ox-btn ghost" onClick={back}>Back to venues</button>
+    </Head>
+    {n.halt && <div className="ox-note ox-row between wrap"><span><b>Ordering is paused:</b> {n.halt.reason}</span><button className="ox-btn primary" disabled={busy} onClick={() => act({ do: "resume" }, "Ordering is back on")}>Resume ordering</button></div>}
+    <div className="ox-console">
+      <section className="ox-card ox-game">
+        <div className="ox-score">
+          <span className="ox-team"><i style={{ background: home?.color }} />{home?.short || "Home"}</span><b className="mono">{g.score[0]}</b>
+          <span className="ox-period">{n.clock.label}</span>
+          <b className="mono">{g.score[1]}</b><span className="ox-team right">{away?.short || "Away"}<i style={{ background: away?.color }} /></span>
+        </div>
+        <div className="ox-row wrap center">
+          {next && <button className="ox-btn primary" disabled={busy} onClick={() => act({ do: "game", what: "start" }, next)}>{next}</button>}
+          {g.can.end && <button className="ox-btn primary" disabled={busy} onClick={() => act({ do: "game", what: "end" }, period === 2 ? "Halftime" : `End of Q${period}`)}>{period === 2 ? "Halftime" : `End Q${period}`}</button>}
+          {g.can.final && <button className="ox-btn" disabled={busy} onClick={() => confirm("Mark the game final? Ordering closes for the night.") && act({ do: "game", what: "final" }, "Final")}>Final</button>}
+        </div>
+        {!g.final && <div className="ox-scorepad">{(["home", "away"] as const).map((t, k) => <div key={t}><small>{(k ? away : home)?.short || t}</small><div className="ox-row">{[1, 2, 3].map(p => <button key={p} className="ox-btn sm" disabled={busy} onClick={() => act({ do: "score", team: t, points: p })}>+{p}</button>)}<button className="ox-btn sm ghost" title="Take a point back" disabled={busy || g.score[k] === 0} onClick={() => act({ do: "score", team: t, points: -1 }, "Corrected")}>−1</button></div></div>)}</div>}
+        <p className="ox-fine">The game moves only when you mark it here: fans see the period and score, and ordering closes at the final.</p>
+      </section>
+      <section className="ox-card ox-kpis">
+        <div><small>Orders</small><b className="mono">{(n.orders ?? []).length}</b></div>
+        <div><small>Still open</small><b className="mono">{openCount}</b></div>
+        <div><small>Delivered</small><b className="mono">{tot.n_settled ?? 0}</b></div>
+        <div><small>To the seat, typical</small><b className="mono">{n.wait_p50 != null ? `${Math.round(n.wait_p50 / 60)} min` : "—"}</b></div>
+        <div><small>Fans paid</small><b className="mono">{money(b.fans_paid)}</b></div>
+        <div><small>Books</small><b className={b.conserved ? "ox-okt" : "ox-badt"}>{b.conserved ? "Balance" : "Off"}</b></div>
+        <div className="ox-row wrap">{!n.halt && <button className="ox-btn" disabled={busy} onClick={pause}>Pause ordering</button>}
+          <button className="ox-btn danger" disabled={busy || openCount > 0} title={openCount > 0 ? "Every order must be finished first" : undefined} onClick={end}>End the night</button></div>
+      </section>
+    </div>
+    <div className="ox-console two">
+      <section className="ox-card"><h2>Stands</h2>
+        <table className="ox-table tight"><thead><tr><th>Stand</th><th>Open</th><th>Waiting</th><th>Making</th><th>Ready</th><th>Sales</th></tr></thead>
+          <tbody>{n.stands.map((s: any) => <tr key={s.id}><td><b>{s.name}</b>{s.wait_s > 0 && <small>~{Math.ceil(s.wait_s / 60)} min wait</small>}</td><td>{s.open ? <span className="ox-tag live">Open</span> : <span className="ox-tag draft">Closed</span>}</td><td className="mono">{s.queued}</td><td className="mono">{s.making}</td><td className="mono">{s.ready}</td><td className="mono">{money(s.sales)}</td></tr>)}</tbody></table>
+        <p className="ox-fine">A stand opens when someone signs in on its tablet and starts their shift. Fans can't order from a closed stand.</p>
+      </section>
+      <section className="ox-card"><h2>Runners</h2>
+        <table className="ox-table tight"><thead><tr><th>Runner</th><th>On</th><th>Now</th><th>Delivered</th><th>Earned</th></tr></thead>
+          <tbody>{n.runners.filter((r: any) => staff[r.id] || r.on_shift || r.delivered).map((r: any) => <tr key={r.id}><td><b>{staff[r.id] ?? `Place ${parseInt(r.id.slice(6)) + 1}`}</b></td><td>{r.on_shift ? <span className="ox-tag live">On</span> : <span className="ox-tag draft">Off</span>}</td>
+            <td><small>{r.trip ? (r.trip.picked ? `Delivering ${r.trip.orders.length}` : r.trip.accepted ? `Picking up ${r.trip.orders.length}` : `Offered ${r.trip.orders.length}`) : r.on_shift ? "Waiting for a trip" : ""}</small></td>
+            <td className="mono">{r.delivered}</td><td className="mono">{money(r.pay + r.tips)}</td></tr>)}</tbody></table>
+        {!Object.keys(staff).some(k => k.startsWith("runner")) && <p className="ox-fine">No runner accounts yet. Add them under Staff.</p>}
+      </section>
+    </div>
+    {(n.problems ?? []).filter((p: any) => p.state === "Open" || p.state === "open").length > 0 && <section className="ox-card"><h2>Problems fans reported</h2>
+      {n.problems.filter((p: any) => p.state === "Open" || p.state === "open").map((p: any) => <div key={p.id} className="ox-row between wrap ox-problem"><span><b>#{p.order}</b> {p.who}: {String(p.reason).replace(/_/g, " ")}{p.words ? ` · “${p.words}”` : ""}</span>
+        <span className="ox-row"><button className="ox-btn sm" disabled={busy} onClick={() => act({ do: "resolve", problem: p.id, remedy: true, form: "refund", why: "Settled by the venue's team" }, "Refunded")}>Refund</button><button className="ox-btn sm" disabled={busy} onClick={() => act({ do: "resolve", problem: p.id, remedy: true, form: "credit", why: "Settled by the venue's team" }, "Credit given")}>Credit</button><button className="ox-btn sm ghost" disabled={busy} onClick={() => act({ do: "resolve", problem: p.id, remedy: false, why: "Looked into it" }, "Closed")}>No remedy</button></span></div>)}
+    </section>}
+    <section className="ox-card">
+      <div className="ox-row between wrap"><h2>Orders</h2><div className="ox-seg"><button className={filter === "open" ? "on" : ""} onClick={() => setFilter("open")}>In progress</button><button className={filter === "all" ? "on" : ""} onClick={() => setFilter("all")}>All {(n.orders ?? []).length}</button></div></div>
+      {!orders.length ? <p className="ox-empty">{filter === "open" ? "Nothing in progress." : "No orders yet."}</p> : <div className="ox-table-wrap"><table className="ox-table tight">
+        <thead><tr><th>#</th><th>Placed</th><th>Fan</th><th>To</th><th>From</th><th>Items</th><th>Where it is</th><th>Runner</th><th>Total</th></tr></thead>
+        <tbody>{orders.map((o: any) => <tr key={o.id} className={o.late && !o.delivered ? "late" : ""}><td className="mono">{o.id}</td><td><small>{clockAt(n.opened, o.placed)}</small></td><td>{o.fan}</td>
+          <td>{o.delivery ? <>Sec {String(o.seat).slice(1)}{o.spot && <small>{o.spot}</small>}</> : <span className="ox-muted">Pickup</span>}</td>
+          <td>{n.stands.find((s: any) => s.id === o.stand)?.name ?? o.stand}</td><td><small>{o.items.map((i: any) => `${i.qty}× ${i.name}`).join(", ")}</small></td>
+          <td>{stageWord(o.stage)}{o.late && !o.delivered && <small className="ox-badt">Late</small>}{!o.delivered && o.eta && <small>due {clockAt(n.opened, o.eta)}</small>}</td>
+          <td><small>{o.runner ? staff[o.runner] ?? o.runner : ""}</small></td><td className="mono">{money(o.charge)}</td></tr>)}</tbody>
+      </table></div>}
+    </section>
+    <Books b={b} />
+  </>;
+}
+
+function Books({ b }: { b: any }) {
+  const t = b.totals ?? {};
+  const rows: [string, number, string][] = [["Fans paid", b.fans_paid, "Every card charge for delivered orders, tips included"], ["Food and drink sold", t.sales, "Before tax and fees"], ["Sales tax collected", b.tax, "Owed to the state"],
+    ["Delivery fees", t.fees, ""], ["Tips", b.runners_tips, "Every cent to the runner who carried it"], ["Runner pay", b.runners_pay, "Paid by Agape per trip"], ["To the stands", b.stands, "After Agape's share and card processing"],
+    ["Agape's share", b.agape, "After paying runners"], ["Card processing", (b.agape_processing ?? 0) + (b.interchange ?? 0), "Agape's processing, including what the card networks take"]];
+  return <section className="ox-card"><h2>The books</h2>
+    <p className="ox-sub">Straight from the ledger: every dollar in equals every dollar out. {b.conserved ? <b className="ox-okt">They balance to the cent.</b> : <b className="ox-badt">They don't balance. Don't close the night; tell the host.</b>}</p>
+    <table className="ox-table tight books"><tbody>{rows.map(([l, v, h]) => <tr key={l}><td>{l}{h && <small>{h}</small>}</td><td className="mono num">{money(v ?? 0)}</td></tr>)}</tbody></table>
+  </section>;
+}
+
+/** A closed night, to read and print. */
+function Report({ file, back }: { file: string; back: () => void }) {
+  const [r, setR] = useState<any>(null);
+  const [error, setError] = useState("");
+  useEffect(() => { fetch(`/api/office/report/${file}`, { headers: { authorization: "Bearer " + token } }).then(x => x.json()).then(j => j.ok === false ? setError(j.error) : setR(j)).catch(() => setError("Couldn't load the report. Try again.")); }, [file]);
+  if (error) return <><Head title="Report"><button className="ox-btn ghost" onClick={back}>Back to venues</button></Head><p className="ox-err">{error}</p></>;
+  if (!r) return <p className="ox-empty">Loading…</p>;
+  const n = r.night, t = n.books.totals ?? {};
+  const staff: Record<string, string> = Object.fromEntries((r.staff ?? []).map((s: any) => [s.party, s.handle]));
+  const [home, away] = n.teams ?? [];
+  return <div className="ox-report">
+    <Head title={`${r.name}: ${r.mode === "live" ? "night" : "rehearsal"} report`} sub={<>{when(r.opened)} to {when(r.closed)}{home && away ? ` · ${home.short || home.name} ${n.game.score[0]}, ${away.short || away.name} ${n.game.score[1]}` : ""}</>}>
+      <button className="ox-btn ghost" onClick={back}>Back to venues</button><button className="ox-btn" onClick={() => print()}>Print</button>
+    </Head>
+    <section className="ox-card ox-kpis">
+      <div><small>Orders delivered</small><b className="mono">{t.n_settled ?? 0}</b></div>
+      <div><small>Not completed</small><b className="mono">{t.n_closed ?? 0}</b></div>
+      <div><small>To the seat, typical</small><b className="mono">{n.wait_p50 != null ? `${Math.round(n.wait_p50 / 60)} min` : "—"}</b></div>
+      <div><small>Nine in ten within</small><b className="mono">{n.wait_p90 != null ? `${Math.round(n.wait_p90 / 60)} min` : "—"}</b></div>
+      <div><small>Fans paid</small><b className="mono">{money(n.books.fans_paid)}</b></div>
+    </section>
+    <Books b={n.books} />
+    <section className="ox-card"><h2>By stand</h2><table className="ox-table tight"><thead><tr><th>Stand</th><th>Orders</th><th>Sales</th><th>Stand receives</th></tr></thead>
+      <tbody>{n.stands.map((s: any) => <tr key={s.id}><td>{s.name}</td><td className="mono">{s.settled}</td><td className="mono">{money(s.sales)}</td><td className="mono">{money(s.revenue)}</td></tr>)}</tbody></table></section>
+    <section className="ox-card"><h2>By runner</h2><table className="ox-table tight"><thead><tr><th>Runner</th><th>Delivered</th><th>Pay</th><th>Tips</th><th>Total</th></tr></thead>
+      <tbody>{n.runners.filter((x: any) => x.delivered || x.pay || x.tips).map((x: any) => <tr key={x.id}><td>{staff[x.id] ?? x.id}</td><td className="mono">{x.delivered}</td><td className="mono">{money(x.pay)}</td><td className="mono">{money(x.tips)}</td><td className="mono">{money(x.pay + x.tips)}</td></tr>)}</tbody></table></section>
+    <section className="ox-card"><h2>Every order</h2><div className="ox-table-wrap"><table className="ox-table tight">
+      <thead><tr><th>#</th><th>Placed</th><th>Fan</th><th>Items</th><th>From</th><th>Outcome</th><th>Minutes</th><th>Runner</th><th>Total</th></tr></thead>
+      <tbody>{[...n.orders].reverse().map((o: any) => <tr key={o.id}><td className="mono">{o.id}</td><td><small>{clockAt(r.opened, o.placed)}</small></td><td>{o.fan}</td><td><small>{o.items.map((i: any) => `${i.qty}× ${i.name}`).join(", ")}</small></td>
+        <td>{n.stands.find((s: any) => s.id === o.stand)?.name ?? o.stand}</td><td>{stageWord(o.stage)}{o.late && <small>Late</small>}</td><td className="mono">{o.delivered ? Math.round((o.delivered - o.placed) / 60000) : "—"}</td><td><small>{o.runner ? staff[o.runner] ?? o.runner : ""}</small></td><td className="mono">{money(o.charge)}</td></tr>)}</tbody>
+    </table></div></section>
+    <p className="ox-fine">Ledger entries: {n.books.txns}. Report written by Agape when the night closed; it can't be edited.</p>
+  </div>;
+}

@@ -1,7 +1,7 @@
 // The app as people use it: signed in, talking to the venue's server. One account, one role,
 // one screen. The simulation harness (main.tsx) is not part of this build.
 import { React, ReactDOM, useEffect, useState } from "./r";
-import { kernel, server } from "./kernel";
+import { kernel, server, setRemoteWorld, world } from "./kernel";
 import { FanApp, FanView, Sheet } from "./fan";
 import { OpsLens, RunnerLens, StandLens } from "./roles";
 import { BusinessLens, PlayerLens } from "./deals";
@@ -15,8 +15,24 @@ const store = {
   get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k: string, v: string | null) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* private mode: sign in each visit */ } },
 };
-const VENUE = "harbor";
-const SECTIONS = [...Array.from({ length: 24 }, (_, i) => `s${101 + i}`), ...Array.from({ length: 24 }, (_, i) => `s${201 + i}`)];
+/** Which venue: a link or QR code at the venue says (?v=rupp), staff work at their own, and the
+ *  public demo is Harbor Arena. Remembered, so reopening the app returns to the same venue. */
+const urlVenue = (() => { const q = new URLSearchParams(location.search).get("v"); return q && /^[a-z0-9_]{3,24}$/.test(q) ? q : null; })();
+let VENUE = urlVenue ?? store.get("agape.venue") ?? "harbor";
+/** A section from a seat's QR code (?s=s105): the join screen starts with it chosen. */
+const urlSeat = (() => { const q = new URLSearchParams(location.search).get("s"); return q && /^s\d{3}$/.test(q) ? q : ""; })();
+const real = () => ["live", "rehearsal"].includes(world()?.mode);
+const rehearsal = () => world()?.mode === "rehearsal";
+/** What fans are told about paying, on a real night. */
+const payNote = () => (world()?.pay_note ?? "").trim() || "Payments aren't connected yet, so nothing is charged to your card in the app.";
+async function loadVenue(id: string): Promise<boolean> {
+  try {
+    const r = await fetch(`/api/v/${id}/world`);
+    if (!r.ok) return false;
+    setRemoteWorld(await r.json()); VENUE = id; store.set("agape.venue", id);
+    return true;
+  } catch { return false; }
+}
 
 type Glance = { venue: string; clock: { label: string; home: number; away: number; phase: string }; teams: { name: string; short: string; abbr: string; color: string }[];
   moments: { t: number; text: string; name: string | null }[]; orders: number; on_the_way: number; avg_delivery_min: number | null; provenance: { simulated_fans: number } };
@@ -47,7 +63,7 @@ function Gate({ done }: { done: (token: string, a: Account) => void }) {
     <div className="landing">
       <header className="l-top"><span className="l-mark">agape</span><span className="l-tag">to your seat</span><a className="l-sim-link" href="/demo/">Simulator</a></header>
       <section className="l-live" aria-live="polite">
-        <p className="l-on"><i className="live-dot" />Now playing at {g?.venue ?? BRAND.venue}<span className="l-sim-tag">simulated game</span></p>
+        <p className="l-on"><i className="live-dot" />{real() ? "Tonight at" : "Now playing at"} {g?.venue ?? BRAND.venue}{!real() ? <span className="l-sim-tag">simulated game</span> : rehearsal() ? <span className="l-sim-tag">rehearsal</span> : null}</p>
         {g && home && away ? <>
           <div className="l-score">
             <span className="l-team"><i style={{ background: home.color }} />{home.short}</span>
@@ -72,10 +88,10 @@ function Gate({ done }: { done: (token: string, a: Account) => void }) {
       </form>
       <ul className="l-points">
         <li><b>Order to your seat.</b> Food, drinks and gear, with the honest time it'll reach you before you tap.</li>
-        <li><b>Play along.</b> Call each quarter for points. Collect the night's big plays as cards before they're gone.</li>
+        {(!real() || world()?.features?.predictions || world()?.features?.cards) && <li><b>Play along.</b> Call each quarter for points. Collect the night's big plays as cards before they're gone.</li>}
         <li><b>Points that travel.</b> Your level and points come with you to every venue on Agape.</li>
       </ul>
-      <section className="l-sim">
+      {!real() && <section className="l-sim">
         <div>
           <span className="eyebrow">For venues, teams, businesses and investors</span>
           <h2>See the whole night, from every seat.</h2>
@@ -87,18 +103,21 @@ function Gate({ done }: { done: (token: string, a: Account) => void }) {
           <li><b>Businesses</b><span>Offers fans unlock with points, and proof of who walked in</span></li>
         </ul>
         <div className="l-sim-acts"><a className="btn primary big" href="/demo/">Open the simulator</a><button className="btn big ghost-board" onClick={() => setTalk(true)}>Talk to the team</button></div>
-      </section>
+      </section>}
       {talk && <TalkToUs close={() => setTalk(false)} />}
-      <p className="l-note">This is the Agape pilot. The game and the {g ? g.provenance.simulated_fans.toLocaleString() : "3,000"} other fans are simulated, and nothing is charged. Your account, orders, picks and points are real. <button className="link-inline small" onClick={() => setInfo(true)}>How points, privacy and the pilot work</button></p>
+      <p className="l-note">{real() ? <>{rehearsal() ? "This is a rehearsal of an Agape night: the orders are practice, made and carried by real people. " : "This is Agape's pilot at this venue: real food from real stands, brought by real runners. "}{payNote()}</> : <>This is the Agape pilot. The game and the {g ? g.provenance.simulated_fans.toLocaleString() : "3,000"} other fans are simulated, and nothing is charged. Your account, orders, picks and points are real.</>} <button className="link-inline small" onClick={() => setInfo(true)}>How points, privacy and the pilot work</button></p>
       {info && <PilotInfo close={() => setInfo(false)} />}
     </div>
   );
 }
 
-const BOWLS: [string, string, string[]][] = [
-  ["Lower bowl", "Closest to the floor", Array.from({ length: 24 }, (_, i) => `s${101 + i}`)],
-  ["Upper bowl", "The whole court in view", Array.from({ length: 24 }, (_, i) => `s${201 + i}`)],
-];
+/** The venue's sections by level. The demo arena's two bowls keep their names. */
+function bowls(): [string, string, string[]][] {
+  const w = world(); const L = w?.levels ?? 2, n = w?.sections_per_level ?? 24;
+  const secs = (l: number) => Array.from({ length: n }, (_, i) => `s${l * 100 + i + 1}`);
+  if (!real() && L === 2) return [["Lower bowl", "Closest to the floor", secs(1)], ["Upper bowl", "The whole court in view", secs(2)]];
+  return Array.from({ length: L }, (_, k) => [L === 1 ? "Sections" : `Level ${k + 1}`, L === 1 ? "Your section number is on your ticket" : k === 0 ? "Sections " + (101) + "–" + (100 + n) : `Sections ${(k + 1) * 100 + 1}–${(k + 1) * 100 + n}`, secs(k + 1)] as [string, string, string[]]);
+}
 
 /** Change row and seat after joining. */
 function SpotEditor({ refresh }: { refresh: () => void }) {
@@ -123,7 +142,8 @@ function PilotInfo({ close }: { close: () => void }) {
       <article className="info" role="dialog" aria-modal="true" aria-label="How the pilot works">
         <div className="sheet-head"><h2>How the pilot works</h2><button className="btn ghost sm" onClick={close}>Close</button></div>
         <h3>What's real and what's simulated</h3>
-        <p>Agape itself is real: your account, your orders, the arrival times, the points you earn and the cards you collect. The basketball game and the other fans in the building are simulated, so you can try everything before Agape opens at a venue near you. Nothing is charged; prices show what you'd pay.</p>
+        {real() ? <p>Everything tonight is real: the stands making your order, the runner bringing it, the arrival times and your points. Nothing here is simulated.{rehearsal() ? " It's a rehearsal, so the orders are practice." : ""} {payNote()}</p>
+          : <p>Agape itself is real: your account, your orders, the arrival times, the points you earn and the cards you collect. The basketball game and the other fans in the building are simulated, so you can try everything before Agape opens at a venue near you. Nothing is charged; prices show what you'd pay.</p>}
         <h3>Points</h3>
         <p>You earn points by ordering, calling the quarter and collecting. You can spend them on moment cards and offers around the venue, or pass cards to other fans for points. Points can't be bought with money, can't be cashed out, and don't expire. Your level is the total you've ever earned and comes with you to every venue on Agape.</p>
         <h3>Drinks</h3>
@@ -145,7 +165,7 @@ function Join({ joined, a }: { joined: () => void; a: Account }) {
   useEffect(() => { scrollTo(0, 0); }, []);
   const key = `agape.joined.${a.id}`;
   const back = store.get(key) === "1";
-  const [seat, setSeat] = useState("");
+  const [seat, setSeat] = useState(urlSeat && bowls().some(b => b[2].includes(urlSeat)) ? urlSeat : "");
   const [row, setRow] = useState("");
   const [place, setPlace] = useState("");
   const [error, setError] = useState("");
@@ -156,7 +176,7 @@ function Join({ joined, a }: { joined: () => void; a: Account }) {
       <header className="l-top"><span className="l-mark">agape</span><span className="l-tag">to your seat</span></header>
       <h1 className="l-head">{back ? `A new night, ${a.handle}.` : "Where are you sitting?"}</h1>
       <p className="l-sub">{back ? "Your level and points came with you. Where are you sitting tonight?" : "Your section is where we bring things, and who you're up against in tonight's section battle."}</p>
-      {BOWLS.map(([name, blurb, secs]) => (
+      {bowls().map(([name, blurb, secs]) => (
         <section key={name} className="bowl">
           <div className="block-head"><h2>{name}</h2><span className="sub">{blurb}</span></div>
           <div className="sec-grid">{secs.map(x => <button key={x} className={"sec-chip" + (seat === x ? " on" : "")} aria-pressed={seat === x} onClick={() => setSeat(x)}>{x.slice(1)}</button>)}</div>
@@ -202,6 +222,7 @@ function Signed({ a, signOut }: { a: Account; signOut: () => void }) {
     );
     return (
       <div className="app-shell">
+        {rehearsal() && <p className="mode-strip" role="note">Rehearsal · practice orders</p>}
         <FanApp v={v} refresh={refresh} sheet={sheet} setSheet={setSheet} toast={toast} settings={settings} />
         <aside className="desk-side" aria-label="About this page">
           <span className="l-mark">agape</span>
@@ -217,7 +238,7 @@ function Signed({ a, signOut }: { a: Account; signOut: () => void }) {
     <>
       <header className="harness signed">
         <div className="harness-in">
-          <span className="eyebrow">{BRAND.venue} · {a.handle}</span>
+          <span className="eyebrow">{BRAND.venue} · {a.handle}{rehearsal() ? " · rehearsal" : ""}</span>
           <button className="btn h-btn" onClick={signOut}>Sign out</button>
         </div>
       </header>
@@ -227,6 +248,7 @@ function Signed({ a, signOut }: { a: Account; signOut: () => void }) {
         {a.role === "stand" && <StandLens s={v} pick={noop} stands={[{ id: v.stand, name: v.name } as any]} x={{ toast, refresh }} />}
         {a.role === "business" && <BusinessLens b={v} businesses={[{ id: v.id, name: v.name }]} pick={noop} toast={toast} refresh={refresh} />}
         {a.role === "player" && <PlayerLens p={v} players={[{ id: v.id, name: v.name, team: v.group?.name ?? "", claimed: v.claimed }]} pick={noop} toast={toast} refresh={refresh} />}
+        {a.role === "ops" && real() && <GameControls toast={toast} refresh={refresh} />}
         {a.role === "ops" && <OpsLens o={v} x={{ toast, refresh }} />}
       </main>
       <div className="toasts" aria-live="polite">{toasts.map(t => <p key={t.id} className="toast">{t.text}</p>)}</div>
@@ -237,14 +259,44 @@ function Signed({ a, signOut }: { a: Account; signOut: () => void }) {
 function App() {
   const [a, setA] = useState<Account | null>(null);
   const [checked, setChecked] = useState(false);
+  // staff work at their own venue; everyone else at the one their link names, or the demo
+  const enter = async (token: string, acc: Account) => {
+    if (acc.role !== "fan" && acc.venue && acc.venue !== VENUE) await loadVenue(acc.venue);
+    server.connect(VENUE, token).close(); setA(acc);
+  };
   useEffect(() => {
-    const token = store.get("agape.token");
-    if (!token) { setChecked(true); return; }
-    fetch("/api/me", { headers: { authorization: `Bearer ${token}` } }).then(r => r.json()).then(r => { if (r.ok) { server.connect(VENUE, token).close(); setA(r.account); } setChecked(true); }).catch(() => setChecked(true));
+    (async () => {
+      if (!(await loadVenue(VENUE)) && VENUE !== "harbor") { store.set("agape.venue", null); VENUE = "harbor"; await loadVenue("harbor"); }
+      const token = store.get("agape.token");
+      if (!token) { setChecked(true); return; }
+      try { const r = await (await fetch("/api/me", { headers: { authorization: `Bearer ${token}` } })).json(); if (r.ok) await enter(token, r.account); } catch { /* offline: show the front door */ }
+      setChecked(true);
+    })();
   }, []);
   if (!checked) return <div className="gate"><h1>{BRAND.venue}</h1><p>Opening the doors…</p></div>;
-  if (!a) return <Gate done={(token, acc) => { store.set("agape.token", token); server.connect(VENUE, token).close(); setA(acc); }} />;
+  if (!a) return <Gate done={(token, acc) => { store.set("agape.token", token); enter(token, acc); }} />;
   return <Signed a={a} signOut={() => { const t = store.get("agape.token"); fetch("/api/signout", { method: "POST", headers: { authorization: `Bearer ${t}` } }).finally(() => { store.set("agape.token", null); location.reload(); }); }} />;
+}
+
+/** The venue's own operations account marks the real game: fans see the period and score from it. */
+function GameControls({ toast, refresh }: { toast: (s: string) => void; refresh: () => void }) {
+  const n = kernel.view("night" as any, "");
+  if (!n?.game) return null;
+  const g = n.game, [home, away] = n.teams ?? [];
+  const act = (b: any, said?: string) => { const r = kernel.act(b); if (r.ok) { said && toast(said); refresh(); } else toast(r.error); };
+  const p = g.period;
+  return (
+    <section className="block game-ctl">
+      <h2>The game</h2>
+      <p className="game-score"><b>{home?.short ?? "Home"} {g.score[0]}</b> · {n.clock?.label} · <b>{away?.short ?? "Away"} {g.score[1]}</b></p>
+      <div className="row-btns">
+        {g.can.start && <button className="btn primary" onClick={() => act({ do: "game", what: "start" }, "Marked")}>{p === 0 ? "Start the game" : p === 2 ? "Start the second half" : `Start Q${p + 1}`}</button>}
+        {g.can.end && <button className="btn primary" onClick={() => act({ do: "game", what: "end" }, "Marked")}>{p === 2 ? "Halftime" : `End Q${p}`}</button>}
+        {g.can.final && <button className="btn" onClick={() => confirm("Mark the game final? Ordering closes.") && act({ do: "game", what: "final" }, "Final")}>Final</button>}
+      </div>
+      {!g.final && (["home", "away"] as const).map((t, k) => <div key={t} className="row-btns"><span className="sub">{(k ? away : home)?.short ?? t}</span>{[1, 2, 3].map(x => <button key={x} className="btn sm" onClick={() => act({ do: "score", team: t, points: x })}>+{x}</button>)}<button className="btn sm ghost" disabled={g.score[k] === 0} onClick={() => act({ do: "score", team: t, points: -1 }, "Corrected")}>−1</button></div>)}
+    </section>
+  );
 }
 
 applyLook(savedLook()); applyMode(savedMode());

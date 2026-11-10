@@ -635,7 +635,9 @@ impl Night {
             let when = t + (2 + self.rng.below(4) as i64) * 60_000;
             self.replies.push((when, to, from, line));
         }
-        let (players_on, around_on) = (self.on("players"), self.on("around"));
+        // the simulated crowd only exists on a simulated night
+        let crowd = !self.cfg.real && self.cfg.fans > 0;
+        let (players_on, around_on) = (self.on("players") && crowd, self.on("around") && crowd);
         // fans write to the players on the floor tonight
         if players_on && self.rng.chance(0.06) {
             let on_floor: Vec<String> = [&self.league.tonight.home, &self.league.tonight.away].iter().filter_map(|g| self.league.team(g)).flat_map(|g| g.roster.iter().take(5).map(|m| m.id.clone())).collect();

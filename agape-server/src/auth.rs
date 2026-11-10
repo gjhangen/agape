@@ -104,6 +104,25 @@ impl Auth {
     /// Every account, without password hashes: for Agape's own team in Admin.
     pub fn all(&self) -> Vec<Account> { let mut v: Vec<Account> = self.accounts.values().map(|a| a.public()).collect(); v.sort_by_key(|a| a.id[1..].parse::<u64>().unwrap_or(0)); v }
 
+    /// A new password for an account (staff who lost theirs): the old one stops working and every
+    /// session it had ends.
+    pub fn reset_password(&mut self, id: &str, password: &str) -> Result<Account, String> {
+        if password.chars().count() < 8 { return Err("Use a password of at least 8 characters".into()); }
+        let mut acc = self.accounts.get(id).cloned().ok_or("No such account")?;
+        let mut raw = [0u8; 16];
+        rand::rng().fill_bytes(&mut raw);
+        let salt = SaltString::encode_b64(&raw).map_err(|e| e.to_string())?;
+        acc.hash = Argon2::default().hash_password(password.as_bytes(), &salt).map_err(|e| e.to_string())?.to_string();
+        self.append(&Rec::Account(acc.clone()));
+        self.accounts.insert(id.into(), acc.clone());
+        let ended: Vec<String> = self.sessions.iter().filter(|(_, a)| *a == id).map(|(t, _)| t.clone()).collect();
+        for t in ended { self.sign_out(&t); }
+        Ok(acc)
+    }
+
+    /// Staff accounts that work at this venue.
+    pub fn at_venue(&self, venue: &str) -> Vec<Account> { self.all().into_iter().filter(|a| a.venue.as_deref() == Some(venue)).collect() }
+
     pub fn party_of(&self, account: &str) -> Option<String> { self.accounts.get(account).map(|a| a.party.clone()) }
 
     pub fn session(&self, token: &str) -> Option<&Account> { self.sessions.get(token).and_then(|id| self.accounts.get(id)) }

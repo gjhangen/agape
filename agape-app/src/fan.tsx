@@ -7,7 +7,7 @@
 import { React, useEffect, useRef, useState } from "./r";
 import { actWith, Deal, DealCard } from "./deals";
 import { Card, LevelBadge, LevelPanel, MomentCard, Page } from "./pages";
-import { kernel, world } from "./kernel";
+import { kernel, world, sectionIds } from "./kernel";
 import { wearColor } from "./themes";
 import { cart, useCart } from "./cart";
 import { ItemArt } from "./Art";
@@ -1079,7 +1079,7 @@ function ItemSheet({ v, refresh, setSheet, toast, go, id, at: preset }: Ctx & { 
           {giftTo != null && <>
             <select value={giftTo} onChange={e => setGiftTo(e.target.value)} aria-label="Who it's for">
               {friends.length > 0 && <optgroup label="People you follow">{friends.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}</optgroup>}
-              <optgroup label="A section">{Array.from({ length: 48 }, (_, i) => i < 24 ? `s${101 + i}` : `s${177 + i}`).map(x => <option key={x} value={x}>Section {x.slice(1)}</option>)}</optgroup>
+              <optgroup label="A section">{sectionIds().map(x => <option key={x} value={x}>Section {x.slice(1)}</option>)}</optgroup>
             </select>
             <input value={giftNote} maxLength={140} onChange={e => setGiftNote(e.target.value)} placeholder="Add a note (optional)" aria-label="Note" />
           </>}

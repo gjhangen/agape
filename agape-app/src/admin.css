@@ -289,3 +289,45 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
 
 .ox-files { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin: 8px 0; }
 .ox-files > span { font-size: 13px; font-weight: 700; color: var(--muted); margin-right: 4px; }
+
+/* ---------------- venues and their nights ---------------- */
+.ox-row.wrap { flex-wrap: wrap; }
+.ox-row.center { justify-content: center; }
+.ox-tag.bad { background: var(--bad-soft); color: var(--bad); }
+.ox-venues { display: grid; gap: 14px; }
+.ox-venue h2 { margin: 0; }
+.ox-venue.live { border-color: color-mix(in srgb, var(--good) 45%, var(--line)); }
+.ox-vstat { display: flex; flex-wrap: wrap; gap: 6px 16px; margin: 10px 0 0; font-size: 14px; color: var(--muted); }
+.ox-vstat b { color: var(--ink); }
+.ox-formtable td { padding: 6px 6px; vertical-align: top; }
+.ox-formtable input:not([type=checkbox]), .ox-formtable select { width: 100%; min-width: 64px; background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; min-height: 38px; }
+.ox-formtable td:first-child input { min-width: 150px; }
+.ox-formtable input[type=checkbox] { width: 18px; height: 18px; accent-color: var(--brand); margin-top: 10px; }
+.ox-missing.one { columns: 1; }
+.ox-given { border: 2px solid var(--brand); }
+.ox-given dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 16px; margin: 6px 0 4px; }
+.ox-given dt { color: var(--muted); font-weight: 600; }
+.ox-given dd { margin: 0; font-weight: 700; }
+.ox-given dd.big { font-size: 22px; letter-spacing: .04em; user-select: all; }
+.ox-console { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 14px; margin-bottom: 14px; }
+.ox-console.two { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+.ox-console > .ox-card { margin: 0; }
+.ox-score { display: grid; grid-template-columns: 1fr auto auto auto 1fr; align-items: center; gap: 14px; margin: 4px 0 14px; }
+.ox-score b { font-size: 44px; line-height: 1; font-weight: 800; }
+.ox-team { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; justify-content: flex-end; }
+.ox-team.right { justify-content: flex-start; }
+.ox-team i { width: 12px; height: 12px; border-radius: 50%; display: inline-block; }
+.ox-period { font-weight: 800; background: var(--sunk); border-radius: 8px; padding: 4px 10px; min-width: 76px; text-align: center; }
+.ox-scorepad { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 10px; }
+.ox-scorepad .ox-row { margin-top: 4px; flex-wrap: wrap; }
+.ox-kpis { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 12px 16px; align-content: start; }
+.ox-kpis b { display: block; font-size: 24px; font-weight: 800; }
+.ox-kpis > .ox-row { grid-column: 1 / -1; margin-top: 4px; }
+.ox-okt { color: var(--good); }
+.ox-badt { color: var(--bad); }
+.ox-table.tight td, .ox-table.tight th { padding: 7px 8px; }
+.ox-table tr.late td { background: var(--warn-soft); }
+.ox-table.books td.num { text-align: right; white-space: nowrap; font-weight: 700; }
+.ox-problem { border-top: 1px solid var(--line); padding: 8px 0; }
+@media (max-width: 860px) { .ox-console, .ox-console.two { grid-template-columns: 1fr; } .ox-score b { font-size: 34px; } }
+@media print { .ox-report .ox-card { break-inside: avoid; border: 1px solid #ccc; } .ox-report .ox-acts { display: none; } }

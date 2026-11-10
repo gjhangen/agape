@@ -2,10 +2,11 @@
 // (c1-3), stands, stairs (stairs1-6) and lifts (lift1). A round bowl, court in the middle.
 
 export const R = { court: 64, l1i: 78, l1o: 128, c1: 138, l2i: 150, l2o: 196, c2: 208 };
-export const SECS = 24;
-const STEP = 360 / SECS;
+/** Sections on each level: 24 in the demo arena; a real venue says its own (setSecs). */
+export let SECS = 24;
+export function setSecs(n: number) { if (Number.isFinite(n) && n >= 4 && n <= 60) SECS = Math.round(n); }
 const rad = (d: number) => (d * Math.PI) / 180;
-export const ang = (ring: number) => -90 + ring * STEP + STEP / 2;
+export const ang = (ring: number) => { const step = 360 / SECS; return -90 + ring * step + step / 2; };
 export const pt = (r: number, deg: number): [number, number] => [r * Math.cos(rad(deg)), r * Math.sin(rad(deg))];
 
 export function wedge(r0: number, r1: number, a0: number, a1: number) {

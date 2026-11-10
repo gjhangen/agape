@@ -35,6 +35,14 @@ impl Night {
             // the period is still open after its clock ran out (the last possessions): show 0:00
             if label.is_empty() { if let Some(i) = starts.iter().rposition(|s| m >= *s) { period = i + 1; label = format!("Q{} 0:00", i + 1); } }
         }
+        if self.cfg.real && self.concert().is_none() {
+            // a real game: the period the scorekeeper marked, with no made-up game clock
+            let g = self.game_state();
+            let p = g["period"].as_i64().unwrap_or(0) as usize;
+            period = if g["in_period"] == true { p } else { 0 };
+            label = match self.phase() { "pregame" => "Pregame".into(), "halftime" => "Halftime".into(), "postgame" => "Final".into(),
+                _ if g["in_period"] == true => format!("Q{p}"), _ => format!("End of Q{p}") };
+        }
         if label.is_empty() { label = "Break".into(); }
         if self.concert().is_some() {
             // which act is on comes from the night's running order, not the span (which opens a tick later)
@@ -122,7 +130,7 @@ impl Night {
             let eta = self.estimate(&th.stand, th.prep_s, &seat, true);
             let stand = self.world.def.stands.iter().find(|s| s.id == th.stand).unwrap();
             let adult = th.constraints.iter().any(|c| matches!(c, crate::world::Constraint::MinAge(_)));
-            let closes = self.script_final();
+            let closes = Some(self.script_final()).filter(|c| *c < crate::sim::NOT_YET * 60_000);
             items.push(json!({ "id": th.id, "name": th.name, "price": th.price, "category": th.category, "adult": adult, "closes": closes, "stand": stand.name, "stand_id": th.stand, "level": stand.level,
                 "available": elig.as_ref().map_or(false, |e| e.is_ok()) && stock > 0 && self.closed_now(&th.id).is_none(),
                 "why_not": self.closed_now(&th.id).map(String::from).or(elig.and_then(|e| e.err()).map(|r| format!("{r:?}"))).or(if stock <= 0 { Some("SoldOut".into()) } else { None }),
@@ -331,6 +339,72 @@ impl Night {
 }
 
 impl Night {
+    /// A real night for the people running it: the game's controls, every stand and runner, every
+    /// order, and the books, which must balance to the cent.
+    pub fn view_night(&self) -> Value {
+        let usd = Unit::usd();
+        let bal = |p: &str, k: &str| self.ledger.balance(&acct(p, k), &usd);
+        let t = self.t;
+        let mut per_stand: BTreeMap<String, (i64, i64, i64, i64)> = BTreeMap::new(); // orders, items sold, net, refunds
+        let mut totals: BTreeMap<&str, i64> = BTreeMap::new();
+        let orders: Vec<Value> = self.orders.iter().enumerate().rev().map(|(i, o)| {
+            let q = &o.c.quote;
+            let b = breakdown(q, &self.terms).ok();
+            let stage = stage_name(&o.c.stage);
+            let settled = matches!(o.c.stage, Stage::Settled);
+            if settled {
+                if let Some(b) = &b {
+                    let e = per_stand.entry(q.stand.clone()).or_default();
+                    e.0 += 1; e.1 += b.subtotal - b.discount; e.2 += b.stand_net;
+                    for (k, v) in [("sales", b.subtotal - b.discount), ("tax", b.tax), ("fees", b.fee), ("tips", b.tip), ("charged", b.charge), ("processing", b.processing), ("agape_share", b.agape_share)] { *totals.entry(k).or_insert(0) += v; }
+                }
+            }
+            *totals.entry(if settled { "n_settled" } else if matches!(o.c.stage, Stage::Closed(_)) { "n_closed" } else { "n_open" }).or_insert(0) += 1;
+            let runner = q.runner.clone()
+                .or_else(|| self.trips.iter().find(|(_, x)| x.orders.contains(&i)).map(|(r, _)| r.clone()));
+            json!({ "id": i, "fan": self.party_name(&q.fan).unwrap_or(q.fan.clone()), "seat": o.seat, "spot": self.spots.get(&q.fan),
+                "stand": q.stand, "items": q.lines.iter().map(|l| json!({ "name": self.world.thing(&l.thing).map(|x| x.name.clone()).unwrap_or(l.thing.clone()), "qty": l.qty })).collect::<Vec<_>>(),
+                "delivery": q.delivery, "stage": stage, "placed": o.accepted_at, "started": o.started_at, "ready": o.ready_at, "picked": o.picked_at, "delivered": o.delivered_at,
+                "eta": o.eta, "late": o.delivered_at.map_or(t > o.promise, |d| d > o.promise), "charge": b.as_ref().map(|b| b.charge), "tip": q.tip, "runner": runner,
+                "scheduled_for": o.scheduled_for })
+        }).collect();
+        let stands: Vec<Value> = self.world.def.stands.iter().map(|s| {
+            let queued = self.queues.get(&s.id).map_or(0, |q| q.len());
+            let making = self.stations.get(&s.id).map_or(0, |v| v.iter().filter(|x| x.1.is_some()).count());
+            let waiting = self.orders.iter().filter(|o| o.c.quote.stand == s.id && matches!(o.c.stage, Stage::Ready)).count();
+            let (n, sales, net, _) = per_stand.get(&s.id).copied().unwrap_or_default();
+            json!({ "id": s.id, "name": s.name, "open": self.live.contains(&s.id), "queued": queued, "making": making, "ready": waiting,
+                    "wait_s": self.stand_wait(&s.id), "settled": n, "sales": sales, "net": net, "revenue": bal(&s.id, "revenue") })
+        }).collect();
+        let runners: Vec<Value> = self.runners.iter().map(|r| {
+            let trip = self.trips.get(&r.id).map(|x| json!({ "orders": x.orders, "accepted": x.accepted, "picked": x.picked, "stand": x.stand, "pay": x.pay }));
+            json!({ "id": r.id, "on_shift": self.live.contains(&r.id), "trip": trip, "pay": bal(&r.id, "pay"), "tips": bal(&r.id, "tips"),
+                    "delivered": self.orders.iter().filter(|o| o.delivered_at.is_some() && o.c.quote.runner.as_deref() == Some(r.id.as_str())).count() })
+        }).collect();
+        let mut waits: Vec<i64> = self.orders.iter().filter(|o| o.c.quote.delivery).filter_map(|o| o.delivered_at.map(|d| (d - o.accepted_at) / 1000)).collect();
+        waits.sort();
+        let pct = |p: usize| waits.get(waits.len() * p / 100).copied();
+        let flows = crate::sim::money_flows(&self.ledger, &self.world.def.stands.iter().map(|s| s.id.clone()).collect::<Vec<_>>(), &self.runners.iter().map(|r| r.id.clone()).collect::<Vec<_>>());
+        let books = json!({
+            "fans_paid": -self.ledger.balances_iter().filter(|((a, u), _)| a.purpose == "card" && *u == usd).map(|(_, v)| *v).sum::<i64>(),
+            "stands": self.world.def.stands.iter().map(|s| bal(&s.id, "revenue")).sum::<i64>(),
+            "runners_pay": self.runners.iter().map(|r| bal(&r.id, "pay")).sum::<i64>(),
+            "runners_tips": self.runners.iter().map(|r| bal(&r.id, "tips")).sum::<i64>(),
+            "agape": bal("agape", "revenue"), "agape_processing": bal("agape", "processing"), "interchange": bal("processor", "fees"),
+            "tax": bal("tax_authority", "payable"), "flows": flows,
+            "held": self.ledger.balances_iter().filter(|((a, u), v)| *u == usd && **v != 0 && matches!(a.purpose.as_str(), "held" | "escrow" | "reserved" | "authorized")).map(|(_, v)| *v).sum::<i64>(),
+            "conserved": self.ledger.units().iter().all(|u| self.ledger.total(u) == 0), "txns": self.ledger.txns.len(),
+            "totals": totals,
+        });
+        let teams: Vec<Value> = [self.group_of("home"), self.group_of("away")].iter().map(|g| self.league.team(g).map(|x| json!({ "name": x.name, "short": x.short, "abbr": x.abbr, "color": x.color,
+            "roster": x.roster.iter().map(|m| json!({ "id": m.id, "name": m.name, "number": m.number })).collect::<Vec<_>>() })).unwrap_or(Value::Null)).collect();
+        json!({ "clock": self.clock(), "game": self.game_state(), "halt": self.halt, "done": self.done, "real": self.cfg.real,
+                "venue": self.world.def.name, "teams": teams,
+                "people": self.live.iter().filter(|p| !self.world.def.stands.iter().any(|s| &s.id == *p) && !self.runners.iter().any(|r| &r.id == *p) && *p != "ops").count(),
+                "stands": stands, "runners": runners, "orders": orders, "wait_p50": pct(50), "wait_p90": pct(90),
+                "problems": self.problems_json(), "books": books, "feed": self.feed.iter().rev().take(30).map(|f| json!({ "t": f.t, "kind": f.kind, "team": f.team, "text": f.text })).collect::<Vec<_>>() })
+    }
+
     fn feed_json(&self, f: &crate::sim::FeedItem, viewer: &str) -> Value {
         let drop = f.edition.as_ref().and_then(|e| self.edition_json(e, viewer).into());
         json!({ "t": f.t, "kind": f.kind, "team": f.team, "text": f.text, "party": f.party, "group": self.group_of(&f.team),

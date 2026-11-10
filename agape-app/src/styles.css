@@ -1861,3 +1861,9 @@ svg.wordmark { display: block; width: auto; overflow: visible; }
 :root[data-type="agape-rubik"] { --display: "Rubik", system-ui, sans-serif; --body: "Rubik", system-ui, sans-serif; --case: none; --display-weight: 700; --display-track: -.02em; }
 :root[data-type="agape-sora"] { --display: "Sora", system-ui, sans-serif; --body: "Sora", system-ui, sans-serif; --case: none; --display-weight: 700; --display-track: -.04em; }
 .site-mark svg.wordmark, .ob-logo svg.wordmark { --wm-accent: var(--accent); }
+
+/* a real night's rehearsal is labelled on every screen, so nobody mistakes practice for the event */
+.mode-strip { position: sticky; top: 0; z-index: 30; margin: 0; padding: 4px 12px; text-align: center; font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; background: var(--warn-soft, #FFF1D6); color: var(--warn, #9A5B00); }
+.game-ctl .game-score { font-size: 18px; margin: 4px 0 10px; }
+.game-ctl .row-btns { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0; }
+.game-ctl .row-btns .sub { min-width: 80px; }

@@ -74,8 +74,11 @@ pub struct Config {
     pub you_seat: Option<String>,
     /// Idle runners wait at the stands about to need them (see `engines::stage`).
     pub staging: bool,
+    /// A real night: nobody is simulated. No crowd, no scripted game, no stand or runner acts unless a
+    /// person does; the game moves when the venue's team marks it (`mark_game`, `keep_score`).
+    pub real: bool,
 }
-impl Default for Config { fn default() -> Self { Config { seed: 1, fans: 3000, runners: 40, delivery_share: 0.75, consent_share: 0.7, tap_rate: 0.0015, urgency_lift: 2.0, force_mode: None, you_seat: None, staging: true } } }
+impl Default for Config { fn default() -> Self { Config { seed: 1, fans: 3000, runners: 40, delivery_share: 0.75, consent_share: 0.7, tap_rate: 0.0015, urgency_lift: 2.0, force_mode: None, you_seat: None, staging: true, real: false } } }
 
 #[derive(Debug, Default)]
 pub struct Report {
@@ -174,13 +177,23 @@ fn script() -> Vec<(i64, &'static str, i64)> {
     v
 }
 
-fn phase(minute: i64) -> (&'static str, f64) {
+/// Minute of a real night's game moments not yet marked: far enough that the clock never reaches it.
+pub const NOT_YET: i64 = 100_000;
+
+/// A real night's script: the doors are open; everything else waits for the venue's team to mark it.
+fn real_script() -> Vec<(i64, &'static str, i64)> {
+    let mut v = vec![(0, "gates.open", 0)];
+    for n in 1..=4 { v.push((NOT_YET, "period.start", n)); v.push((NOT_YET, "period.end", n)); }
+    v.push((NOT_YET, "game.final", 0));
+    v
+}
+
+fn phase_of(s: &[(i64, &'static str, i64)], minute: i64) -> (&'static str, f64) {
     // orders per fan per minute, by phase of the night
-    let s = script();
-    let p = |k: &str, n: i64| s.iter().find(|x| x.1 == k && x.2 == n).unwrap().0;
-    if minute < p("period.start", 1) { ("pregame", 0.0035) }
+    let p = |k: &str, n: i64| s.iter().find(|x| x.1 == k && x.2 == n).map_or(NOT_YET, |x| x.0);
+    if minute >= p("game.final", 0) { ("postgame", 0.0) }
+    else if minute < p("period.start", 1) { ("pregame", 0.0035) }
     else if minute >= p("period.end", 2) && minute < p("period.start", 3) { ("halftime", 0.011) }
-    else if minute >= p("game.final", 0) { ("postgame", 0.0) }
     else if (1..=4).any(|n| minute >= p("period.start", n) && minute < p("period.end", n)) { ("in play", 0.0014) }
     else { ("break", 0.004) }
 }
@@ -402,8 +415,10 @@ impl Night {
         }
         let runners: Vec<Runner> = (0..cfg.runners).map(|i| Runner { id: format!("runner{i}"), at: world.def.stands[i % world.def.stands.len()].id.clone(), free_at: 0 }).collect();
         let stations = world.def.stands.iter().map(|s| (s.id.clone(), vec![(0, None); s.stations as usize])).collect();
-        let script = script();
-        let end_min = script.last().unwrap().0 + 20;
+        let script = if cfg.real { real_script() } else { script() };
+        let end_min = if cfg.real { NOT_YET + 20 } else { script.last().unwrap().0 + 20 };
+        // on a real night every stand and runner is a person: the simulation never acts for them
+        let driven: BTreeSet<String> = if cfg.real { world.def.stands.iter().map(|s| s.id.clone()).chain(runners.iter().map(|r| r.id.clone())).collect() } else { BTreeSet::new() };
         let menu = world.def.things.iter().filter(|t| t.id != "combo").map(|t| t.id.clone()).collect();
         Night {
             cfg, terms, rng, log, engine, ledger, fans, runners, costs: Costs::new(), attr: Attribution::default(), orders: vec![],
@@ -411,7 +426,7 @@ impl Night {
             report: Report::default(), placed_by_phase: BTreeMap::new(), batches: (0, 0), score: (0, 0), script, end_min, menu, t: 0,
             feed: vec![], recent: Default::default(), plans: BTreeMap::new(), done: false, chat: Default::default(), predictions: vec![], world,
             league, social: crate::social::Social::default(), last_scorer: BTreeMap::new(), seatmaps: BTreeMap::new(),
-            trade: Default::default(), claimed: BTreeSet::new(), driven: BTreeSet::new(), redeemed: BTreeMap::new(), replies: vec![], replay_check: std::cell::Cell::new((0, true)), live: BTreeSet::new(), trips: BTreeMap::new(), songs_played: 0, pay_stats: (0, 0, 0, 0), problems: vec![], policy: Default::default(), proof_set: BTreeMap::new(), wage_minutes: BTreeMap::new(), halt: None, ratings: vec![], names: BTreeMap::new(), wearing: BTreeMap::new(), renames: BTreeMap::new(), spots: BTreeMap::new(), level_offset: BTreeMap::new(), passports: BTreeMap::new(), transfers: BTreeMap::new(),
+            trade: Default::default(), claimed: BTreeSet::new(), driven, redeemed: BTreeMap::new(), replies: vec![], replay_check: std::cell::Cell::new((0, true)), live: BTreeSet::new(), trips: BTreeMap::new(), songs_played: 0, pay_stats: (0, 0, 0, 0), problems: vec![], policy: Default::default(), proof_set: BTreeMap::new(), wage_minutes: BTreeMap::new(), halt: None, ratings: vec![], names: BTreeMap::new(), wearing: BTreeMap::new(), renames: BTreeMap::new(), spots: BTreeMap::new(), level_offset: BTreeMap::new(), passports: BTreeMap::new(), transfers: BTreeMap::new(),
         }.seeded_live()
     }
 
@@ -436,7 +451,7 @@ impl Night {
 
     pub fn stand_wait(&self, stand: &str) -> i64 { stand_wait(&self.stations, &self.queues, &self.orders, stand, self.t) }
 
-    pub fn phase(&self) -> &'static str { phase(self.t / 60_000).0 }
+    pub fn phase(&self) -> &'static str { phase_of(&self.script, self.t / 60_000).0 }
 
     fn note(&mut self, kind: &str, team: &str, text: String) { self.note_about(kind, team, text, "", None) }
 
@@ -470,7 +485,7 @@ impl Night {
         self.orders.push(Order { c, source, accepted_at: t, delivered_at: None, started_at: None, ready_at: None, picked_at: None, prep_s: prep, seat: fan.seat.clone(), step_free: fan.step_free, eta, quoted: eta, promise: t + 1_800_000, scheduled_for: None, gift: None, priority: false, priority_held: false, passes: 0, credit_used: 0, handoff_m: None });
         if self.orders[id].c.stage == Stage::Accepted { self.queues.entry(stand).or_default().push(id); }
         self.report.orders += 1;
-        let ph = phase(t / 60_000).0;
+        let ph = phase_of(&self.script, t / 60_000).0;
         self.placed_by_phase.entry(ph).or_insert((0, 0)).0 += 1;
     }
 
@@ -600,7 +615,9 @@ impl Night {
         let th = self.world.thing(thing)?.clone();
         let seat = self.fans.iter().find(|f| f.id == who)?.seat.clone();
         let earliest = self.estimate(&th.stand, th.prep_s, &seat, delivery);
-        let closes = self.script.iter().find(|x| x.1 == "game.final").map(|x| x.0 * 60_000).unwrap_or(self.end_min * 60_000);
+        let mut closes = self.script.iter().find(|x| x.1 == "game.final").map(|x| x.0 * 60_000).unwrap_or(self.end_min * 60_000);
+        // a real game's final isn't known ahead: orders can be placed for up to three hours from now
+        if closes >= NOT_YET * 60_000 { closes = self.t + 3 * 3_600_000; }
         Some((earliest, closes.max(earliest)))
     }
 
@@ -654,8 +671,9 @@ impl Night {
     /// Why nothing more of this can be ordered tonight: the kitchens close at the final.
     pub fn closed_now(&self, thing: &str) -> Option<&'static str> {
         let m = self.t / 60_000;
-        if phase(m).0 == "postgame" { return Some("ClosedForNight"); }
-        let _ = thing; // last call for alcohol is the template's own span
+        if phase_of(&self.script, m).0 == "postgame" { return Some("ClosedForNight"); }
+        // on a real night a stand takes orders only while someone is there to make them
+        if self.cfg.real { if let Some(th) = self.world.thing(thing) { if !self.live.contains(&th.stand) { return Some("StandClosed"); } } } // last call for alcohol is the template's own span
         None
     }
 
@@ -770,7 +788,7 @@ impl Night {
             (format!("{} · buzzer-beater", last_name(&as_.1)), away.clone(), Some(as_.0.clone()), 60, "Rare"),
             (format!("{} · 18–0 run", self.league.team(&home).unwrap().short), home.clone(), None, 25, "Legendary"),
         ];
-        let cards_on = self.on("cards") && self.concert().is_none();
+        let cards_on = self.on("cards") && self.concert().is_none() && n > 0 && !self.cfg.real;
         for (k, (title, team, party, supply, rarity)) in season.into_iter().enumerate().filter(|_| cards_on) {
             let id = format!("s{k}");
             self.social.mint(&mut self.ledger, Edition { id: id.clone(), kind: "season".into(), title, team, party, t: 0, supply, rarity: rarity.into(), open_until: -1 }).unwrap();
@@ -780,8 +798,9 @@ impl Night {
                 if self.rng.chance(0.25) { let price = price_for(rarity, &mut self.rng); let _ = self.list_card(&f, &id, price); }
             }
         }
-        if self.on("offers") { self.seed_offers(); }
-        if self.on("players") { self.seed_deals(); }
+        // a real night starts with nothing made up: no sponsor offers or player deals until real ones are made
+        if self.on("offers") && !self.cfg.real { self.seed_offers(); }
+        if self.on("players") && !self.cfg.real { self.seed_deals(); }
         self
     }
 
@@ -901,7 +920,8 @@ impl Night {
         let at = |k: &str, n: i64| self.script.iter().find(|x| x.1 == k && x.2 == n).map(|x| x.0 * 60_000).unwrap_or(0);
         let mut v = vec![(at("period.start", 1), "start"), (at("period.end", 2), "halftime"), (at("period.start", 3), "second_half"),
                          (at("period.start", 4), "last_call"), (at("game.final", 0), "final")];
-        v.retain(|x| x.0 > self.t);
+        // a real game's moments not yet marked have no time to aim for
+        v.retain(|x| x.0 > self.t && x.0 < NOT_YET * 60_000);
         v
     }
 
@@ -955,13 +975,15 @@ impl Night {
         let in_flight = self.orders.iter().any(|o| !matches!(o.c.stage, Stage::Settled | Stage::Closed(_)))
             || self.trade.of_kind(crate::exchange::Kind::Ride).any(|r| r.live());
         if t > self.end_min * 60_000 && (!in_flight || t > (self.end_min + 30) * 60_000) { self.done = true; return false; }
-        let (ph, rate) = phase(t / 60_000);
+        let (ph, rate) = phase_of(&self.script, t / 60_000);
+        let sim = !self.cfg.real;
         let mut outs: Vec<Output> = vec![];
         self.ledger.now = t;
         if self.terms.hourly() && t % 60_000 == 0 { self.pay_wages(); }
         // 1. the game itself
         for (m, kind, k) in self.script.clone() {
-            if m * 60_000 == t {
+            // a real night's moments are taken in when the venue's team marks them (mark_game)
+            if m * 60_000 == t && (sim || m == 0) {
                 let f = if kind == "gates.open" || kind == "game.final" { fields!{} } else { fields!{"n" => k} };
                 let by = if kind == "gates.open" { "venue" } else { "keeper" };
                 outs.extend(self.engine.ingest(&mut self.log, kind, f, by, t).unwrap());
@@ -976,7 +998,9 @@ impl Night {
 
             }
         }
-        if let Some(c) = self.concert().cloned() {
+        if !sim {
+            // a real game: the venue's team marks it and keeps the score (mark_game, keep_score)
+        } else if let Some(c) = self.concert().cloned() {
             // the music: a new song every few minutes; the crowd's favorites and the encore become moments
             let period = self.script.iter().filter(|x| x.1 == "period.start" && x.0 * 60_000 <= t).map(|x| x.2).max().unwrap_or(0);
             let encore_at = self.script.iter().find(|x| x.1 == "period.end" && x.2 == 4).map(|x| (x.0 - 6) * 60_000).unwrap_or(i64::MAX);
@@ -1015,7 +1039,7 @@ impl Night {
             self.note_about("score", team, format!("+{pts}"), &m.id, None);
         }
         // the crowd talks, more when something happens
-        if t <= self.end_min * 60_000 && ph != "postgame" && self.on("chat") {
+        if sim && t <= self.end_min * 60_000 && ph != "postgame" && self.on("chat") {
             let last_moment = self.feed.iter().rev().find(|f| f.kind == "moment" && t - f.t < 60_000).map(|f| (f.text.clone(), f.team.clone()));
             // a few voices at a time, never the same line twice in a row of recent chat
             let n = 1 + if last_moment.is_some() { 3 } else { 0 };
@@ -1035,7 +1059,7 @@ impl Night {
         // player has promoted tonight), and after the final walks over and uses them
         {
             let perks: Vec<(String, Option<String>)> = self.world.def.around.iter().filter(|a| a.perk.is_some()).map(|a| (a.id.clone(), a.operator.clone())).collect();
-            if !perks.is_empty() && self.cfg.fans > 0 && self.on("around") {
+            if sim && !perks.is_empty() && self.cfg.fans > 0 && self.on("around") {
                 if ph != "postgame" && t <= self.end_min * 60_000 {
                     let (place, op) = perks[self.rng.below(perks.len() as u64) as usize].clone();
                     let promoted = op.as_ref().map_or(false, |o| self.trade.of_kind(crate::exchange::Kind::Deal).any(|d| d.buyer == *o && d.stage == crate::exchange::Stage::Settled));
@@ -1054,7 +1078,7 @@ impl Night {
             }
         }
         // the crowd collects open drops and trades cards
-        if t <= self.end_min * 60_000 && self.on("cards") {
+        if sim && self.cfg.fans > 0 && t <= self.end_min * 60_000 && self.on("cards") {
             let open: Vec<(String, i64)> = self.social.editions.values().filter(|e| e.open_until >= t).map(|e| (e.id.clone(), e.supply)).collect();
             for (id, supply) in open {
                 let k = self.rng.below((supply / 12).max(2) as u64);
@@ -1081,7 +1105,7 @@ impl Night {
                 }
             }
         }
-        if t <= self.end_min * 60_000 && self.on("tickets") && self.rng.chance(0.08) && !self.league.upcoming.is_empty() {
+        if sim && self.cfg.fans > 0 && t <= self.end_min * 60_000 && self.on("tickets") && self.rng.chance(0.08) && !self.league.upcoming.is_empty() {
             let e = self.league.upcoming[self.rng.below(self.league.upcoming.len() as u64) as usize].id.clone();
             let secs = self.ticket_sections();
             let sec = secs[self.rng.below(secs.len() as u64) as usize].clone();
@@ -1091,7 +1115,7 @@ impl Night {
         }
         // some of the crowd books rides home around the final
         let fin = self.script_final();
-        if t > fin - 40 * 60_000 && t < fin && self.on("around") && self.rng.chance(0.15) {
+        if sim && self.cfg.fans > 0 && t > fin - 40 * 60_000 && t < fin && self.on("around") && self.rng.chance(0.15) {
             let f = self.fans[self.rng.below(self.cfg.fans as u64) as usize].id.clone();
             let at = fin + self.rng.below(15) as i64 * 60_000;
             let _ = self.book_ride(&f, "ride-b", at);
@@ -1455,6 +1479,85 @@ fn price_for(rarity: &str, rng: &mut Rng) -> i64 {
 
 pub fn pass_unit(place: &str) -> Unit { Unit::Thing(format!("pass:{place}")) }
 
+// ---------------- a real night's game, as the venue's team marks it ----------------
+
+impl Night {
+    /// The next moment of a real game: "start" (the next period), "end" (the period under way), or
+    /// "final". Taken in now, so phases, windows and the rules move with the real game.
+    pub fn mark_game(&mut self, what: &str) -> Result<String, String> {
+        if !self.cfg.real { return Err("The simulated game runs itself".into()); }
+        let m = self.t / 60_000;
+        let marked = |s: &[(i64, &'static str, i64)], k: &str, n: i64| s.iter().any(|x| x.1 == k && x.2 == n && x.0 != NOT_YET);
+        if marked(&self.script, "game.final", 0) { return Err("The game is already final".into()); }
+        let started = (1..=4).filter(|&n| marked(&self.script, "period.start", n)).max().unwrap_or(0);
+        let open = started > 0 && !marked(&self.script, "period.end", started);
+        let mut take: Vec<(&'static str, i64)> = vec![];
+        match what {
+            "start" => {
+                if open { return Err(format!("Period {started} is still under way: end it first")); }
+                if started >= 4 { return Err("All four periods have been played: mark the final".into()); }
+                take.push(("period.start", started + 1));
+            }
+            "end" => {
+                if !open { return Err("No period is under way".into()); }
+                take.push(("period.end", started));
+            }
+            "final" => {
+                if open { take.push(("period.end", started)); }
+                take.push(("game.final", 0));
+            }
+            _ => return Err("Mark start, end or final".into()),
+        }
+        let mut outs = vec![];
+        for (kind, n) in take.clone() {
+            if let Some(x) = self.script.iter_mut().find(|x| x.1 == kind && x.2 == n) { x.0 = m; }
+            let f = if kind == "game.final" { fields!{} } else { fields!{"n" => n} };
+            outs.extend(self.engine.ingest(&mut self.log, kind, f, "keeper", self.t).map_err(|e| format!("{e:?}"))?);
+            let text = match (kind, self.act_on(n)) {
+                ("game.final", Some(_)) => "That's the show".to_string(), ("game.final", None) => "Final".to_string(),
+                ("period.start", Some(a)) => format!("{a} takes the stage"), ("period.end", Some(a)) => format!("{a} leaves the stage"),
+                ("period.start", None) => format!("Q{n} underway"), _ => format!("End of Q{n}") };
+            self.note("game", "", text);
+        }
+        if what == "final" {
+            // moments the game never reached aren't coming; the night closes 20 minutes after the final
+            self.script.retain(|x| x.0 != NOT_YET);
+            self.end_min = m + 20;
+        }
+        self.absorb(outs);
+        Ok(take.last().map(|x| format!("{}:{}", x.0, x.1)).unwrap_or_default())
+    }
+
+    /// A score as the venue's scorekeeper enters it. A negative number corrects a mistake.
+    pub fn keep_score(&mut self, team: &str, points: i64, player: &str) -> Result<String, String> {
+        if !self.cfg.real { return Err("The simulated game keeps its own score".into()); }
+        if team != "home" && team != "away" { return Err("Home or away".into()); }
+        if points == 0 || points.abs() > 9 { return Err("Between 1 and 9 points (negative to correct)".into()); }
+        let cur = if team == "home" { self.score.0 } else { self.score.1 };
+        if cur + points < 0 { return Err("A score can't go below zero".into()); }
+        if team == "home" { self.score.0 += points } else { self.score.1 += points }
+        if points < 0 { self.note("score", team, format!("Score corrected ({points})")); return Ok(String::new()); }
+        let gid = self.group_of(team);
+        let star = self.league.team(&gid).and_then(|g| g.roster.iter().find(|m| m.id == player).map(|m| m.star)).unwrap_or(false);
+        let who = if star || self.league.team(&gid).map_or(false, |g| g.roster.iter().any(|m| m.id == player)) { player.to_string() } else { String::new() };
+        if !who.is_empty() { self.last_scorer.insert(team.to_string(), who.clone()); }
+        let outs = self.engine.ingest(&mut self.log, "score", fields!{"team" => team, "points" => points, "player" => who.as_str(), "star" => star}, "keeper", self.t).map_err(|e| format!("{e:?}"))?;
+        self.note_about("score", team, format!("+{points}"), &who, None);
+        self.absorb(outs);
+        Ok(String::new())
+    }
+
+    /// Where the real game stands, for the venue's console: what can be marked next.
+    pub fn game_state(&self) -> serde_json::Value {
+        let marked = |k: &str, n: i64| self.script.iter().any(|x| x.1 == k && x.2 == n && x.0 != NOT_YET);
+        let started = (1..=4).filter(|&n| marked("period.start", n)).max().unwrap_or(0);
+        let open = started > 0 && !marked("period.end", started);
+        let fin = marked("game.final", 0);
+        serde_json::json!({ "real": self.cfg.real, "period": started, "in_period": open, "final": fin, "score": [self.score.0, self.score.1],
+            "can": { "start": !fin && !open && started < 4, "end": open, "final": !fin } })
+    }
+}
+
 // ---------------- stands and runners who are people ----------------
 
 impl Night {
@@ -1532,8 +1635,20 @@ impl Night {
 
     /// The kitchen marks an order ready.
     pub fn mark_ready(&mut self, stand: &str, order: usize) -> Result<(), String> {
-        let si = self.stations.get(stand).and_then(|v| v.iter().position(|x| x.1 == Some(order))).ok_or("That order isn't on one of your stations")?;
+        let on = self.stations.get(stand).and_then(|v| v.iter().position(|x| x.1 == Some(order)));
+        if let Some(si) = on { self.finish_station(stand, si); return Ok(()); }
+        // still waiting in line: the people at the counter made it anyway (quicker than the line said)
+        let queued = self.queues.get(stand).map_or(false, |q| q.contains(&order));
+        if !queued { return Err("That order isn't on one of your stations".into()); }
+        self.queues.get_mut(stand).unwrap().retain(|&i| i != order);
+        self.orders[order].c.act(Action::StartPrep, stand, &mut self.ledger, &self.terms).map_err(|e| format!("{e:?}"))?;
+        self.orders[order].started_at = Some(self.t);
+        let sts = self.stations.get_mut(stand).ok_or("Unknown stand")?;
+        let si = match sts.iter().position(|x| x.1.is_none()) { Some(i) => i, None => { sts.push((self.t, None)); sts.len() - 1 } };
+        let extra = si >= self.world.def.stands.iter().find(|x| x.id == stand).map_or(0, |x| x.stations as usize);
+        sts[si] = (self.t, Some(order));
         self.finish_station(stand, si);
+        if extra { self.stations.get_mut(stand).unwrap().pop(); }
         Ok(())
     }
 

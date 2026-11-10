@@ -4,7 +4,7 @@ import { world } from "./kernel";
 
 import { React, useEffect, useState } from "./r";
 import { ItemArt } from "./Art";
-import { R, SECS, ang, pt, wedge, walk, along, path, placePoint, Stand } from "./geo";
+import { R, SECS, setSecs, ang, pt, wedge, walk, along, path, placePoint, Stand } from "./geo";
 
 // ---------- what the screens call things (display only; the kernel uses ids) ----------
 
@@ -47,6 +47,9 @@ export const OFFER_COPY: Record<string, { title: string; blurb: string }> = {
 
 export const money = (c: number | null | undefined) => (c == null ? "–" : (c < 0 ? "−$" : "$") + (Math.abs(c) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
 export function venueTime(t: number) {
+  // a real night: the wall clock, from when the night opened
+  const opened = world()?.opened;
+  if (opened && ["live", "rehearsal"].includes(world()?.mode)) return new Date(opened * 1000 + t).toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
   const m = BRAND.gatesAt + Math.floor(t / 60000);
   const h = Math.floor(m / 60) % 24, mm = m % 60;
   return `${((h + 11) % 12) + 1}:${String(mm).padStart(2, "0")} ${h >= 12 ? "PM" : "AM"}`;
@@ -84,6 +87,7 @@ export const WHY_NOT: Record<string, string> = {
   WrongLevel: "Upper level only",
   SoldOut: "Sold out",
   ClosedForNight: "Stands are closed for the night",
+  StandClosed: "That stand isn't open right now",
   PlaceClosed: "Stand closed",
   StandBusy: "This stand is backed up",
 };
@@ -268,7 +272,7 @@ export function CommitmentCard({ o, now, onCancel, compact, as = "fan" }: { o: O
 }
 
 const NAMES = ["Maya", "Dre", "Lena", "Omar", "Cole", "Theo", "Ines", "Kofi", "Sam", "Rosa", "Jules", "Nate", "Ama", "Leo", "Zoe", "Ravi", "Tess", "Marco", "Uma", "Eli"];
-export const runnerName = (id: string) => NAMES[(+id.replace(/\D/g, "") || 0) % NAMES.length] + " " + String.fromCharCode(65 + ((+id.replace(/\D/g, "") || 0) % 26)) + ".";
+export const runnerName = (id: string) => world()?.staff_names?.[id] ?? NAMES[(+id.replace(/\D/g, "") || 0) % NAMES.length] + " " + String.fromCharCode(65 + ((+id.replace(/\D/g, "") || 0) % 26)) + ".";
 
 // ---------- 3. signal row ----------
 
@@ -312,10 +316,13 @@ export type MapView = {
 export function PlaceView({ m, onStand, focusStand, showRunners = true, heat = true, selfRunner = false, route }: { m: MapView; onStand?: (id: string) => void; focusStand?: string | null; showRunners?: boolean; heat?: boolean; selfRunner?: boolean; route?: string[] }) {
   const max = Math.max(4, ...Object.values(m.heat));
   const secs: React.ReactNode[] = [];
-  for (let level = 1; level <= m.levels; level++) {
+  if (m.sections_per_level && m.sections_per_level !== SECS) setSecs(m.sections_per_level);
+  const step = 360 / SECS;
+  // the map draws two rings; a venue's third level and above share the outer one
+  for (let level = 1; level <= Math.min(m.levels, 2); level++) {
     for (let ring = 0; ring < SECS; ring++) {
       const id = `s${level * 100 + ring + 1}`;
-      const a0 = -90 + ring * 15 + 0.8, a1 = -90 + (ring + 1) * 15 - 0.8;
+      const a0 = -90 + ring * step + 0.8, a1 = -90 + (ring + 1) * step - 0.8;
       const [r0, r1] = level === 1 ? [R.l1i, R.l1o] : [R.l2i, R.l2o];
       const h = heat ? (m.heat[id] ?? 0) / max : 0;
       const you = m.you === id;
