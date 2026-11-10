@@ -243,11 +243,12 @@ export function OpsLens({ o, compact, x, venue }: { o: OpsView; compact?: boolea
         <section className="block">
           <div className="block-head"><h2>Floor</h2><span className="sub">{o.signals.toLocaleString()} updates recorded tonight</span></div>
           <div className="map-wrap"><PlaceView m={o.map} /></div>
+          <div className="waits-head"><b>Wait at each stand</b><span>until a new order leaves · line marks 15 min</span></div>
           <ul className="waits">
             {stands.map(s => (
               <li key={s.id}><span className="grow">{s.name}</span>
-                <span className="bar"><i className={s.busy ? "bad" : s.wait > 600 ? "warn" : "good"} style={{ width: `${(s.wait / maxWait) * 100}%` }} /><b className="mark" style={{ left: `${(900 / maxWait) * 100}%` }} title="15-minute stand target" /></span>
-                <span className="num">{Math.round(s.wait / 60)}m</span></li>
+                <span className="bar"><i className={s.busy ? "bad" : s.wait > 600 ? "warn" : "good"} style={{ width: `${Math.max(3, (s.wait / maxWait) * 100)}%` }} /><b className="mark" style={{ left: `${(900 / maxWait) * 100}%` }} title="15-minute stand target" /></span>
+                <span className="num">{s.wait < 60 ? "<1m" : Math.round(s.wait / 60) + "m"}</span></li>
             ))}
           </ul>
         </section>

@@ -137,10 +137,9 @@ function App() {
             <div className="seg h-seg" role="group" aria-label="Speed">
               {SPEEDS.map((s, i) => <button key={s.id} className={speed === i ? "on" : ""} title={i === 0 ? "Real time" : `${s.label} real time`} onClick={() => setSpeed(i)}>{s.label}</button>)}
             </div>
-            <select id="skip" className="h-btn" value="" onChange={e => { skip(e.target.value); e.target.value = ""; }} aria-label="Skip ahead">
-              <option value="">Skip to…</option><option value="half">{isConcert() ? "The changeover" : "Halftime"}</option><option value="q4">{isConcert() ? "The finale" : "4th quarter"}</option><option value="final">{isConcert() ? "The end of the show" : "Final"}</option>
+            <select id="skip" className="h-btn" value="" onChange={e => { if (e.target.value === "restart") { location.reload(); return; } skip(e.target.value); e.target.value = ""; }} aria-label="Skip ahead">
+              <option value="">Skip to…</option><option value="half">{isConcert() ? "The changeover" : "Halftime"}</option><option value="q4">{isConcert() ? "The finale" : "4th quarter"}</option><option value="final">{isConcert() ? "The end of the show" : "Final"}</option><option value="restart">Start the night again</option>
             </select>
-            <button className="btn h-btn" onClick={() => location.reload()} title="Start the night again">Restart</button>
             <button className="btn h-btn" onClick={() => goTour(0)}>Tour</button>
             <button className="btn h-btn primary" onClick={() => setTalk(true)}>Talk to us</button>
           </div>
@@ -157,7 +156,8 @@ function App() {
           <div>
             <span className="eyebrow">You're looking at a whole night, simulated</span>
             <h1>A full arena, running in your browser.</h1>
-            <p>{isConcert() ? "A concert" : "A basketball game"} at {BRAND.venue}: {(worldOverride()?.pilot?.fans ?? 3000).toLocaleString()} simulated fans ordering, chatting and collecting, {worldOverride()?.pilot?.runners ?? 40} runners, every kitchen, every dollar. Agape itself is real; the crowd and the {isConcert() ? "show" : "game"} are simulated so you can see all of it at once. Step into any seat above, speed time up, switch features off, or put your own team on it in the Studio. Nothing you do here affects anyone else. Anything tagged with a package name, such as <span className="opt">Deals</span>, is built and working but beyond what Agape launches with; a venue switches it on if it wants it.</p>
+            <p>{isConcert() ? "A concert" : "A basketball game"} at {BRAND.venue}: {(worldOverride()?.pilot?.fans ?? 3000).toLocaleString()} simulated fans, {worldOverride()?.pilot?.runners ?? 40} runners, every kitchen and every dollar. Agape is real; the crowd and the {isConcert() ? "show" : "game"} are simulated so you can see all of it at once. Step into any seat above.</p>
+            <details className="sim-more"><summary>More about what you're seeing</summary><p>Speed time up, switch features off, or put your own team on it in the Studio. Nothing you do here affects anyone else. Anything tagged with a package name, such as <span className="opt">Deals</span>, is built and working but beyond what Agape launches with; a venue switches it on if it wants it.</p></details>
           </div>
           <div className="sim-intro-acts">
             <button className="btn primary big" onClick={() => { closeIntro(); goTour(0); }}>Take the 2-minute tour</button>

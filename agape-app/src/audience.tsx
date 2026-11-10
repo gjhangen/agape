@@ -6,7 +6,7 @@ import { TalkToUs } from "./talk";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
 type Demo = { href: string; who: string; line: string; device: string; time: string };
-type Page = { eyebrow: string; title: string; lede: string; points: [string, string][]; demos: Demo[]; ask: string; role: string; more?: string };
+type Page = { eyebrow: string; title: string; lede: string; points: [string, string][]; demos: Demo[]; ask: string; role: string; more?: string; shot: string; wide?: boolean; proof?: boolean };
 
 const D = {
   fan: { href: "/try/", who: "Be the fan", line: "Take your seat, order, and watch it reach you.", device: "Phone", time: "3 min" },
@@ -19,31 +19,31 @@ const D = {
 } satisfies Record<string, Demo>;
 
 const PAGES: Record<string, Page> = {
-  fans: { eyebrow: "For fans", title: "Never miss the moment for a line.", role: "other",
+  fans: { shot: "fan-menu", eyebrow: "For fans", title: "Never miss the moment for a line.", role: "other",
     lede: "Order food, drinks and gear from your seat at games and concerts. The venue's own kitchens make it, a runner brings it, and you keep watching.",
     points: [["Honest times", "Every item shows when it would reach your seat, measured from how fast each stand and runner is going right now."], ["Charged when it arrives", "Not when you order. If it's late, you get Agape credit automatically."], ["Your runner keeps every tip", "All of it goes to the person who brought it."]],
     demos: [D.fan], ask: "Want Agape at your venue? Tell us where you go." },
-  runners: { eyebrow: "For runners", title: "Earn at the events you love.", role: "runner",
+  runners: { shot: "runner", eyebrow: "For runners", title: "Earn at the events you love.", role: "runner",
     lede: "Run orders to the seats at games and concerts in your city. Pick the events you want, go online when you're there, and keep every tip.",
     points: [["The pay before the trip", "Every trip shows its pay up front, or you're paid by the hour where the venue runs that way."], ["The route on a map", "Pickups and seats in the shortest order, grouped so one walk delivers several orders."], ["Your events, your hours", "A shift is the event. Go online and off when you like, unless it's posted as a fixed shift."]],
     demos: [D.runner], ask: "Want to run at an Agape venue? Leave a way to reach you.", more: "Runners are independent and paid by Agape." },
-  venues: { eyebrow: "For venues and teams", title: "Sell more at every seat.", role: "venue",
+  venues: { shot: "venue", wide: true, proof: true, eyebrow: "For venues and teams", title: "Sell more at every seat.", role: "venue",
     lede: "Fans order from their seats and your own kitchens make it. Shorter lines, more sales per fan, and the whole night on one screen.",
     points: [["Your kitchens, your brand", "Agape sends orders to the stands you already run and brings them to the seats with independent runners."], ["Every dollar, to the cent", "Sales, Agape's share, card processing, runner pay and tax, reconciled every night."], ["Start simple", "Launch with ordering to the seat. Add deals, games, tickets and community when you want them."]],
     demos: [D.venue, D.stand, D.fan], ask: "Bring Agape to your venue.", more: "Agape earns a share of what it sells and the delivery fee, so it only earns when you do." },
-  stands: { eyebrow: "For food service and stands", title: "More orders, without the line.", role: "stand",
+  stands: { shot: "stand", wide: true, eyebrow: "For food service and stands", title: "More orders, without the line.", role: "stand",
     lede: "Orders from every seat land on one screen at your counter, timed to your kitchen. Runners take them the moment they're ready.",
     points: [["One screen, timed", "Coming up, on the stations, on the shelf. Each order shows how long it should take."], ["Honest times protect you", "Fans see times built from your real pace, and busy stands get steered to quieter ones."], ["Problems made right fairly", "Delivery problems are Agape's. Food problems come to you, as credit you agree to, never quietly deducted."]],
     demos: [D.stand, D.fan], ask: "Run concessions? Talk to us." },
-  partners: { eyebrow: "For businesses and sponsors", title: "Reach fans when they care most.", role: "business",
+  partners: { shot: "fan-item", eyebrow: "For businesses and sponsors", title: "Reach fans when they care most.", role: "business",
     lede: "Put a perk in front of every fan at the event. They unlock it with the points they earn ordering, and you pay for the people who walk through your door.",
     points: [["Results, not impressions", "Every unlock and every redemption at your counter, live."], ["At the right moment", "Fans see your perk during the event and come to you after it."], ["Simple to run", "Check a code at the counter. That's the whole integration."]],
     demos: [{ ...D.partner, href: "/try/partner/" }, D.fan], ask: "Partner with Agape." },
-  investors: { eyebrow: "For investors", title: "The fan relationship at every live event.", role: "investor",
+  investors: { shot: "venue", wide: true, proof: true, eyebrow: "For investors", title: "The fan relationship at every live event.", role: "investor",
     lede: "Agape starts with the most direct thing a fan buys at an event, food to their seat, and builds the relationship from there: deals, play, tickets and community, at every venue on Agape.",
     points: [["How it earns", "A share of every sale, a delivery fee, and the margin on card processing, which Agape runs itself."], ["Built, not slides", "Every app works end to end in a simulated arena, down to a ledger that balances to the cent."], ["Grows by level", "Each level is a complete product on top of the last, switched on venue by venue."]],
     demos: [D.sim, D.fan, D.hq], ask: "Talk to the founders." },
-  team: { eyebrow: "For Agape's team", title: "Run many venues from one place.", role: "other",
+  team: { shot: "venue", wide: true, eyebrow: "For Agape's team", title: "Run many venues from one place.", role: "other",
     lede: "Agape HQ is where Agape's own people run the company: every venue at once, problems made right by policy, runner pay, and the money.",
     points: [["Policies, not tickets", "How problems are made right, who pays for what, tips, proof at the handoff and runner pay, set once for every venue."], ["Evidence at hand", "Photos, where the runner's phone was at the handoff, and every fan's record, for Agape's eyes only."], ["One set of books", "The same ledger every party sees, so there's nothing to reconcile."]],
     demos: [D.hq, D.sim, D.venue], ask: "Questions? Talk to us." },
@@ -58,22 +58,30 @@ function Audience() {
   const [kind, setKind] = useState<"game" | "concert">("game");
   const q = (href: string) => kind === "concert" && href.startsWith("/try/") ? `${href}?event=concert` : href;
   return (
-    <div className="site">
+    <div className="site hm">
       <header className="site-top">
         <a className="site-mark" href="/" aria-label="Agape home"><Wordmark tag /></a>
         <nav><a href="/">Home</a><a className="btn sm" href="#demo">Try it</a><button className="btn sm primary" onClick={() => setTalk(true)}>Talk to us</button></nav>
       </header>
-      <section className="site-hero solo">
-        <div className="hero-copy">
-          <span className="eyebrow">{p.eyebrow}</span>
+      <section className={"hm-hero for" + (p.wide ? " wide" : "")}>
+        <div className="hm-copy">
+          <span className="hm-kicker">{p.eyebrow}</span>
           <h1>{p.title}</h1>
           <p className="lede">{p.lede}</p>
-          <div className="site-acts"><a className="btn primary big" href={q(p.demos[0].href)}>{p.demos[0].who} <b aria-hidden="true">→</b></a><button className="btn big" onClick={() => setTalk(true)}>{p.ask}</button></div>
+          <div className="site-acts"><a className="btn primary big" href={q(p.demos[0].href)}>{p.demos[0].who} <b aria-hidden="true">→</b></a><button className="btn big hm-ghost" onClick={() => setTalk(true)}>{p.ask}</button></div>
           {p.more && <small className="hero-note">{p.more}</small>}
         </div>
+        <figure className={"hm-shot " + (p.wide ? "k-wide" : "k-phone")}><img src={`/img/${p.shot}.jpg`} alt="" /></figure>
       </section>
+      {p.proof && <section className="hm-proof" aria-label="A simulated night at Harbor Arena">
+        <div><b>6 min</b><span>average from order to seat</span></div>
+        <div><b>90%</b><span>at the seat within 10 minutes</span></div>
+        <div><b>3,000</b><span>fans ordering at once</span></div>
+        <div><b>$0.00</b><span>off in the books, every night</span></div>
+        <small>Measured on a simulated night at Harbor Arena: 3,000 fans, 40 runners, 8 stands.</small>
+      </section>}
       <section className="site-sec">
-        <div className="site-why">{p.points.map(([a, b]) => <div key={a}><b>{a}</b><span>{b}</span></div>)}</div>
+        <ol className="for-points">{p.points.map(([a, b]) => <li key={a}><b>{a}</b><span>{b}</span></li>)}</ol>
       </section>
       <section className="site-sec" id="demo">
         <div className="sec-head"><h2>See it for yourself</h2><p className="site-why-demo">Agape isn't at a venue yet, so we built a whole night you can step into. These are the parts that matter to you.</p></div>
