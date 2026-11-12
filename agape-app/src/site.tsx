@@ -1,6 +1,7 @@
 // agapetoyourseat.com: what Agape is, why there's a demo, and a way into it from every seat.
 import { React, ReactDOM, useEffect, useState } from "./r";
 import { Wordmark } from "./logo";
+import { TheLine, Flow, Steps } from "./pitch";
 import { TalkToUs } from "./talk";
 import { Icon, LEVELS } from "./parts";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
@@ -69,15 +70,8 @@ function Site() {
         <small>Measured on a simulated night at Harbor Arena: 3,000 fans, 40 runners, 8 stands.</small>
       </section>
 
-      <section className="site-sec" id="how">
-        <h2>How it works</h2>
-        <ol className="site-steps">
-          <li><b>Take your seat</b><span>Agape knows the venue. Scan your ticket or type your seat.</span></li>
-          <li><b>See when it reaches you</b><span>Every time shown is when it gets to your seat, measured from how fast each kitchen and runner is going right now.</span></li>
-          <li><b>Stay in the moment</b><span>The kitchen makes it, a runner brings it, and you're charged when it arrives.</span></li>
-        </ol>
-      </section>
-
+      <TheLine say="fans have walked away from a concession line without buying." />
+      <Flow title="Agape takes the line away" />
       <section className="site-sec hm-roles" id="demo">
         <div className="sec-head">
           <h2>One night, every seat in the building</h2>
@@ -96,7 +90,7 @@ function Site() {
               <p>{line}</p>
               <div className="hm-row-acts"><a className="btn primary" href={href + q}>Try it as {id === "stand" ? "a stand" : id === "venue" ? "the venue" : "a " + id} <b aria-hidden="true">→</b></a><a className="link-inline" href={more}>Why it works for {id === "fan" ? "fans" : id + "s"}</a></div>
             </div>
-            <figure className={"hm-shot k-" + kind2}><img src={img} alt={`The ${id} screen in the Agape demo`} loading="lazy" /></figure>
+            <figure className={"hm-shot k-" + kind2}><img src={img} alt={`The ${id} screen in the Agape demo`}/></figure>
           </article>
         ))}
         <div className="hm-more">
@@ -106,21 +100,7 @@ function Site() {
         </div>
       </section>
 
-      <section className="site-sec" id="levels">
-        <div className="sec-head">
-          <h2>Where Agape is headed</h2>
-          <p className="site-why-demo">Agape launches doing one thing completely: ordering to your seat. Each level after it is a complete product of its own, and the fan demo lets you switch between them.</p>
-        </div>
-        <ol className="site-levels">{LEVELS.map(l => <li key={l.n} className={"lv-card s-" + l.status.toLowerCase().replace(" ", "-")}>
-          <span className="lv-n">{l.n}</span>
-          <b>{l.name}</b>
-          <span>{l.line}</span>
-          <em className={"lv-tag lv-" + l.status.toLowerCase().replace(" ", "-")}>{l.status}</em>
-          <details><summary>What works, and what's next</summary><small>{l.gaps}</small></details>
-          <a className="lv-go" href={`/try/?level=${l.n}${kind === "concert" ? "&event=concert" : ""}`}>Try Level {l.n} <b aria-hidden="true">→</b></a>
-        </li>)}</ol>
-      </section>
-
+      <div id="levels"><Steps kind="fan" kicker="Where Agape is headed" title="Food is just the start" line="Agape launches doing one thing completely: ordering to your seat. Each step after it keeps everything before it and adds a new reason to open Agape. Every step already works in the demo: try any of them." tryLinks /></div>
       <section className="site-cta">
         <div><h2>See it for yourself</h2><p>Three minutes as a fan is the fastest way to understand Agape. If you run a venue, partner with one or invest, talk to us.</p></div>
         <div className="site-acts"><a className="btn primary big" href={"/try/" + q}>Start as a fan <b aria-hidden="true">→</b></a><button className="btn big" onClick={open}>Talk to us</button></div>
@@ -128,8 +108,7 @@ function Site() {
 
       <footer className="site-foot hm-foot">
         <span>Agape · to your seat</span>
-        <nav>{([["fans", "Fans"], ["runners", "Runners"], ["venues", "Venues"], ["stands", "Food service"], ["partners", "Partners"], ["investors", "Investors"], ["team", "Agape team"]] as const).map(([k, l]) => <a key={k} href={`/for/${k}/`}>{l}</a>)}</nav>
-        <a href="/privacy/">Privacy</a><a href="/terms/">Terms</a>
+        <nav>{([["fans", "Fans"], ["runners", "Runners"], ["venues", "Venues"], ["stands", "Food service"], ["partners", "Partners"], ["investors", "Investors"], ["team", "Agape team"]] as const).map(([k, l]) => <a key={k} href={`/for/${k}/`}>{l}</a>)}<a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav>
         <button className="link-inline" onClick={open}>Talk to us</button>
       </footer>
       {talk && <TalkToUs close={close} version={null} />}

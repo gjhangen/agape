@@ -6,64 +6,72 @@
 @page { size: Letter; margin: 0; }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
-body { font: 9pt/1.35 "Public Sans", sans-serif; color: #17181C; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.page { width: 8.5in; height: 11in; display: flex; flex-direction: column; overflow: hidden; background: #F6F6F8; }
+body { font: 10pt/1.38 "Public Sans", sans-serif; color: #17181C; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.page { width: 8.5in; height: 11in; display: flex; flex-direction: column; overflow: hidden; background: #F6F6F8; break-after: page; }
+.page:last-child { break-after: auto; }
 .D { font-family: "Big Shoulders Display", sans-serif; font-weight: 800; text-transform: uppercase; line-height: .92; }
-.k { font: 700 6.6pt/1 "Public Sans", sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #B8174F; }
-.top { background: radial-gradient(ellipse at 82% 35%, #7A0F38 0%, #1A0910 55%, #0E0B0D 100%); color: #fff; padding: .24in .45in .2in; display: grid; grid-template-columns: 1.25fr 1fr; gap: .2in; align-items: center; }
-.mark { font: 800 24pt/1 "Big Shoulders Display", sans-serif; color: #FF6F99; display: flex; gap: 6px; align-items: center; }
-.mark small { font: 700 4.6pt/1.15 "Public Sans", sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #fff; border-left: 1.2px solid #fff; padding-left: 5px; }
-.top h1 { font-size: 31pt; margin: 10px 0 8px; }
-.top p { margin: 0; color: rgba(255,255,255,.8); font-size: 9.6pt; max-width: 3.6in; }
-.shots { display: flex; gap: 8px; justify-content: flex-end; align-items: flex-end; }
-.ph { width: 1.0in; height: 1.55in; border-radius: 15px; padding: 3px; background: #050506; overflow: hidden; box-shadow: 0 0 0 1px #3A3C44; }
-.ph img { width: 100%; height: 100%; object-fit: cover; object-position: top; border-radius: 12px; display: block; }
-.wd { width: 1.5in; border-radius: 7px; padding: 3px; background: #15161A; } .wd img { width: 100%; display: block; border-radius: 5px; }
-.line { background: #fff; padding: .14in .45in .12in; display: grid; grid-template-columns: auto 1fr; gap: .08in .3in; align-items: center; border-bottom: 1px solid #E3E4E8; }
-.big { display: grid; gap: 3px; } .big b { font-size: 46pt; color: #B8174F; } .big b small { font-size: .38em; color: #17181C; margin: 0 .08em; vertical-align: .6em; }
-.big span { font-size: 10pt; font-weight: 600; max-width: 2.1in; }
-.people { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; max-width: 3.6in; justify-self: end; width: 100%; }
-.people svg { width: 100%; height: auto; fill: #B8174F; display: block; } .people .stay svg { fill: #CFD2D9; }
-.trio { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #E3E4E8; padding-top: 7px; }
-.trio div + div { border-left: 1px solid #E3E4E8; padding-left: 12px; } .trio b { font-size: 19pt; display: block; } .trio span { font-size: 8.2pt; color: #3D4049; }
-.how { padding: .1in .45in .08in; }
-.how h2 { font-size: 17pt; margin: 0 0 8px; }
-.flow { display: grid; grid-template-columns: 1fr 1.7fr 1fr; gap: .22in; align-items: end; }
-.flow > div { display: grid; justify-items: center; text-align: center; gap: 3px; position: relative; }
-.flow > div:not(:last-child)::after { content: "→"; position: absolute; right: -.17in; top: 38%; font: 800 15pt "Big Shoulders Display"; color: #B8174F; }
-.flow .ph { width: .82in; height: 1.15in; } .flow .wd { width: 2.3in; height: 1.15in; overflow: hidden; } .flow .wd img { height: 100%; object-fit: cover; object-position: top left; }
-.flow b { font-size: 12pt; margin-top: 3px; } .flow span { font-size: 7.8pt; color: #3D4049; }
-.money { background: #120A0E; color: #fff; padding: .13in .45in; display: grid; grid-template-columns: 1fr 1.25fr; gap: .1in .3in; align-items: center; }
-.money h2 { font-size: 17pt; margin: 3px 0 4px; } .money p { margin: 0; color: rgba(255,255,255,.75); font-size: 8.6pt; } .money .k { color: #FF8BAA; }
-.dia { display: grid; grid-template-columns: auto .32in auto .14in 1fr; align-items: center; }
-.n { padding: 6px 9px; border-radius: 8px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); font-weight: 700; font-size: 8.4pt; text-align: center; }
-.n.fan { background: #fff; color: #111; }
-.n.hub { background: #B8174F; border-color: #B8174F; padding: 8px 11px; box-shadow: 0 0 0 4px rgba(184,23,79,.3); } .n.hub b { display: block; font: 800 15pt/1 "Big Shoulders Display"; } .n.hub small { font-size: 6.4pt; }
-.ar { height: 2px; background: #FF5C8A; position: relative; } .ar::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 6px solid #FF5C8A; }
-.out { display: grid; gap: 4px; border-left: 2px solid #FF5C8A; padding-left: 8px; } .out .n { text-align: left; padding: 4px 8px; }
-.earn { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
-.earn div { background: rgba(255,255,255,.07); border-radius: 7px; padding: 6px 8px; font-size: 8pt; color: rgba(255,255,255,.8); } .earn b { color: #fff; }
-.lv { padding: .09in .45in .04in; }
-.lv h2 { font-size: 17pt; margin: 3px 0 7px; }
-.stairs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; align-items: end; height: 1.0in; }
-.stairs div { border-radius: 8px 8px 2px 2px; padding: 6px 7px; background: linear-gradient(180deg, #F6DCE6, #FFFFFF); border: 1px solid #E8D5DD; align-self: end; }
-.stairs div.now { background: #B8174F; color: #fff; border-color: #B8174F; }
-.stairs i { font-style: normal; font: 700 5.6pt/1 "Public Sans"; letter-spacing: .12em; text-transform: uppercase; color: #B8174F; display: block; } .stairs .now i { color: #FFD3E0; }
-.stairs b { font: 800 10.5pt/1 "Big Shoulders Display"; text-transform: uppercase; display: block; margin-top: 2px; }
-.bottom { padding: .08in .45in .12in; display: grid; grid-template-columns: 1fr 1fr 1.25fr; gap: .2in; align-items: start; }
-.mk b { font-size: 26pt; display: block; } .mk span { font-size: 7.8pt; color: #3D4049; }
-.team div { margin-top: 4px; } .team b { font-size: 12.5pt; } .team span { display: block; font-size: 7.8pt; color: #B8174F; font-weight: 700; }
-.src { padding: 0 .45in .06in; font-size: 6pt; color: #8A8D96; margin: auto 0 0; }
-.foot { background: #B8174F; color: #fff; padding: .11in .45in; display: flex; justify-content: space-between; align-items: center; }
-.foot b { font-size: 14pt; } .foot span { display: block; font-size: 8pt; opacity: .9; } .foot a { color: #fff; font-weight: 800; text-decoration: none; font-size: 10pt; }
+.k { font: 700 7pt/1 "Public Sans", sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #B8174F; }
+h2 { font-size: 24pt; margin: 4px 0 10px; }
+.pad { padding: .32in .55in; }
 
-.mkt { background: #fff; padding: .02in .45in .12in; display: grid; grid-template-columns: auto auto 1fr; gap: .3in; align-items: center; border-bottom: 1px solid #E3E4E8; }
-.mkt b { font-size: 24pt; display: block; } .mkt span { font-size: 7.8pt; color: #3D4049; } .mkt p { margin: 0; font-size: 8.4pt; color: #17181C; }
-.stairs em { display: block; font-style: normal; font-size: 6.8pt; font-weight: 700; color: #B8174F; margin-top: 3px; } .stairs .now em { color: #fff; }
-.team-row { padding: .1in .45in .06in; display: flex; gap: .35in; align-items: baseline; }
-.team-row b { font-size: 13pt; } .team-row span { font-size: 7.8pt; color: #B8174F; font-weight: 700; margin-left: 6px; }
-.trio span, .flow span { color: #2E3139; }
+/* page 1 */
+.top { background: radial-gradient(ellipse at 80% 35%, #7A0F38 0%, #1A0910 55%, #0E0B0D 100%); color: #fff; padding: .5in .55in .45in; display: grid; grid-template-columns: 1.2fr 1fr; gap: .25in; align-items: center; }
+.mark { font: 800 30pt/1 "Big Shoulders Display", sans-serif; color: #FF6F99; display: flex; gap: 7px; align-items: center; }
+.mark small { font: 700 5.5pt/1.15 "Public Sans", sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #fff; border-left: 1.4px solid #fff; padding-left: 6px; }
+.top h1 { font-size: 38pt; margin: 16px 0 12px; }
+.top p { margin: 0; color: rgba(255,255,255,.82); font-size: 11.5pt; }
+.shots { display: flex; gap: 10px; justify-content: flex-end; align-items: flex-end; }
+.ph { width: 1.35in; height: 2.6in; border-radius: 18px; padding: 4px; background: #050506; overflow: hidden; box-shadow: 0 0 0 1px #3A3C44; }
+.ph img { width: 100%; height: 100%; object-fit: cover; object-position: top; border-radius: 14px; display: block; }
+.wd { border-radius: 9px; padding: 4px; background: #15161A; overflow: hidden; } .wd img { width: 100%; display: block; border-radius: 6px; }
+.top .wd { width: 1.75in; }
+.line { background: #fff; padding: .35in .55in .3in; display: grid; grid-template-columns: auto 1fr; gap: .14in .4in; align-items: center; }
+.big b { font-size: 76pt; color: #B8174F; display: block; } .big b small { font-size: .36em; color: #17181C; margin: 0 .08em; vertical-align: .62em; }
+.big span { font-size: 12.5pt; font-weight: 600; display: block; max-width: 2.6in; margin-top: 4px; }
+.people { display: grid; grid-template-columns: repeat(10, 1fr); gap: 9px; }
+.people svg { width: 100%; height: auto; fill: #B8174F; display: block; } .people .stay svg { fill: #CFD2D9; }
+.trio { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #E3E4E8; padding-top: 12px; }
+.trio div + div { border-left: 1px solid #E3E4E8; padding-left: 16px; } .trio b { font-size: 28pt; display: block; } .trio span { font-size: 9.5pt; color: #2E3139; }
+.mkt { background: #fff; border-bottom: 1px solid #E3E4E8; padding: .3in .55in; display: grid; grid-template-columns: auto auto 1fr; gap: .4in; align-items: center; }
+.mkt b { font-size: 40pt; display: block; } .mkt span { font-size: 9pt; color: #2E3139; } .mkt p { margin: 0; font-size: 10.5pt; }
+.flow { display: grid; grid-template-columns: 1fr 1.8fr 1fr; gap: .3in; align-items: end; }
+.flow > div { display: grid; justify-items: center; text-align: center; gap: 4px; position: relative; }
+.flow > div:not(:last-child)::after { content: "→"; position: absolute; right: -.24in; top: 40%; font: 800 20pt "Big Shoulders Display"; color: #B8174F; }
+.flow .ph { width: 1.25in; height: 1.95in; } .flow .wd { width: 100%; height: 1.95in; } .flow .wd img { height: 100%; object-fit: cover; object-position: top left; }
+.flow b { font-size: 15pt; margin-top: 6px; } .flow span { font-size: 9pt; color: #2E3139; }
+
+/* page 2 */
+.money { background: #120A0E; color: #fff; padding: .32in .55in .3in; display: grid; grid-template-columns: 1fr 1.3fr; gap: .2in .35in; align-items: center; }
+.money h2 { color: #fff; } .money p { margin: 0; color: rgba(255,255,255,.78); font-size: 10.5pt; } .money .k { color: #FF8BAA; }
+.dia { display: grid; grid-template-columns: auto .4in auto .2in 1fr; align-items: center; }
+.n { padding: 9px 12px; border-radius: 10px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); font-weight: 700; font-size: 10pt; text-align: center; }
+.n.fan { background: #fff; color: #111; }
+.n.hub { background: #B8174F; border-color: #B8174F; padding: 11px 14px; box-shadow: 0 0 0 5px rgba(184,23,79,.3); } .n.hub b { display: block; font: 800 20pt/1 "Big Shoulders Display"; } .n.hub small { font-size: 7.5pt; }
+.ar { height: 2px; background: #FF5C8A; position: relative; } .ar::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 7px solid #FF5C8A; }
+.out { display: grid; gap: 6px; border-left: 2px solid #FF5C8A; padding-left: 10px; } .out .n { text-align: left; padding: 6px 10px; }
+.earn { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.earn div { background: rgba(255,255,255,.07); border-radius: 9px; padding: 9px 11px; font-size: 9.5pt; color: rgba(255,255,255,.82); } .earn b { color: #fff; }
+.tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 9px; }
+.tiles div { background: #fff; border: 1px solid #E3E4E8; border-radius: 12px; padding: 11px 12px; }
+.tiles b { font-size: 13pt; display: block; } .tiles span { font-size: 8.6pt; color: #2E3139; }
+.steps { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; align-items: end; }
+.steps .when { font: 800 11.5pt/1 "Big Shoulders Display"; text-transform: uppercase; display: block; margin-bottom: 5px; }
+.steps .when small { display: block; font: 700 5.6pt/1 "Public Sans"; letter-spacing: .12em; color: #6A6E78; margin-bottom: 2px; }
+.steps .col:last-child .when { color: #B8174F; }
+.stack { display: flex; flex-direction: column-reverse; gap: 4px; padding: 6px; border-radius: 10px 10px 4px 4px; background: #FBEFF4; border: 1px solid #EED6E0; }
+.chip { padding: 6px 7px; border-radius: 6px; font-size: 7.6pt; font-weight: 700; background: #F3D3DF; }
+.chip.new { background: #B8174F; color: #fff; }
+.col.now .stack { background: #B8174F; border-color: #B8174F; } .col.now .chip.new { background: #fff; color: #B8174F; }
+.steps .nm { margin-top: 6px; } .steps .nm i { font-style: normal; font: 700 6pt/1 "Public Sans"; letter-spacing: .12em; text-transform: uppercase; color: #B8174F; display: block; }
+.steps .nm b { font: 800 11pt/1 "Big Shoulders Display"; text-transform: uppercase; display: block; margin-top: 2px; }
+.team { display: flex; gap: .5in; align-items: baseline; }
+.team b { font-size: 18pt; } .team span { display: block; font-size: 9pt; color: #B8174F; font-weight: 700; }
+.src { padding: 0 .55in .08in; font-size: 6.6pt; color: #6A6E78; margin: auto 0 0; }
+.foot { background: #B8174F; color: #fff; padding: .2in .55in; display: flex; justify-content: space-between; align-items: center; }
+.foot b { font-size: 18pt; } .foot span { display: block; font-size: 9.5pt; opacity: .92; } .foot a { color: #fff; font-weight: 800; text-decoration: none; font-size: 12pt; }
+.pg { position: absolute; }
 </style></head><body>
+
 <div class="page">
   <section class="top">
     <div>
@@ -78,8 +86,7 @@ body { font: 9pt/1.35 "Public Sans", sans-serif; color: #17181C; -webkit-print-c
     <div class="people" id="people"></div>
     <div class="trio"><div><b class="D">79%</b><span>missed a key play in line</span></div><div><b class="D">77%</b><span>would buy more with a shorter wait</span></div><div><b class="D">+43%</b><span>more spent per game if waits were halved</span></div></div>
   </section>
-  <section class="mkt"><div><b class="D">159M</b><span>fans at Live Nation events alone, 2025</span></div><div><b class="D">71.75M</b><span>at MLB games, 2026: one league of many</span></div><p>Games, concerts, college sports, festivals. Built for any live event; first venues likely in Kentucky.</p></section>
-  <section class="how">
+  <section class="pad">
     <h2 class="D">Agape takes the line away</h2>
     <div class="flow">
       <div><div class="ph"><img src="shots/fan-menu.jpg"></div><b class="D">The fan orders</b><span>and sees when it reaches their seat</span></div>
@@ -87,27 +94,44 @@ body { font: 9pt/1.35 "Public Sans", sans-serif; color: #17181C; -webkit-print-c
       <div><div class="ph"><img src="shots/runner.jpg"></div><b class="D">A runner brings it</b><span>several orders on one route</span></div>
     </div>
   </section>
+  <p class="src">Sources: Mashgin, “Beyond the Bases” (2025); Oracle fan survey (3,500+ fans); Live Nation 2025 results; Front Office Sports (2026). Screens are from Agape's working demo.</p>
+</div>
+
+<div class="page">
+  <section class="mkt"><div><b class="D">159M</b><span>fans at Live Nation events alone, 2025</span></div><div><b class="D">71.75M</b><span>at MLB games, 2026: one league of many</span></div><p>Games, concerts, college sports and festivals. Built for any live event, with our first venues likely in Kentucky.</p></section>
   <section class="money">
     <div><span class="k">How the money moves</span><h2 class="D">Every dollar flows through Agape</h2><p>Agape keeps its share first, then pays everyone else. Nobody is ever collected from.</p></div>
     <div class="dia"><div class="n fan">Fans pay</div><div class="ar"></div><div class="n hub"><b>agape</b><small>keeps its share</small></div><div class="ar"></div><div class="out"><div class="n">Stands</div><div class="n">Runners</div><div class="n">Tax</div></div></div>
     <div class="earn"><div><b>A share</b> of every sale</div><div><b>A delivery fee</b> on every order</div><div><b>Sponsors and bookings</b> at later steps</div></div>
   </section>
-  <section class="lv">
-    <span class="k">Where it goes</span><h2 class="D">Food is how fans start</h2>
-    <div class="stairs">
-      <div class="now" style="height:62%"><i>At launch</i><b>Order to your seat</b><em>A share of every sale</em></div>
-      <div style="height:71%"><i>Step 2</i><b>Rewards and offers</b><em>Sponsors pay to reach fans</em></div>
-      <div style="height:80%"><i>Step 3</i><b>Play along</b><em>Sponsored prizes</em></div>
-      <div style="height:90%"><i>Step 4</i><b>Tickets and travel</b><em>A fee on every booking</em></div>
-      <div style="height:100%"><i>Step 5</i><b>All year</b><em>An audience every day</em></div>
+  <section class="pad" style="padding-bottom:.1in">
+    <span class="k">Why Agape wins</span>
+    <div class="tiles" style="margin-top:8px">
+      <div><b class="D">Times that come true</b><span>Measured live from every kitchen and runner</span></div>
+      <div><b class="D">Delivery that pays</b><span>Built around deliveries per runner hour</span></div>
+      <div><b class="D">One set of books</b><span>Every party, one ledger, to the cent</span></div>
+      <div><b class="D">Live in an afternoon</b><span>A form, not an integration project</span></div>
     </div>
   </section>
-  <section class="team-row"><span class="k">The founders</span><div><b class="D">Phillip Morgan</b><span>Co-founder · Deals and operations</span></div><div><b class="D">Gabriel Hangen</b><span>Co-founder · Technology</span></div></section>
-  <p class="src">Sources: Mashgin, “Beyond the Bases” (2025); Oracle fan survey (3,500+ fans); Live Nation 2025 results; Front Office Sports (2026). Screens are from Agape's working demo.</p>
-  <section class="foot"><div><b class="D">See it working</b><span>A 2-minute tour of a whole night, every role at once.</span></div><a href="https://agapetoyourseat.com/for/investors/">agapetoyourseat.com/for/investors</a></section>
+  <section class="pad" style="padding-top:.15in">
+    <span class="k">Where it goes</span><h2 class="D">Food is how fans start</h2>
+    <div class="steps" id="steps"></div>
+  </section>
+  <section class="pad" style="padding-top:.05in">
+    <span class="k">The founders</span>
+    <div class="team" style="margin-top:6px"><div><b class="D">Phillip Morgan</b><span>Co-founder · Deals and operations</span></div><div><b class="D">Gabriel Hangen</b><span>Co-founder · Technology</span></div></div>
+  </section>
+  <section class="foot" style="margin-top:auto"><div><b class="D">See it working</b><span>A 2-minute tour of a whole night, every role at once.</span></div><a href="https://agapetoyourseat.com/for/investors/">agapetoyourseat.com/for/investors</a></section>
 </div>
+
 <script>
 const fig = '<svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 22c0-5 3.6-8 8-8s8 3 8 8z"/></svg>';
 document.getElementById("people").innerHTML = Array.from({ length: 10 }, (_, i) => `<i class="${i < 8 ? "" : "stay"}">${fig}</i>`).join("");
+const steps = [["Order to your seat", "Once a game"], ["Rewards and offers", "Every offer"], ["Play along", "All game long"], ["Tickets and travel", "Before and after"], ["All year", "Every day"]];
+const adds = ["Share of every sale", "Sponsors", "Sponsored prizes", "Booking fees", "A daily audience"];
+document.getElementById("steps").innerHTML = steps.map(([name, when], i) => `<div class="col${i === 0 ? " now" : ""}">
+  <span class="when"><small>Fans open Agape</small>${when}</span>
+  <div class="stack">${adds.slice(0, i + 1).map((a, j) => `<span class="chip${j === i ? " new" : ""}">${a}</span>`).join("")}</div>
+  <div class="nm"><i>${i === 0 ? "At launch" : "Step " + (i + 1)}</i><b>${name}</b></div></div>`).join("");
 </script>
 </body></html>

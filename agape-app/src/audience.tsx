@@ -2,6 +2,7 @@
 // Served at /for/<who>/.
 import { React, ReactDOM, useState } from "./r";
 import { Wordmark } from "./logo";
+import { TheLine, Flow, Money, Steps, Built, Tiles, SRC } from "./pitch";
 import { TalkToUs } from "./talk";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
@@ -28,7 +29,7 @@ const PAGES: Record<string, Page> = {
     lede: "Run orders to the seats at games and concerts in your city. Pick the events you want, go online when you're there, and keep every tip.",
     points: [["The pay before the trip", "Every trip shows its pay up front, or you're paid by the hour where the venue runs that way."], ["The route on a map", "Pickups and seats in the shortest order, grouped so one walk delivers several orders."], ["Your events, your hours", "A shift is the event. Go online and off when you like, unless it's posted as a fixed shift."]],
     demos: [D.runner], ask: "Want to run at an Agape venue? Leave a way to reach you.", more: "Runners are independent and paid by Agape." },
-  venues: { shot: "venue", wide: true, proof: true, eyebrow: "For venues and teams", title: "Sell more at every seat.", role: "venue",
+  venues: { shot: "fan-menu", proof: true, eyebrow: "For venues and teams", title: "Sell more at every seat.", role: "venue",
     lede: "Fans order from their seats and your own kitchens make it. Shorter lines, more sales per fan, and the whole night on one screen.",
     points: [["Your kitchens, your brand", "Agape sends orders to the stands you already run and brings them to the seats with independent runners."], ["Every dollar, to the cent", "Sales, Agape's share, card processing, runner pay and tax, reconciled every night."], ["Start simple", "Launch with ordering to the seat. Add deals, games, tickets and community when you want them."]],
     demos: [D.venue, D.stand, D.fan], ask: "Bring Agape to your venue.", more: "Agape earns a share of what it sells and the delivery fee, so it only earns when you do." },
@@ -53,86 +54,21 @@ const PAGES: Record<string, Page> = {
 const AUDIENCES: [string, string][] = [["fans", "Fans"], ["runners", "Runners"], ["venues", "Venues"], ["stands", "Food service"], ["partners", "Partners"], ["investors", "Investors"], ["team", "Agape team"]];
 
 
-const SRC = {
-  mashgin: "https://business.ricentral.com/ricentral/article/gnwcq-2025-4-8-new-report-finds-long-concession-lines-at-mlb-games-cause-fans-to-miss-crucial-plays-vendors-to-lose-revenue",
-  oracle: "https://prnewswire.com/news-releases/oracle-cloud-solves-undiscovered-stadium-revenue-growth-as-sports-fans-desire-mobile-food--beverage-ordering-300297035.html",
-  ln: "https://news.livenationentertainment.com/news/live-nation-entertainment-full-year-and-fourth-quarter-2025-results",
-  mlb: "https://frontofficesports.com/article/mlb-attendance-fourth-straight-year/",
-};
-
-/** The investor page, told mostly in pictures: the line, the product, how money moves, where it goes, what exists. */
+/** The investor page: the line, how big it is, the product, how money moves, why Agape wins, where it goes. */
 function Invest() {
-  const people = Array.from({ length: 10 }, (_, i) => i < 8);
   return <>
-    <section className="iv2-line">
-      <div className="iv2-line-in">
-        <div className="iv2-big"><b>8<small>in</small>10</b><span>fans have walked away from a concession line without buying.</span></div>
-        <div className="iv2-people" aria-hidden="true">{people.map((gone, i) => <i key={i} className={gone ? "gone" : ""}><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4" /><path d="M4 22c0-5 3.6-8 8-8s8 3 8 8z" /></svg></i>)}</div>
-        <div className="iv2-trio">
-          <div><b>79%</b><span>missed a key play in line</span></div>
-          <div><b>77%</b><span>would buy more with a shorter wait</span></div>
-          <div><b>+43%</b><span>more spent per game if waits were halved</span></div>
-        </div>
-        <small className="iv2-src">Fans surveyed by <a href={SRC.mashgin}>Mashgin (2025)</a> and <a href={SRC.oracle}>Oracle</a>.</small>
-      </div>
-    </section>
-
+    <TheLine say="fans have walked away from a concession line without buying." />
     <section className="iv2-market">
       <div><b>159M</b><span>fans at Live Nation events alone, 2025</span></div>
       <div><b>71.75M</b><span>at Major League Baseball games, 2026</span></div>
       <div className="txt"><span>Games, concerts, college sports and festivals. Built for any live event, with our first venues likely in Kentucky.</span><small><a href={SRC.ln}>Live Nation</a> · <a href={SRC.mlb}>Front Office Sports</a></small></div>
     </section>
-
-    <section className="site-sec iv2-how">
-      <h2>Agape takes the line away</h2>
-      <ol className="iv2-flow">
-        <li><figure className="ph"><img src="/img/fan-menu.jpg" alt="The fan's app" /></figure><b>The fan orders</b><span>and sees when it'll reach their seat</span></li>
-        <li><figure className="tb"><img src="/img/stand.jpg" alt="The stand's tablet" /></figure><b>The stand makes it</b><span>timed to leave on time</span></li>
-        <li><figure className="ph"><img src="/img/runner.jpg" alt="The runner's app" /></figure><b>A runner brings it</b><span>several orders on one route</span></li>
-      </ol>
-    </section>
-
-    <section className="iv2-money">
-      <div className="iv2-money-in">
-        <div className="iv2-money-copy"><span className="hm-kicker">How the money moves</span><h2>Every dollar flows through Agape</h2><p>Agape keeps its share first, then pays everyone else. Nobody is ever collected from.</p></div>
-        <div className="iv2-diagram" aria-label="Fans pay Agape; Agape keeps its share and pays the stands, the runners and the tax">
-          <div className="n fan">Fans pay</div>
-          <div className="arrow" />
-          <div className="n hub"><b>agape</b><span>keeps its share</span></div>
-          <div className="fan-out"><div className="n">Stands</div><div className="n">Runners</div><div className="n">Tax</div></div>
-        </div>
-        <ul className="iv2-earn"><li><b>A share</b> of every sale</li><li><b>A delivery fee</b> on every order</li><li><b>Sponsors, deals and tickets</b> as each step switches on</li></ul>
-      </div>
-    </section>
-
-    <section className="site-sec iv2-wins">
-      <h2>Why Agape wins</h2>
-      <div className="iv2-tiles">
-        <div><i>⏱</i><b>Times that come true</b><span>Measured live from every kitchen and runner</span></div>
-        <div><i>↗</i><b>Delivery that pays</b><span>Built around deliveries per runner hour</span></div>
-        <div><i>≡</i><b>One set of books</b><span>Every party, one ledger, to the cent</span></div>
-        <div><i>✓</i><b>Live in an afternoon</b><span>A form, not an integration project</span></div>
-      </div>
-    </section>
-
-    <section className="site-sec iv2-levels">
-      <div className="sec-head"><span className="hm-kicker">Where it goes</span><h2>Food is how fans start</h2>
-        <p className="site-why-demo">Each step gives fans another reason to open Agape, and gives Agape another way to earn. All of them already work in the demo.</p></div>
-      <ol className="iv2-stairs">{LEVELS_IV.map(([n, name, fans, earns], i) => <li key={n} style={{ ["--h" as any]: `${52 + i * 12}%` }} className={i === 0 ? "now" : ""}>
-        <span className="st-tag">{i === 0 ? "At launch" : `Step ${n}`}</span><b>{name}</b><small>{fans}</small><em>{earns}</em></li>)}</ol>
-    </section>
-
-    <section className="site-sec iv2-built">
-      <div className="sec-head"><span className="hm-kicker">Built, not slides</span><h2>Six apps, working today</h2></div>
-      <div className="iv2-collage">
-        <figure className="c-stand"><img src="/img/stand.jpg" alt="" /><figcaption>Stand</figcaption></figure>
-        <figure className="c-partner"><img src="/img/partner.jpg" alt="" /><figcaption>Partner</figcaption></figure>
-        <figure className="c-fan ph"><img src="/img/fan-item.jpg" alt="" /><figcaption>Fan · ordering</figcaption></figure>
-        <figure className="c-run ph"><img src="/img/fan-track.jpg" alt="" /><figcaption>Fan · tracking</figcaption></figure>
-      </div>
-      <div className="iv2-proof"><div><b>6 min</b><span>to the seat</span></div><div><b>3,000</b><span>fans at once</span></div><div><b>$0.00</b><span>off in the books</span></div><small>A simulated night at the demo arena</small></div>
-    </section>
-
+    <Flow title="Agape takes the line away" />
+    <Money kicker="How the money moves" title="Every dollar flows through Agape" line="Agape keeps its share first, then pays everyone else. Nobody is ever collected from."
+      chips={[<><b>A share</b> of every sale</>, <><b>A delivery fee</b> on every order</>, <><b>Sponsors and bookings</b> as each step switches on</>]} />
+    <Tiles title="Why Agape wins" items={[["⏱", "Times that come true", "Measured live from every kitchen and runner"], ["↗", "Delivery that pays", "Built around deliveries per runner hour"], ["≡", "One set of books", "Every party, one ledger, to the cent"], ["✓", "Live in an afternoon", "A form, not an integration project"]]} />
+    <Steps kind="investor" kicker="Where it goes" title="Food is how fans start" line="Every step keeps everything before it, brings fans back more often, and adds another way Agape earns. All five already work in the demo." />
+    <Built kicker="Built, not slides" title="Six apps, working today" />
     <section className="site-sec iv2-team">
       <h2>The founders</h2>
       <div className="iv2-founders">
@@ -143,13 +79,25 @@ function Invest() {
   </>;
 }
 
-const LEVELS_IV: [number, string, string, string][] = [
-  [1, "Order to your seat", "Fans order food, drinks and gear without leaving their seat.", "Earns a share of every sale"],
-  [2, "Rewards and offers", "Fans earn points and unlock offers from sponsors and nearby businesses.", "Sponsors pay to reach fans"],
-  [3, "Play along", "Fans call plays and compete section against section for prizes.", "Sponsored prizes and moments"],
-  [4, "Tickets and travel", "Fans buy tickets, rides and parking in the same app.", "A fee on every booking"],
-  [5, "All year", "Fans follow their teams, players and friends between events.", "An audience every day, not just game day"],
-];
+/** The venue page: lost sales in line, the product with their own kitchens, the whole night on one screen, nothing to
+ * install, how they're paid, and what they can switch on later. */
+function Venue() {
+  return <>
+    <TheLine say="fans have walked away from a concession line without buying. Every one was a sale." trio={[["79%", "missed a key play in line"], ["77%", "would buy more with a shorter wait"], ["+43%", "more per game if waits were halved"]]} />
+    <Flow title="Your kitchens, your prices, every seat" steps={[["/img/fan-menu.jpg", "Fans order from their seat", "with your menu and your prices", "ph"], ["/img/stand.jpg", "Your stand makes it", "on a tablet, timed to leave on time", "tb"], ["/img/runner.jpg", "A runner brings it", "independent, and paid by Agape", "ph"]]} />
+    <section className="vn-console">
+      <div className="vn-console-in">
+        <figure><img src="/img/venue.jpg" alt="The venue's live screen: every section, stand and runner" /></figure>
+        <div className="vn-callouts"><span className="hm-kicker">The whole night, on one screen</span><h2>See every order as it happens</h2>
+          <ul><li><b>Every section</b><span>where orders are coming from, live</span></li><li><b>Every stand</b><span>how long until a new order leaves</span></li><li><b>Every problem</b><span>put right on the spot, by your rules</span></li></ul></div>
+      </div>
+    </section>
+    <Tiles title="Nothing to install" items={[["▭", "Tablets, not hardware", "Your stands use any tablet"], ["✎", "Live in an afternoon", "Fill in a form: stands, menu, prices"], ["⚑", "Runners handled", "Independent runners, paid by Agape"], ["≡", "Paid after every event", "Every order itemized, to the cent"]]} />
+    <Money kicker="How you're paid" title="Fans pay. You're paid." line="Agape keeps its share and pays you after every event, every order itemized. You never chase anyone for money."
+      chips={[<><b>Your prices</b> on your menu</>, <><b>Your kitchens</b> make everything</>, <><b>Agape earns</b> only when you sell</>]} out={["Your stands", "Runners", "Tax"]} />
+    <Steps kind="venue" kicker="Start simple" title="Switch on more when you want it" line="Launch with ordering to the seat. Each step keeps what came before and adds more for your fans, and more for you." />
+  </>;
+}
 
 function Audience() {
   const key = location.pathname.split("/").filter(Boolean)[1] ?? "fans";
@@ -174,14 +122,14 @@ function Audience() {
         </div>
         <figure className={"hm-shot " + (p.wide ? "k-wide" : "k-phone")}><img src={`/img/${p.shot}.jpg`} alt="" /></figure>
       </section>
-      {p.proof && key !== "investors" && <section className="hm-proof" aria-label="A simulated night at Harbor Arena">
+      {p.proof && key !== "investors" && key !== "venues" && <section className="hm-proof" aria-label="A simulated night at Harbor Arena">
         <div><b>6 min</b><span>average from order to seat</span></div>
         <div><b>90%</b><span>at the seat within 10 minutes</span></div>
         <div><b>3,000</b><span>fans ordering at once</span></div>
         <div><b>$0.00</b><span>off in the books, every night</span></div>
         <small>Measured on a simulated night at Harbor Arena: 3,000 fans, 40 runners, 8 stands.</small>
       </section>}
-      {key === "investors" ? <Invest /> : <section className="site-sec">
+      {key === "investors" ? <Invest /> : key === "venues" ? <Venue /> : <section className="site-sec">
         <ol className="for-points">{p.points.map(([a, b]) => <li key={a}><b>{a}</b><span>{b}</span></li>)}</ol>
       </section>}
       {key !== "investors" && <section className="site-sec" id="demo">
@@ -196,8 +144,7 @@ function Audience() {
       </section>
       <footer className="site-foot">
         <span>Agape · to your seat</span>
-        {AUDIENCES.filter(([k]) => k !== key).map(([k, l]) => <a key={k} href={`/for/${k}/`}>{l}</a>)}
-        <a href="/privacy/">Privacy</a><a href="/terms/">Terms</a>
+        <nav><a href="/">Home</a>{AUDIENCES.filter(([k]) => k !== key).map(([k, l]) => <a key={k} href={`/for/${k}/`}>{l}</a>)}<a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav>
       </footer>
       {talk && <TalkToUs close={() => setTalk(false)} version={null} role={p.role} />}
     </div>
