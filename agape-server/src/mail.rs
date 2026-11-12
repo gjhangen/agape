@@ -187,3 +187,39 @@ export default {{
 }};
 "#)
 }
+
+/// A temporary way for Agape's alerts to reach people's phones and inboxes while its own mail can't send yet: a
+/// sending account (for example a Gmail address with an app password), set by the host in Admin and kept only on the
+/// server, readable by no one else. Alerts go from that account to the addresses listed; a reply goes straight to
+/// whoever wrote in. Swapped out or removed in Admin at any time.
+#[derive(Clone, serde::Serialize, serde::Deserialize, Default)]
+pub struct Relay { pub address: String, pub password: String, #[serde(default)] pub host: String, #[serde(default)] pub alert_to: Vec<String> }
+
+impl Relay {
+    pub fn load(dir: &Path) -> Option<Relay> { std::fs::read(dir.join("mail-relay.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()) }
+    pub fn save(&self, dir: &Path) { private_file(&dir.join("mail-relay.json"), &serde_json::to_string(self).unwrap_or_default()); }
+    pub fn clear(dir: &Path) { let _ = std::fs::remove_file(dir.join("mail-relay.json")); }
+    /// The sending server: Gmail's unless another was given.
+    pub fn server(&self) -> String { if self.host.trim().is_empty() { "smtp.gmail.com".into() } else { self.host.trim().into() } }
+
+    pub async fn send(&self, to: &[String], subject: &str, body: &str, reply_to: Option<&str>) -> Result<(), String> {
+        use lettre::transport::smtp::authentication::Credentials;
+        let from: Mailbox = format!("Agape alerts <{}>", self.address.trim()).parse().map_err(|_| "The sending address isn't an email address".to_string())?;
+        let creds = Credentials::new(self.address.trim().to_string(), self.password.replace(' ', ""));
+        // port 587 first; some hosts block it, so 465 (encrypted from the start) if it can't be reached
+        let tls587: AsyncSmtpTransport<Tokio1Executor> = AsyncSmtpTransport::<Tokio1Executor>::starttls_relay(&self.server()).map_err(|e| e.to_string())?
+            .credentials(creds.clone()).timeout(Some(Duration::from_secs(20))).build();
+        let t = if tls587.test_connection().await.unwrap_or(false) { tls587 } else {
+            AsyncSmtpTransport::<Tokio1Executor>::relay(&self.server()).map_err(|e| e.to_string())?.credentials(creds).timeout(Some(Duration::from_secs(20))).build()
+        };
+        let mut last = Ok(());
+        for rcpt in to {
+            let Ok(tb) = rcpt.parse::<Mailbox>() else { last = Err(format!("{rcpt} isn't an email address")); continue };
+            let mut b = Message::builder().from(from.clone()).to(tb).subject(subject).header(ContentType::TEXT_PLAIN);
+            if let Some(r) = reply_to { if let Ok(mb) = r.parse::<Mailbox>() { b = b.reply_to(mb); } }
+            let msg = b.body(body.to_string()).map_err(|e| e.to_string())?;
+            if let Err(e) = t.send(msg).await { last = Err(if e.to_string().contains("535") || e.to_string().to_lowercase().contains("credentials") { "The sending account refused the password. For Gmail, use an app password, not the account password.".into() } else if e.to_string().to_lowercase().contains("connection") { format!("Couldn't reach {} to send: {e}", self.server()) } else { format!("Couldn't send: {e}") }); }
+        }
+        last
+    }
+}

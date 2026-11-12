@@ -812,6 +812,36 @@ function Compose({ me, d, contacts, done }: { me: Me; d: Draft; contacts: { id: 
 }
 
 /** For the host: what has to be true for Agape's own email to work, checked live, with the exact records to add. */
+/** Until Agape's own mail can send: a sending account (a Gmail address with an app password) that emails the
+ * founders the moment someone writes in through the site. The password is kept on the server and never shown again. */
+function Alerts({ toast }: { toast: (s: string) => void }) {
+  const [d, setD] = useState<any>(null);
+  const [f, setF] = useState({ address: "", password: "", alert_to: "" });
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const load = async () => { const r = await api("mail/relay"); if (r.ok) { setD(r); setF({ address: "", password: "", alert_to: (r.alert_to ?? []).join(", ") }); } };
+  useEffect(() => { load(); }, []);
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault(); setBusy(true); setError("");
+    const r = await api("mail/relay", { address: f.address, password: f.password, alert_to: f.alert_to.split(/[,\s]+/).filter(Boolean) });
+    setBusy(false);
+    if (r.ok) { toast("Alerts are on. A test email is on its way."); load(); } else setError(r.error);
+  };
+  const off = async () => { if (!confirm("Stop sending alerts by email?")) return; await api("mail/relay", { clear: true }); toast("Alerts are off."); load(); };
+  if (!d) return null;
+  return <section className="ox-card">
+    <h2>Alerts by email</h2>
+    <p className="ox-sub">{d.set ? <>On: when someone writes in through the site, <b>{d.address}</b> emails {d.alert_to.join(", ")}. Reply to the alert to answer them directly.</> : "Off. When someone writes in through the site, it only lands in Messages here. Turn this on so you hear about it right away, by email or on your phone."}</p>
+    <form className="ox-grid" onSubmit={save}>
+      <label className="ox-f"><span>Sending address</span><input type="email" value={f.address} onChange={e => setF({ ...f, address: e.target.value })} placeholder={d.set ? d.address : "a Gmail address"} autoComplete="off" /><small>Can be temporary; change it here any time</small></label>
+      <label className="ox-f"><span>App password</span><input type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} placeholder={d.set ? "Kept on the server · leave empty to keep it" : "16 letters from Google"} autoComplete="new-password" /><small>Google Account → Security → 2-Step Verification → App passwords. Not your Gmail password.</small></label>
+      <label className="ox-f wide"><span>Send alerts to</span><input value={f.alert_to} onChange={e => setF({ ...f, alert_to: e.target.value })} placeholder="you@example.com, partner@example.com" /><small>Each founder's everyday email, separated by commas</small></label>
+      {error && <p className="ox-err wide" role="alert">{error}</p>}
+      <div className="ox-row wide"><button className="ox-btn primary" disabled={busy}>{busy ? "Sending a test…" : d.set ? "Save and send a test" : "Turn on alerts"}</button>{d.set && <button type="button" className="ox-btn ghost" onClick={off}>Turn off</button>}</div>
+    </form>
+  </section>;
+}
+
 function MailSetup({ toast }: { toast: (s: string) => void }) {
   const [d, setD] = useState<any>(null);
   const [testTo, setTestTo] = useState("");
@@ -826,6 +856,7 @@ function MailSetup({ toast }: { toast: (s: string) => void }) {
   const row = (ok: boolean, title: string, detail: React.ReactNode) => <li className={ok ? "good" : "bad"}><b>{ok ? "✓" : "✗"} {title}</b><span>{detail}</span></li>;
   return <>
     <Head title="Email setup" sub={`Email for @${d.domain}, run by Agape's own server: no mail provider. Receiving is free through Cloudflare. Sending goes straight from Agape's server.`}><button className="ox-btn" onClick={load}>Check again</button></Head>
+    <Alerts toast={toast} />
     <section className="ox-card">
       <h2>Live check</h2>
       <ul className="ox-checklist">

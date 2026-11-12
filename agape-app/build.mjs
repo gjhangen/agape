@@ -1,4 +1,5 @@
 import { build } from "esbuild";
+import { PRIVACY, TERMS, LEGAL_CSS } from "./brand/legal.mjs";
 import { readFileSync as _rf } from "fs";
 const BOOT_MARK = _rf("brand/wordmark-boot.svg", "utf8").trim();
 import { readFileSync, writeFileSync, mkdirSync } from "fs";
@@ -110,6 +111,16 @@ for (const [k, title] of [["fans", "Agape for fans"], ["runners", "Agape for run
 }
 console.log("dist/server/for/*");
 
+// the privacy policy and terms: plain pages that open anywhere and print cleanly
+for (const [dir, title, body] of [["privacy", "Agape privacy policy", PRIVACY], ["terms", "Agape terms of use", TERMS]]) {
+  mkdirSync(`dist/server/${dir}`, { recursive: true });
+  writeFileSync(`dist/server/${dir}/index.html`, `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title><meta name="description" content="${title}">
+<link rel="icon" type="image/svg+xml" href="/favicon.svg">${FONTS}<style>${LEGAL_CSS}</style></head><body>
+<header class="lg-top"><a class="lg-mark" href="/">agape</a><a href="/#talk">Contact</a></header><main class="lg">${body}</main>
+<footer class="lg-foot"><span>Agape · to your seat</span><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a><a href="/">Home</a></footer></body></html>`);
+}
+console.log("dist/server/privacy, dist/server/terms");
+
 // the icons, share image and manifest that make it feel like an app on a phone
 import { copyFileSync } from "fs";
 for (const f of ["og.png", "icon-512.png", "icon-192.png", "apple-touch-icon.png", "favicon.png"]) copyFileSync(`brand/${f}`, `dist/server/${f}`);
@@ -117,6 +128,8 @@ copyFileSync("brand/icon-small.svg", "dist/server/favicon.svg");
 // screens from the product itself, shown on the front pages
 mkdirSync("dist/server/img", { recursive: true });
 for (const f of ["fan-menu", "fan-item", "fan-track", "runner", "stand", "venue"]) copyFileSync(`brand/shots/${f}.jpg`, `dist/server/img/${f}.jpg`);
+// the one-page investor summary (made from brand/summary.html by brand/make-summary.cjs)
+copyFileSync("brand/agape-summary.pdf", "dist/server/agape-summary.pdf");
 writeFileSync("dist/server/manifest.json", JSON.stringify({ name: "Agape", short_name: "Agape", start_url: "/app/", display: "standalone", background_color: "#F3F4F7", theme_color: "#B8174F",
   icons: [{ src: "/icon-192.png", sizes: "192x192", type: "image/png" }, { src: "/icon-512.png", sizes: "512x512", type: "image/png" }] }));
 

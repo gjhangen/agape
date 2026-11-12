@@ -143,6 +143,7 @@ function Audience() {
           <p className="lede">{p.lede}</p>
           <div className="site-acts"><a className="btn primary big" href={q(p.demos[0].href)}>{p.demos[0].who} <b aria-hidden="true">→</b></a><button className="btn big hm-ghost" onClick={() => setTalk(true)}>{p.ask}</button></div>
           {p.more && <small className="hero-note">{p.more}</small>}
+          {key === "investors" && <a className="hero-pdf" href="/agape-summary.pdf" download="Agape investor summary.pdf">Download the one-page summary (PDF)</a>}
         </div>
         <figure className={"hm-shot " + (p.wide ? "k-wide" : "k-phone")}><img src={`/img/${p.shot}.jpg`} alt="" /></figure>
       </section>
@@ -170,6 +171,7 @@ function Audience() {
       <footer className="site-foot">
         <span>Agape · to your seat</span>
         {AUDIENCES.filter(([k]) => k !== key).map(([k, l]) => <a key={k} href={`/for/${k}/`}>{l}</a>)}
+        <a href="/privacy/">Privacy</a><a href="/terms/">Terms</a>
       </footer>
       {talk && <TalkToUs close={() => setTalk(false)} version={null} role={p.role} />}
     </div>

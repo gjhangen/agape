@@ -256,6 +256,33 @@ async fn studio_load(State(app): State<S>, Path(id): Path<String>) -> Response {
     }
 }
 
+/// The temporary sending account for alerts: the host sees which address and who gets alerts, never the password.
+async fn office_relay_get(State(app): State<S>, h: HeaderMap) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    if u.role != admin::HOST { return err(StatusCode::FORBIDDEN, "Only the host sets up alerts"); }
+    let r = mail::Relay::load(&app.data);
+    Json(json!({ "ok": true, "set": r.is_some(), "address": r.as_ref().map(|r| r.address.clone()), "alert_to": r.map(|r| r.alert_to).unwrap_or_default() })).into_response()
+}
+
+/// Set, change, test or remove it. A new account is tested before it's kept, so a wrong password is caught here.
+async fn office_relay_set(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    if u.role != admin::HOST { return err(StatusCode::FORBIDDEN, "Only the host sets up alerts"); }
+    if b["clear"] == true { mail::Relay::clear(&app.data); app.office.lock().unwrap().logged(&u, "removed the alert sending account".into()); return Json(json!({ "ok": true })).into_response(); }
+    let old = mail::Relay::load(&app.data);
+    let alert_to: Vec<String> = b["alert_to"].as_array().map(|a| a.iter().filter_map(|x| x.as_str()).map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).take(10).collect()).unwrap_or_default();
+    if alert_to.is_empty() { return err(StatusCode::BAD_REQUEST, "Add at least one address to send alerts to"); }
+    if alert_to.iter().any(|a| a.parse::<lettre::message::Mailbox>().is_err()) { return err(StatusCode::BAD_REQUEST, "One of the alert addresses isn't an email address"); }
+    let address = { let a = s(&b, "address"); if a.is_empty() { old.as_ref().map(|r| r.address.clone()).unwrap_or_default() } else { a } };
+    let password = { let p = s(&b, "password"); if p.is_empty() { old.as_ref().map(|r| r.password.clone()).unwrap_or_default() } else { p } };
+    if address.is_empty() || password.is_empty() { return err(StatusCode::BAD_REQUEST, "Add the sending address and its app password"); }
+    let r = mail::Relay { address, password, host: s(&b, "host"), alert_to };
+    if let Err(e) = r.send(&r.alert_to, "Agape alerts are on", "This address will get an email whenever someone writes in through agapetoyourseat.com.", None).await { return err(StatusCode::BAD_REQUEST, &e); }
+    r.save(&app.data);
+    app.office.lock().unwrap().logged(&u, format!("set alerts to send from {} to {}", r.address, r.alert_to.join(", ")));
+    Json(json!({ "ok": true })).into_response()
+}
+
 /// Someone who wants Agape at their venue, or wants to talk. Kept for the team; never shown publicly.
 async fn lead(State(app): State<S>, Json(b): Json<Value>) -> Response {
     let get = |k: &str, n: usize| b[k].as_str().unwrap_or("").trim().chars().take(n).collect::<String>();
@@ -272,7 +299,14 @@ async fn lead(State(app): State<S>, Json(b): Json<Value>) -> Response {
     match std::fs::OpenOptions::new().create(true).append(true).open(app.data.join("leads.jsonl")).and_then(|mut f| f.write_all(line.as_bytes())) {
         Ok(_) => {
             let who = [rec["role"].as_str().unwrap_or(""), rec["org"].as_str().unwrap_or("")].iter().filter(|x| !x.is_empty()).cloned().collect::<Vec<_>>().join(", ");
-            app.office.lock().unwrap().notify_perm("leads", "lead", &format!("New lead: {}", rec["name"].as_str().unwrap_or("")), &format!("{}{} asked to talk. Reach them at {}.{}", rec["name"].as_str().unwrap_or(""), if who.is_empty() { String::new() } else { format!(" ({who})") }, rec["contact"].as_str().unwrap_or(""), rec["note"].as_str().filter(|n| !n.is_empty()).map(|n| format!("\n\n“{n}”")).unwrap_or_default()));
+            let subject = format!("New lead: {}", rec["name"].as_str().unwrap_or(""));
+            let body = format!("{}{} asked to talk. Reach them at {}.{}", rec["name"].as_str().unwrap_or(""), if who.is_empty() { String::new() } else { format!(" ({who})") }, rec["contact"].as_str().unwrap_or(""), rec["note"].as_str().filter(|n| !n.is_empty()).map(|n| format!("\n\n“{n}”")).unwrap_or_default());
+            app.office.lock().unwrap().notify_perm("leads", "lead", &subject, &body);
+            // and to the founders' phones, if a sending account is set up: a reply goes straight to them
+            if let Some(r) = mail::Relay::load(&app.data).filter(|r| !r.alert_to.is_empty()) {
+                let reply = if email { Some(contact.clone()) } else { None };
+                tokio::spawn(async move { if let Err(e) = r.send(&r.alert_to, &subject, &format!("{body}\n\nReply to this email to answer them directly.\n\nAll leads: https://agapetoyourseat.com/admin/"), reply.as_deref()).await { eprintln!("lead alert: {e}"); } });
+            }
             Json(json!({ "ok": true })).into_response()
         }
         Err(_) => err(StatusCode::INTERNAL_SERVER_ERROR, "Couldn't save that; please try again"),
@@ -420,6 +454,7 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/mailbox", post(office_mailbox))
         .route("/api/office/mail/setup", get(office_mail_setup))
         .route("/api/office/mail/test", post(office_mail_test))
+        .route("/api/office/mail/relay", get(office_relay_get).post(office_relay_set))
         .route("/api/mail/health", get(mail_health))
         .route("/api/mail/inbound", post(mail_inbound).layer(axum::extract::DefaultBodyLimit::max(30_000_000)))
         .route("/api/office/role", post(office_role))

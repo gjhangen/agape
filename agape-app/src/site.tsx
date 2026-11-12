@@ -130,6 +130,7 @@ function Site() {
       <footer className="site-foot hm-foot">
         <span>Agape · to your seat</span>
         <nav>{([["fans", "Fans"], ["runners", "Runners"], ["venues", "Venues"], ["stands", "Food service"], ["partners", "Partners"], ["investors", "Investors"], ["team", "Agape team"]] as const).map(([k, l]) => <a key={k} href={`/for/${k}/`}>{l}</a>)}</nav>
+        <a href="/privacy/">Privacy</a><a href="/terms/">Terms</a>
         <button className="link-inline" onClick={open}>Talk to us</button>
       </footer>
       {talk && <TalkToUs close={close} version={null} />}

@@ -85,6 +85,7 @@ function Gate({ done }: { done: (token: string, a: Account) => void }) {
         {error && <p className="banner warn" role="alert">{error}{mode === "in" && " In the pilot there's no password reset, so if it's lost, just make a new account."}</p>}
         <button className="btn primary big wide" disabled={busy}>{busy ? "One moment…" : mode === "up" ? "Take me to my seat" : "Sign in"}</button>
         <button type="button" className="link-inline" onClick={() => { setMode(mode === "up" ? "in" : "up"); setError(""); }}>{mode === "up" ? "I already have an account" : "I'm new here"}</button>
+        {mode === "up" && <small className="legal-note">By continuing you agree to Agape's <a href="/terms/" target="_blank" rel="noopener">terms</a> and <a href="/privacy/" target="_blank" rel="noopener">privacy policy</a>.</small>}
       </form>
       <ul className="l-points">
         <li><b>Order to your seat.</b> Food, drinks and gear, with the honest time it'll reach you before you tap.</li>

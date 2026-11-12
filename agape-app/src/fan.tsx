@@ -842,7 +842,7 @@ function SettingsPage({ which, v, toast, refresh, go, close }: Ctx & { which: st
           <div className="about-mark"><b>agape</b><small>to your seat</small></div>
           <p className="explain">Agape brings what you want to your seat at live events, made by the venue's own kitchens and carried by runners, so you never miss the moment.</p>
           <details className="faq"><summary>Terms of service</summary><p>You order from the venue's stands through Agape. You're charged when your order reaches you or is ready to pick up. If it's late, you get Agape credit automatically, as described in Help. Drinks with alcohol are for people 21 and older, and your runner checks ID. Points have no cash value and can't be bought or sold for money.</p></details>
-          <details className="faq"><summary>Privacy policy</summary><p>Agape keeps your name, email, seat and orders to run the service, and uses your location only while the app is open, to find your venue. You can download or delete your data from Privacy in Settings.</p></details>
+          <details className="faq"><summary>Privacy policy</summary><p>Agape keeps the name you show, your seat and your orders to run the service. It never sells your information. <a href="/privacy/" target="_blank" rel="noopener">Read the full privacy policy</a> · <a href="/terms/" target="_blank" rel="noopener">Terms of use</a></p></details>
           <p className="sub center">Version 1.0</p>
         </>}
       </div>
