@@ -2130,6 +2130,16 @@ svg.wordmark { display: block; width: auto; overflow: visible; }
 }
 @media (max-width: 520px) { .iv2-tiles { grid-template-columns: 1fr; } }
 @media (prefers-reduced-motion: reduce) { .iv2-people i.gone { animation: none; } }
+
+.iv2-stairs { height: 400px; }
+.iv2-stairs small { font-size: 14px; line-height: 1.4; }
+.iv2-stairs em { font-style: normal; font-size: 12.5px; font-weight: 700; color: var(--accent); margin-top: 4px; padding-top: 8px; border-top: 1px solid color-mix(in srgb, var(--accent) 20%, transparent); }
+.iv2-stairs li.now em { color: #fff; border-color: rgb(255 255 255 / .3); }
+@media (max-width: 960px) { .iv2-stairs { height: auto; } }
+
+/* marketing pages: secondary text dark enough to read comfortably on white */
+.site.hm { --ink-2: color-mix(in srgb, var(--ink) 84%, var(--surface)); --muted: color-mix(in srgb, var(--ink) 68%, var(--surface)); }
+.iv2-market { border-top: 0; }
 </style></head><body><div id="root"><div class="site"><section class="site-hero"><h1>Order from your seat.<br>It comes to you.</h1></section></div></div><script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script><script>var AGAPE_WORLD={
  "venue": "arena",

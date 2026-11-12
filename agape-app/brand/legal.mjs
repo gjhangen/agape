@@ -128,10 +128,10 @@ export const LEGAL_CSS = `
 .lg-top .lg-mark { font: 800 30px/1 "Big Shoulders Display", sans-serif; }
 .lg h1 { font: 800 clamp(40px, 7vw, 60px)/.95 "Big Shoulders Display", sans-serif; text-transform: uppercase; margin: 12px 0 6px; }
 .lg h2 { font: 800 24px/1.1 "Big Shoulders Display", sans-serif; text-transform: uppercase; margin: 34px 0 8px; }
-.lg-meta { color: #6B6E78; margin: 0 0 18px; }
+.lg-meta { color: #4A4D57; margin: 0 0 18px; }
 .lg ul { padding-left: 20px; } .lg li { margin: 6px 0; }
 .lg a { color: #B8174F; }
-.lg-foot { max-width: 760px; margin: 0 auto; padding: 20px; border-top: 1px solid #E3E4E8; color: #6B6E78; font: 14px "Public Sans", sans-serif; display: flex; gap: 16px; flex-wrap: wrap; }
+.lg-foot { max-width: 760px; margin: 0 auto; padding: 20px; border-top: 1px solid #E3E4E8; color: #4A4D57; font: 14px "Public Sans", sans-serif; display: flex; gap: 16px; flex-wrap: wrap; }
 .lg-foot a { color: inherit; }
 body { margin: 0; background: #F6F6F8; }
 @media (prefers-color-scheme: dark) { body { background: #0E0F13; } .lg, .lg-top a.lg-mark { color: #EDEDF0; } .lg-meta, .lg-foot { color: #9A9DA6; } .lg-foot { border-color: #24262D; } .lg a, .lg-top a { color: #FF7FA3; } }

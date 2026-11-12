@@ -26,7 +26,7 @@ body { font: 9pt/1.35 "Public Sans", sans-serif; color: #17181C; -webkit-print-c
 .people svg { width: 100%; height: auto; fill: #B8174F; display: block; } .people .stay svg { fill: #CFD2D9; }
 .trio { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #E3E4E8; padding-top: 7px; }
 .trio div + div { border-left: 1px solid #E3E4E8; padding-left: 12px; } .trio b { font-size: 19pt; display: block; } .trio span { font-size: 8.2pt; color: #3D4049; }
-.how { padding: .12in .45in .1in; }
+.how { padding: .1in .45in .08in; }
 .how h2 { font-size: 17pt; margin: 0 0 8px; }
 .flow { display: grid; grid-template-columns: 1fr 1.7fr 1fr; gap: .22in; align-items: end; }
 .flow > div { display: grid; justify-items: center; text-align: center; gap: 3px; position: relative; }
@@ -43,9 +43,9 @@ body { font: 9pt/1.35 "Public Sans", sans-serif; color: #17181C; -webkit-print-c
 .out { display: grid; gap: 4px; border-left: 2px solid #FF5C8A; padding-left: 8px; } .out .n { text-align: left; padding: 4px 8px; }
 .earn { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
 .earn div { background: rgba(255,255,255,.07); border-radius: 7px; padding: 6px 8px; font-size: 8pt; color: rgba(255,255,255,.8); } .earn b { color: #fff; }
-.lv { padding: .11in .45in .06in; }
+.lv { padding: .09in .45in .04in; }
 .lv h2 { font-size: 17pt; margin: 3px 0 7px; }
-.stairs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; align-items: end; height: .85in; }
+.stairs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; align-items: end; height: 1.0in; }
 .stairs div { border-radius: 8px 8px 2px 2px; padding: 6px 7px; background: linear-gradient(180deg, #F6DCE6, #FFFFFF); border: 1px solid #E8D5DD; align-self: end; }
 .stairs div.now { background: #B8174F; color: #fff; border-color: #B8174F; }
 .stairs i { font-style: normal; font: 700 5.6pt/1 "Public Sans"; letter-spacing: .12em; text-transform: uppercase; color: #B8174F; display: block; } .stairs .now i { color: #FFD3E0; }
@@ -56,6 +56,13 @@ body { font: 9pt/1.35 "Public Sans", sans-serif; color: #17181C; -webkit-print-c
 .src { padding: 0 .45in .06in; font-size: 6pt; color: #8A8D96; margin: auto 0 0; }
 .foot { background: #B8174F; color: #fff; padding: .11in .45in; display: flex; justify-content: space-between; align-items: center; }
 .foot b { font-size: 14pt; } .foot span { display: block; font-size: 8pt; opacity: .9; } .foot a { color: #fff; font-weight: 800; text-decoration: none; font-size: 10pt; }
+
+.mkt { background: #fff; padding: .02in .45in .12in; display: grid; grid-template-columns: auto auto 1fr; gap: .3in; align-items: center; border-bottom: 1px solid #E3E4E8; }
+.mkt b { font-size: 24pt; display: block; } .mkt span { font-size: 7.8pt; color: #3D4049; } .mkt p { margin: 0; font-size: 8.4pt; color: #17181C; }
+.stairs em { display: block; font-style: normal; font-size: 6.8pt; font-weight: 700; color: #B8174F; margin-top: 3px; } .stairs .now em { color: #fff; }
+.team-row { padding: .1in .45in .06in; display: flex; gap: .35in; align-items: baseline; }
+.team-row b { font-size: 13pt; } .team-row span { font-size: 7.8pt; color: #B8174F; font-weight: 700; margin-left: 6px; }
+.trio span, .flow span { color: #2E3139; }
 </style></head><body>
 <div class="page">
   <section class="top">
@@ -71,6 +78,7 @@ body { font: 9pt/1.35 "Public Sans", sans-serif; color: #17181C; -webkit-print-c
     <div class="people" id="people"></div>
     <div class="trio"><div><b class="D">79%</b><span>missed a key play in line</span></div><div><b class="D">77%</b><span>would buy more with a shorter wait</span></div><div><b class="D">+43%</b><span>more spent per game if waits were halved</span></div></div>
   </section>
+  <section class="mkt"><div><b class="D">159M</b><span>fans at Live Nation events alone, 2025</span></div><div><b class="D">71.75M</b><span>at MLB games, 2026: one league of many</span></div><p>Games, concerts, college sports, festivals. Built for any live event; first venues likely in Kentucky.</p></section>
   <section class="how">
     <h2 class="D">Agape takes the line away</h2>
     <div class="flow">
@@ -82,26 +90,19 @@ body { font: 9pt/1.35 "Public Sans", sans-serif; color: #17181C; -webkit-print-c
   <section class="money">
     <div><span class="k">How the money moves</span><h2 class="D">Every dollar flows through Agape</h2><p>Agape keeps its share first, then pays everyone else. Nobody is ever collected from.</p></div>
     <div class="dia"><div class="n fan">Fans pay</div><div class="ar"></div><div class="n hub"><b>agape</b><small>keeps its share</small></div><div class="ar"></div><div class="out"><div class="n">Stands</div><div class="n">Runners</div><div class="n">Tax</div></div></div>
-    <div class="earn"><div><b>A share</b> of every sale</div><div><b>A delivery fee</b> on every order</div><div><b>Sponsors, deals, tickets</b> as levels switch on</div></div>
+    <div class="earn"><div><b>A share</b> of every sale</div><div><b>A delivery fee</b> on every order</div><div><b>Sponsors and bookings</b> at later steps</div></div>
   </section>
   <section class="lv">
-    <span class="k">Where it goes</span><h2 class="D">Food is the way in</h2>
+    <span class="k">Where it goes</span><h2 class="D">Food is how fans start</h2>
     <div class="stairs">
-      <div class="now" style="height:40%"><i>Launch</i><b>Order to your seat</b></div>
-      <div style="height:55%"><i>Level 2</i><b>Deals</b></div>
-      <div style="height:70%"><i>Level 3</i><b>Play</b></div>
-      <div style="height:85%"><i>Level 4</i><b>Beyond the night</b></div>
-      <div style="height:100%"><i>Level 5</i><b>Community</b></div>
+      <div class="now" style="height:62%"><i>At launch</i><b>Order to your seat</b><em>A share of every sale</em></div>
+      <div style="height:71%"><i>Step 2</i><b>Rewards and offers</b><em>Sponsors pay to reach fans</em></div>
+      <div style="height:80%"><i>Step 3</i><b>Play along</b><em>Sponsored prizes</em></div>
+      <div style="height:90%"><i>Step 4</i><b>Tickets and travel</b><em>A fee on every booking</em></div>
+      <div style="height:100%"><i>Step 5</i><b>All year</b><em>An audience every day</em></div>
     </div>
   </section>
-  <section class="bottom">
-    <div class="mk"><b class="D">159M</b><span>fans at Live Nation events alone, 2025</span></div>
-    <div class="mk"><b class="D">71.75M</b><span>at MLB games, 2026. First venues likely in Kentucky.</span></div>
-    <div class="team"><span class="k" style="color:#17181C">The founders</span>
-      <div><b class="D">Phillip Morgan</b><span>Co-founder · Deals and operations</span></div>
-      <div><b class="D">Gabriel Hangen</b><span>Co-founder · Technology</span></div>
-    </div>
-  </section>
+  <section class="team-row"><span class="k">The founders</span><div><b class="D">Phillip Morgan</b><span>Co-founder · Deals and operations</span></div><div><b class="D">Gabriel Hangen</b><span>Co-founder · Technology</span></div></section>
   <p class="src">Sources: Mashgin, “Beyond the Bases” (2025); Oracle fan survey (3,500+ fans); Live Nation 2025 results; Front Office Sports (2026). Screens are from Agape's working demo.</p>
   <section class="foot"><div><b class="D">See it working</b><span>A 2-minute tour of a whole night, every role at once.</span></div><a href="https://agapetoyourseat.com/for/investors/">agapetoyourseat.com/for/investors</a></section>
 </div>

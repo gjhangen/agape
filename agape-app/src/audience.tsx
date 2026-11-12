@@ -77,6 +77,12 @@ function Invest() {
       </div>
     </section>
 
+    <section className="iv2-market">
+      <div><b>159M</b><span>fans at Live Nation events alone, 2025</span></div>
+      <div><b>71.75M</b><span>at Major League Baseball games, 2026</span></div>
+      <div className="txt"><span>Games, concerts, college sports and festivals. Built for any live event, with our first venues likely in Kentucky.</span><small><a href={SRC.ln}>Live Nation</a> · <a href={SRC.mlb}>Front Office Sports</a></small></div>
+    </section>
+
     <section className="site-sec iv2-how">
       <h2>Agape takes the line away</h2>
       <ol className="iv2-flow">
@@ -95,21 +101,8 @@ function Invest() {
           <div className="n hub"><b>agape</b><span>keeps its share</span></div>
           <div className="fan-out"><div className="n">Stands</div><div className="n">Runners</div><div className="n">Tax</div></div>
         </div>
-        <ul className="iv2-earn"><li><b>A share</b> of every sale</li><li><b>A delivery fee</b> on every order</li><li><b>Sponsors, deals and tickets</b> as each level switches on</li></ul>
+        <ul className="iv2-earn"><li><b>A share</b> of every sale</li><li><b>A delivery fee</b> on every order</li><li><b>Sponsors, deals and tickets</b> as each step switches on</li></ul>
       </div>
-    </section>
-
-    <section className="site-sec iv2-levels">
-      <div className="sec-head"><span className="hm-kicker">Where it goes</span><h2>Food is the way in</h2></div>
-      <ol className="iv2-stairs">{LEVELS_IV.map(([n, name, line], i) => <li key={n} style={{ ["--h" as any]: `${40 + i * 15}%` }} className={i === 0 ? "now" : ""}>
-        <span className="st-tag">{i === 0 ? "Launch" : `Level ${n}`}</span><b>{name}</b><small>{line}</small></li>)}</ol>
-      <p className="iv2-note">A fan's level, points and history follow them to every venue on Agape. Every level is built and working in the demo.</p>
-    </section>
-
-    <section className="iv2-market">
-      <div><b>159M</b><span>fans at Live Nation events alone, 2025</span></div>
-      <div><b>71.75M</b><span>at Major League Baseball games, 2026</span></div>
-      <div className="txt"><span>Games, concerts, college sports and festivals. Built for any live event, with our first venues likely in Kentucky.</span><small><a href={SRC.ln}>Live Nation</a> · <a href={SRC.mlb}>Front Office Sports</a></small></div>
     </section>
 
     <section className="site-sec iv2-wins">
@@ -120,6 +113,13 @@ function Invest() {
         <div><i>≡</i><b>One set of books</b><span>Every party, one ledger, to the cent</span></div>
         <div><i>✓</i><b>Live in an afternoon</b><span>A form, not an integration project</span></div>
       </div>
+    </section>
+
+    <section className="site-sec iv2-levels">
+      <div className="sec-head"><span className="hm-kicker">Where it goes</span><h2>Food is how fans start</h2>
+        <p className="site-why-demo">Each step gives fans another reason to open Agape, and gives Agape another way to earn. All of them already work in the demo.</p></div>
+      <ol className="iv2-stairs">{LEVELS_IV.map(([n, name, fans, earns], i) => <li key={n} style={{ ["--h" as any]: `${52 + i * 12}%` }} className={i === 0 ? "now" : ""}>
+        <span className="st-tag">{i === 0 ? "At launch" : `Step ${n}`}</span><b>{name}</b><small>{fans}</small><em>{earns}</em></li>)}</ol>
     </section>
 
     <section className="site-sec iv2-built">
@@ -143,7 +143,13 @@ function Invest() {
   </>;
 }
 
-const LEVELS_IV: [number, string, string][] = [[1, "Order to your seat", "Food, drinks and gear"], [2, "Deals", "Points, offers, sponsors"], [3, "Play", "Calls, battles, collectibles"], [4, "Beyond the night", "Tickets, rides, places nearby"], [5, "Community", "Sections, profiles, following"]];
+const LEVELS_IV: [number, string, string, string][] = [
+  [1, "Order to your seat", "Fans order food, drinks and gear without leaving their seat.", "Earns a share of every sale"],
+  [2, "Rewards and offers", "Fans earn points and unlock offers from sponsors and nearby businesses.", "Sponsors pay to reach fans"],
+  [3, "Play along", "Fans call plays and compete section against section for prizes.", "Sponsored prizes and moments"],
+  [4, "Tickets and travel", "Fans buy tickets, rides and parking in the same app.", "A fee on every booking"],
+  [5, "All year", "Fans follow their teams, players and friends between events.", "An audience every day, not just game day"],
+];
 
 function Audience() {
   const key = location.pathname.split("/").filter(Boolean)[1] ?? "fans";
@@ -185,7 +191,7 @@ function Audience() {
           <span className="ss-foot"><span className="ss-meta">{d.device} · {d.time}</span><span className="ss-go">Open <b aria-hidden="true">→</b></span></span></a>)}</div>
       </section>}
       <section className="site-cta">
-        <div><h2>{p.ask}</h2><p>Leave a way to reach you and we'll get back to you within a day.</p></div>
+        <div><h2>{key === "investors" ? "See it for yourself" : p.ask}</h2><p>{key === "investors" ? "Take the 2-minute tour, or talk to us and we'll walk you through it live." : "Leave a way to reach you and we'll get back to you within a day."}</p></div>
         <div className="site-acts"><button className="btn primary big" onClick={() => setTalk(true)}>Talk to us <b aria-hidden="true">→</b></button><a className="btn big" href={q(p.demos[0].href)}>{p.demos[0].who}</a></div>
       </section>
       <footer className="site-foot">
