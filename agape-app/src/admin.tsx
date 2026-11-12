@@ -236,7 +236,7 @@ function Accept({ code, enter, toSignin }: { code: string; enter: (t: string, m:
 
 // ---------------- signed in ----------------
 
-type Tab = "brand" | "mail" | "channels" | "inbox" | "merchants" | "venues" | "team" | "leads" | "accounts" | "activity" | "account";
+type Tab = "room" | "brand" | "mail" | "channels" | "inbox" | "merchants" | "venues" | "team" | "leads" | "accounts" | "activity" | "account";
 
 function Shell({ me, out }: { me: Me; out: () => void }) {
   const [tab, setTab] = useState<Tab>(() => (location.hash.slice(1) as Tab) || "merchants");
@@ -256,7 +256,7 @@ function Shell({ me, out }: { me: Me; out: () => void }) {
     document.title = total ? `(${total}) Agape Admin` : "Agape Admin";
   });
   useEffect(() => { refresh(); const t = setInterval(refresh, 20000); return () => clearInterval(t); }, []);
-  const tabs: [Tab, string][] = [["inbox", "Messages"], ...(me.oversees ? [["channels", "Channels"]] as [Tab, string][] : []), ...(me.perms.includes("venues") ? [["venues", "Venues"]] as [Tab, string][] : []), ...(me.perms.includes("merchants_view") ? [["merchants", "Processing"]] as [Tab, string][] : []), ["team", "Team"], ...(me.perms.includes("leads") ? [["leads", "Leads"]] as [Tab, string][] : []), ...(me.perms.includes("accounts") ? [["accounts", "App accounts"]] as [Tab, string][] : []), ["activity", "Activity"], ["brand", "Brand"], ...(me.role === "host" ? [["mail", "Email setup"]] as [Tab, string][] : []), ["account", "Your account"]];
+  const tabs: [Tab, string][] = [["inbox", "Messages"], ...(me.oversees ? [["channels", "Channels"]] as [Tab, string][] : []), ...(me.perms.includes("venues") ? [["venues", "Venues"]] as [Tab, string][] : []), ...(me.perms.includes("merchants_view") ? [["merchants", "Processing"]] as [Tab, string][] : []), ["team", "Team"], ...(me.perms.includes("leads") ? [["leads", "Leads"]] as [Tab, string][] : []), ...(me.perms.includes("accounts") ? [["accounts", "App accounts"]] as [Tab, string][] : []), ["activity", "Activity"], ...(me.role === "host" || me.perms.includes("leads") ? [["room", "Investor room"]] as [Tab, string][] : []), ["brand", "Brand"], ...(me.role === "host" ? [["mail", "Email setup"]] as [Tab, string][] : []), ["account", "Your account"]];
   return <div className="ox-app">
     <header className="ox-top">
       <Mark />
@@ -273,11 +273,100 @@ function Shell({ me, out }: { me: Me; out: () => void }) {
       {tab === "activity" && <Activity me={me} />}
       {tab === "accounts" && <Accounts />}
       {tab === "brand" && <Brand />}
+      {tab === "room" && <InvestorRoom me={me} toast={setToast} />}
       {tab === "mail" && <MailSetup toast={setToast} />}
       {tab === "account" && <Account me={me} toast={setToast} out={out} />}
     </main>
     {toast && <div className="ox-toast" role="status">{toast}</div>}
   </div>;
+}
+
+// ---------------- investor room ----------------
+
+type RItem = { id: string; title: string; about: string; kind: "file" | "link" | "text"; url: string; file: string; fname: string; size: number; text: string; hidden: boolean; at: number };
+type RGuest = { id: string; name: string; firm: string; email: string; key: string; at: number; off: boolean; views: [number, string][] };
+
+/** The investor room: who has a link and what they've opened, and what's in it. */
+function InvestorRoom({ me, toast }: { me: Me; toast: (s: string) => void }) {
+  const [d, setD] = useState<{ items: RItem[]; guests: RGuest[] } | null>(null);
+  const [g, setG] = useState({ name: "", firm: "", email: "" }); const [gErr, setGErr] = useState("");
+  const [edit, setEdit] = useState<Partial<RItem> | null>(null); const [eErr, setEErr] = useState(""); const [busy, setBusy] = useState(false);
+  const load = () => api("room").then(r => r.ok ? setD(r.room) : toast(r.error));
+  useEffect(() => { load(); }, []);
+  if (!d) return <><Head title="Investor room" /><p className="ox-empty">Loading…</p></>;
+  const link = (k: string) => `${location.origin}/room/?k=${k}`;
+  const title = (id: string) => id === "room" ? "the room" : d.items.find(i => i.id === id)?.title ?? "something since removed";
+  const copy = (t: string) => navigator.clipboard?.writeText(t).then(() => toast("Link copied."));
+  const guest = async (b: object, ok: string) => { const r = await api("room/guest", b); if (r.ok) { toast(ok); load(); } else toast(r.error); };
+  const item = async (b: object, ok?: string) => { const r = await api("room/item", b); if (r.ok) { if (ok) toast(ok); load(); return ""; } return r.error as string; };
+  const openFile = async (i: RItem) => {
+    const w = window.open("", "_blank");
+    try { const r = await fetch(`/api/office/room/open/${i.id}`, { headers: { authorization: "Bearer " + token } }); if (!r.ok) throw 0; const u = URL.createObjectURL(await r.blob()); if (w) w.location.href = u; else location.href = u; } catch { w?.close(); toast("Couldn't open it."); }
+  };
+  const upload = (id?: string) => { const inp = document.createElement("input"); inp.type = "file"; inp.onchange = async () => {
+    const f = inp.files?.[0]; if (!f) return; if (f.size > 30e6) { toast("Files up to 30 MB."); return; }
+    setBusy(true); toast(`Uploading ${f.name}…`);
+    const data = await new Promise<string>(res => { const fr = new FileReader(); fr.onload = () => res(String(fr.result).split(",")[1] ?? ""); fr.readAsDataURL(f); });
+    const r = await api("room/file", { id: id ?? "", name: f.name, title: id ? "" : f.name.replace(/\.[^.]+$/, ""), data }); setBusy(false);
+    toast(r.ok ? (id ? "New version uploaded." : "Uploaded. It's in the room now.") : r.error); load();
+  }; inp.click(); };
+  const saveEdit = async (e: React.FormEvent) => { e.preventDefault(); if (!edit) return; setEErr(""); const err = await item({ ...edit, hidden: !!edit.hidden }, "Saved."); if (err) setEErr(err); else setEdit(null); };
+  const ago = (t: number) => when(t);
+  return <>
+    <Head title="Investor room" sub="A private page for investors at agapetoyourseat.com/room: each gets their own link, so you see who opened it and what they read, and can turn a link off at any time. You'll get a notice (and an email, if alerts are on) the first time each one opens it." />
+    <section className="ox-card">
+      <h2>Who has a link</h2>
+      <form className="ox-invite" onSubmit={async e => { e.preventDefault(); setGErr(""); const r = await api("room/guest", g); if (!r.ok) { setGErr(r.error); return; } copy(link(r.key)); setG({ name: "", firm: "", email: "" }); load(); }}>
+        <label className="ox-f"><span>Who it's for</span><input required value={g.name} onChange={e => setG({ ...g, name: e.target.value })} placeholder="Jane Smith" /></label>
+        <label className="ox-f"><span>Firm</span><input value={g.firm} onChange={e => setG({ ...g, firm: e.target.value })} placeholder="Bluegrass Angels" /></label>
+        <label className="ox-f"><span>Their email</span><input type="email" value={g.email} onChange={e => setG({ ...g, email: e.target.value })} placeholder="optional" /></label>
+        <button className="ox-btn primary">Make a link</button>
+      </form>
+      {gErr && <p className="ox-err">{gErr}</p>}
+      {!d.guests.length ? <p className="ox-empty">Nobody yet. Make a link for each investor, so you can see who opened what.</p> : <div className="rmx-guests">{[...d.guests].reverse().map(x => {
+        const opened = x.views.filter(v => v[1] !== "room"); const last = x.views.length ? x.views[x.views.length - 1][0] : 0;
+        return <div key={x.id} className={"rmx-guest" + (x.off ? " off" : "")}>
+          <div className="rmx-who"><b>{x.name}</b>{x.firm && <small>{x.firm}</small>}<span className={x.views.length ? "seen" : ""}>{x.off ? "Link turned off" : x.views.length ? `Last opened ${ago(last)}` : "Not opened yet"}</span></div>
+          {opened.length > 0 && <ul className="rmx-views">{[...opened].reverse().slice(0, 8).map(([t, id], i) => <li key={i}><b>{title(id)}</b> · {ago(t)}</li>)}</ul>}
+          <div className="ox-row">
+            <button className="ox-btn sm" onClick={() => copy(link(x.key))}>Copy link</button>
+            {x.email && <button className="ox-btn sm" onClick={() => { pendingDraft = { to: [x.email], subject: "Agape: your investor room", body: `Hi ${x.name.split(" ")[0]},\n\nHere's a private room with everything on Agape: the two-page summary, our paper on where Agape goes, and the live product you can try yourself.\n\n${link(x.key)}\n\nThe link is just for you. Any questions, reply here.\n\n${me.name}` }; window.dispatchEvent(new CustomEvent("ox-go", { detail: "inbox" })); }}>Email it</button>}
+            <button className="ox-btn sm ghost" onClick={() => guest({ id: x.id, off: !x.off }, x.off ? "Link turned back on." : "Link turned off. It stops working right away.")}>{x.off ? "Turn on" : "Turn off"}</button>
+            <button className="ox-btn sm ghost" onClick={() => { if (confirm(`Remove ${x.name}'s link and its history?`)) guest({ id: x.id, delete: true }, "Removed."); }}>Remove</button>
+          </div>
+        </div>; })}</div>}
+    </section>
+    <section className="ox-card">
+      <div className="ox-row between"><h2>What's in it</h2><div className="ox-row"><button className="ox-btn sm" disabled={busy} onClick={() => upload()}>Upload a file</button><button className="ox-btn sm" onClick={() => setEdit({ kind: "link", title: "", about: "", url: "", hidden: false })}>Add a link</button><button className="ox-btn sm" onClick={() => setEdit({ kind: "text", title: "", about: "", text: "", hidden: false })}>Write a note</button></div></div>
+      <p className="ox-sub">Investors see these in this order. Hidden ones stay here for you to finish first.</p>
+      {edit && !edit.id && <ItemForm edit={edit} setEdit={setEdit} save={saveEdit} err={eErr} />}
+      <ol className="rmx-items">{d.items.map((i, n) => <li key={i.id} className={i.hidden ? "hid" : ""}>
+        {edit && edit.id === i.id ? <ItemForm edit={edit} setEdit={setEdit} save={saveEdit} err={eErr} /> : <>
+          <div className="rmx-item"><i className="rmx-kind">{i.kind === "file" ? (i.fname.split(".").pop() || "file").toUpperCase() : i.kind === "link" ? "LINK" : "NOTE"}</i>
+            <div><b>{i.title}</b>{i.hidden && <span className="rmx-hid">Hidden from investors</span>}<small>{i.about}</small>{i.kind === "link" && <small className="mono">{i.url}</small>}</div></div>
+          <div className="ox-row">
+            <button className="ox-btn sm ghost" aria-label="Move up" disabled={n === 0} onClick={() => item({ id: i.id, move: -1 })}>↑</button>
+            <button className="ox-btn sm ghost" aria-label="Move down" disabled={n === d.items.length - 1} onClick={() => item({ id: i.id, move: 1 })}>↓</button>
+            {i.kind === "file" && <button className="ox-btn sm" onClick={() => openFile(i)}>Open</button>}
+            {i.kind === "file" && <button className="ox-btn sm" disabled={busy} onClick={() => upload(i.id)}>New version</button>}
+            <button className="ox-btn sm" onClick={() => { setEErr(""); setEdit({ ...i }); }}>Edit</button>
+            <button className="ox-btn sm ghost" onClick={() => item({ ...i, hidden: !i.hidden }, i.hidden ? "Investors can see it now." : "Hidden from investors.")}>{i.hidden ? "Show" : "Hide"}</button>
+            <button className="ox-btn sm ghost" onClick={() => { if (confirm(`Remove "${i.title}" from the room?`)) item({ id: i.id, delete: true }, "Removed."); }}>Remove</button>
+          </div></>}
+      </li>)}</ol>
+    </section>
+  </>;
+}
+function ItemForm({ edit, setEdit, save, err }: { edit: Partial<RItem>; setEdit: (e: Partial<RItem> | null) => void; save: (e: React.FormEvent) => void; err: string }) {
+  return <form className="ox-grid rmx-form" onSubmit={save}>
+    <label className="ox-f"><span>Title</span><input required value={edit.title ?? ""} onChange={e => setEdit({ ...edit, title: e.target.value })} /></label>
+    <label className="ox-f"><span>One line about it</span><input value={edit.about ?? ""} onChange={e => setEdit({ ...edit, about: e.target.value })} /></label>
+    {edit.kind === "link" && <label className="ox-f wide"><span>Link</span><input required value={edit.url ?? ""} onChange={e => setEdit({ ...edit, url: e.target.value })} placeholder="https://… or /demo/" /></label>}
+    {edit.kind === "text" && <label className="ox-f wide"><span>Note</span><textarea rows={12} value={edit.text ?? ""} onChange={e => setEdit({ ...edit, text: e.target.value })} /><small>A line starting with "## " is a heading, "- " a bullet, **words** in bold. A blank line starts a new paragraph.</small></label>}
+    <label className="ox-check wide"><input type="checkbox" checked={!!edit.hidden} onChange={e => setEdit({ ...edit, hidden: e.target.checked })} /> Hidden from investors</label>
+    {err && <p className="ox-err wide">{err}</p>}
+    <div className="ox-row wide"><button className="ox-btn primary">Save</button><button type="button" className="ox-btn ghost" onClick={() => setEdit(null)}>Cancel</button></div>
+  </form>;
 }
 
 // ---------------- brand ----------------

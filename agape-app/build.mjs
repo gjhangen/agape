@@ -107,6 +107,10 @@ for (const [dir, entry, title, desc, app] of [
 const getJs = await bundle("src/get.tsx");
 mkdirSync("dist/server/get", { recursive: true });
 writeFileSync("dist/server/get/index.html", head("Get Agape on your phone", "Install Agape from the web: its own icon, full screen, always the latest version.").replace('<link rel="icon"', '<link rel="manifest" href="/manifest.json"><meta name="apple-mobile-web-app-capable" content="yes"><meta name="mobile-web-app-capable" content="yes"><meta name="apple-mobile-web-app-title" content="Agape"><link rel="icon"') + `<div id="root"></div>${REACT}<script>${getJs}</script></body></html>`);
+// the investor room: each investor's own link; nothing shows without one
+const roomJs = await bundle("src/room.tsx");
+mkdirSync("dist/server/room", { recursive: true });
+writeFileSync("dist/server/room/index.html", head("Agape · investor room", "Private.").replace("<title>", '<meta name="robots" content="noindex, nofollow"><title>') + `<div id="room-root"></div>${REACT}<script>${roomJs}</script></body></html>`);
 // a background worker some browsers want before they offer an install. It caches nothing: always the live site.
 writeFileSync("dist/server/sw.js", `self.addEventListener("install", () => self.skipWaiting());\nself.addEventListener("activate", e => e.waitUntil(self.clients.claim()));\nself.addEventListener("fetch", () => {});\n`);
 console.log("dist/server/get, dist/server/sw.js");

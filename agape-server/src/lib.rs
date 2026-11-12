@@ -10,6 +10,7 @@ pub mod mail;
 pub mod pilot;
 pub mod ops;
 pub mod pay;
+pub mod room;
 
 use auth::{Account, Auth, Role};
 use axum::extract::{Path, State};
@@ -308,6 +309,111 @@ async fn office_service_set(State(app): State<S>, h: HeaderMap, Json(b): Json<Va
     }
 }
 
+// ---------------- the investor room ----------------
+
+/// The host, or anyone whose role covers leads, runs the investor room.
+fn room_keeper(app: &App, h: &HeaderMap) -> Result<admin::User, Response> {
+    let u = staffer(app, h)?;
+    if u.role == admin::HOST || app.office.lock().unwrap().can(&u, "leads") { Ok(u) } else { Err(err(StatusCode::FORBIDDEN, "Your role doesn't include the investor room")) }
+}
+async fn office_room(State(app): State<S>, h: HeaderMap) -> Response {
+    if let Err(r) = room_keeper(&app, &h) { return r; }
+    let v = room::Room::with(&app.data, |r| json!({ "items": r.items, "guests": r.guests }));
+    Json(json!({ "ok": true, "room": v })).into_response()
+}
+async fn office_room_guest(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match room_keeper(&app, &h) { Ok(u) => u, Err(r) => return r };
+    let id = s(&b, "id");
+    let r = room::Room::with(&app.data, |r| -> Result<Value, String> {
+        if id.is_empty() { let g = r.add_guest(&s(&b, "name"), &s(&b, "firm"), &s(&b, "email"))?; return Ok(json!({ "key": g.key, "name": g.name })); }
+        if b["delete"] == true { r.guests.retain(|g| g.id != id); return Ok(json!({})); }
+        let g = r.guests.iter_mut().find(|g| g.id == id).ok_or("No such link")?;
+        g.off = b["off"] == true; Ok(json!({}))
+    });
+    match r {
+        Ok(v) => { app.office.lock().unwrap().logged(&u, if id.is_empty() { format!("made an investor room link for {}", v["name"].as_str().unwrap_or("")) } else { "changed an investor room link".into() }); let mut v = v; v["ok"] = json!(true); Json(v).into_response() }
+        Err(e) => err(StatusCode::BAD_REQUEST, &e),
+    }
+}
+async fn office_room_item(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    if let Err(r) = room_keeper(&app, &h) { return r; }
+    let gone = if b["delete"] == true { room::Room::with(&app.data, |r| r.items.iter().find(|i| i.id == s(&b, "id")).map(|i| i.file.clone())) } else { None };
+    match room::Room::with(&app.data, |r| r.save_item(&b)) {
+        Ok(()) => { if let Some(f) = gone.filter(|f| !f.is_empty() && !f.contains(':')) { let _ = std::fs::remove_file(room::files(&app.data).join(f)); } done(Ok(())) }
+        Err(e) => err(StatusCode::BAD_REQUEST, &e),
+    }
+}
+/// Upload a document (base64 in JSON): a new item, or a new version of an existing one.
+async fn office_room_file(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    if let Err(r) = room_keeper(&app, &h) { return r; }
+    use base64::Engine;
+    let Ok(bytes) = base64::engine::general_purpose::STANDARD.decode(s(&b, "data")) else { return err(StatusCode::BAD_REQUEST, "That file didn't arrive whole. Try again.") };
+    if bytes.is_empty() || bytes.len() > 32_000_000 { return err(StatusCode::BAD_REQUEST, "Files up to 30 MB"); }
+    let fname: String = s(&b, "name").chars().filter(|c| !matches!(c, '/' | '\\' | '"' | '\0')).take(120).collect();
+    let ext = fname.rsplit('.').next().filter(|e| e.len() <= 5 && e.chars().all(|c| c.is_ascii_alphanumeric())).unwrap_or("bin").to_lowercase();
+    let stored = format!("{}.{ext}", { let mut x = [0u8; 10]; rand::RngCore::fill_bytes(&mut rand::rng(), &mut x); x.iter().map(|v| format!("{v:02x}")).collect::<String>() });
+    let dir = room::files(&app.data); let _ = std::fs::create_dir_all(&dir);
+    if std::fs::write(dir.join(&stored), &bytes).is_err() { return err(StatusCode::INTERNAL_SERVER_ERROR, "Couldn't keep the file"); }
+    let (id, title, about, size) = (s(&b, "id"), s(&b, "title"), s(&b, "about"), bytes.len() as u64);
+    let old = room::Room::with(&app.data, |r| {
+        match r.items.iter_mut().find(|i| !id.is_empty() && i.id == id) {
+            Some(i) => { let old = std::mem::replace(&mut i.file, stored.clone()); i.fname = fname.clone(); i.size = size; i.kind = "file".into(); if !title.trim().is_empty() { i.title = title.trim().into(); } Some(old) }
+            None => { r.items.push(room::Item { id: format!("i{}", admin::now()), title: if title.trim().is_empty() { fname.clone() } else { title.trim().into() }, about, kind: "file".into(), url: String::new(), file: stored.clone(), fname: fname.clone(), size, text: String::new(), hidden: false, at: admin::now() }); None }
+        }
+    });
+    if let Some(o) = old.filter(|o| !o.is_empty() && !o.contains(':')) { let _ = std::fs::remove_file(room::files(&app.data).join(o)); }
+    done(Ok(()))
+}
+/// The team looking at a document in the room (to check it before sharing).
+async fn office_room_open(State(app): State<S>, h: HeaderMap, Path(id): Path<String>) -> Response {
+    if let Err(r) = room_keeper(&app, &h) { return r; }
+    serve_room_file(&app, &id)
+}
+fn serve_room_file(app: &App, id: &str) -> Response {
+    let it = room::Room::with(&app.data, |r| r.items.iter().find(|i| i.id == id).cloned());
+    let Some(it) = it else { return err(StatusCode::NOT_FOUND, "No such document") };
+    let Some(path) = room::file_path(&app.data, &it) else { return err(StatusCode::NOT_FOUND, "No such document") };
+    match std::fs::read(path) {
+        Ok(b) => {
+            let name = if it.fname.is_empty() { it.title.clone() } else { it.fname.clone() };
+            let disp = format!("inline; filename=\"{}\"", name.replace(['"', '\\', '\r', '\n'], ""));
+            ([(axum::http::header::CONTENT_TYPE, room::content_type(&name).to_string()), (axum::http::header::CONTENT_DISPOSITION, disp), (axum::http::header::CACHE_CONTROL, "private, no-store".to_string())], b).into_response()
+        }
+        Err(_) => err(StatusCode::NOT_FOUND, "That document isn't on the server"),
+    }
+}
+fn room_key(q: &std::collections::HashMap<String, String>) -> String { q.get("k").cloned().unwrap_or_default() }
+/// Tell the team the first time someone opens their link, in Admin and by email (if alerts are on).
+fn room_first_open(app: &S, who: &str) {
+    let subject = format!("{who} opened the investor room");
+    let body = format!("{who} just opened their link to Agape's investor room for the first time. See what they look at under Investor room in Agape Admin: https://{}/admin/#room", app.mail.domain);
+    app.office.lock().unwrap().notify_perm("leads", "room", &subject, &body);
+    if let Some(r) = mail::Relay::load(&app.data).filter(|r| !r.alert_to.is_empty()) {
+        let app2 = app.clone();
+        tokio::spawn(async move { if let Err(e) = alert(&app2, &r, &subject, &body, None).await { eprintln!("room alert: {e}"); } });
+    }
+}
+async fn room_view(State(app): State<S>, axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>) -> Response {
+    let key = room_key(&q);
+    let r = room::Room::with(&app.data, |r| { let v = r.guest(&key).cloned().map(|g| r.view_for(&g)); let first = if v.is_some() { r.seen(&key, "room") } else { None }; (v, first) });
+    match r {
+        (Some(mut v), first) => { if let Some((true, who)) = first { room_first_open(&app, &who); } v["ok"] = json!(true); Json(v).into_response() }
+        _ => err(StatusCode::FORBIDDEN, "This link isn't active. Ask the person who sent it for a new one."),
+    }
+}
+async fn room_file(State(app): State<S>, Path(id): Path<String>, axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>) -> Response {
+    let key = room_key(&q);
+    let ok = room::Room::with(&app.data, |r| r.guest(&key).is_some() && r.items.iter().any(|i| i.id == id && !i.hidden && i.kind == "file") && r.seen(&key, &id).is_some());
+    if !ok { return err(StatusCode::FORBIDDEN, "This link isn't active. Ask the person who sent it for a new one."); }
+    serve_room_file(&app, &id)
+}
+async fn room_go(State(app): State<S>, Path(id): Path<String>, axum::extract::Query(q): axum::extract::Query<std::collections::HashMap<String, String>>) -> Response {
+    let key = room_key(&q);
+    // a link opens through here, so the visit is counted; a note read in the room is counted the same way
+    let url = room::Room::with(&app.data, |r| { let u = r.items.iter().find(|i| i.id == id && !i.hidden && (i.kind == "link" || i.kind == "text")).map(|i| i.url.clone()); if u.is_some() && r.guest(&key).is_some() { r.seen(&key, &id); u } else { None } });
+    match url { Some(u) if !u.is_empty() => (StatusCode::FOUND, [(axum::http::header::LOCATION, u)]).into_response(), Some(_) => Json(json!({ "ok": true })).into_response(), None => err(StatusCode::FORBIDDEN, "This link isn't active.") }
+}
+
 /// Someone who wants Agape at their venue, or wants to talk. Kept for the team; never shown publicly.
 async fn lead(State(app): State<S>, Json(b): Json<Value>) -> Response {
     let get = |k: &str, n: usize| b[k].as_str().unwrap_or("").trim().chars().take(n).collect::<String>();
@@ -484,6 +590,14 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/mail/service", post(office_service_set))
         .route("/api/office/shared", get(office_shared).post(office_shared_set))
         .route("/api/office/copies", post(office_copies))
+        .route("/api/office/room", get(office_room))
+        .route("/api/office/room/guest", post(office_room_guest))
+        .route("/api/office/room/item", post(office_room_item))
+        .route("/api/office/room/file", post(office_room_file).layer(axum::extract::DefaultBodyLimit::max(45_000_000)))
+        .route("/api/office/room/open/{id}", get(office_room_open))
+        .route("/api/room", get(room_view))
+        .route("/api/room/file/{id}", get(room_file))
+        .route("/api/room/go/{id}", get(room_go))
         .route("/api/mail/health", get(mail_health))
         .route("/api/mail/inbound", post(mail_inbound).layer(axum::extract::DefaultBodyLimit::max(30_000_000)))
         .route("/api/office/role", post(office_role))
