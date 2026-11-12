@@ -12,10 +12,10 @@ body { font: 10pt/1.38 "Public Sans", sans-serif; color: #17181C; -webkit-print-
 .D { font-family: "Big Shoulders Display", sans-serif; font-weight: 800; text-transform: uppercase; line-height: .92; }
 .k { font: 700 7pt/1 "Public Sans", sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #B8174F; }
 h2 { font-size: 24pt; margin: 4px 0 10px; }
-.pad { padding: .32in .55in; }
+.pad { padding: .28in .55in; }
 
 /* page 1 */
-.top { background: radial-gradient(ellipse at 80% 35%, #7A0F38 0%, #1A0910 55%, #0E0B0D 100%); color: #fff; padding: .5in .55in .45in; display: grid; grid-template-columns: 1.2fr 1fr; gap: .25in; align-items: center; }
+.top { background: radial-gradient(ellipse at 80% 35%, #7A0F38 0%, #1A0910 55%, #0E0B0D 100%); color: #fff; padding: .42in .55in .38in; display: grid; grid-template-columns: 1.2fr 1fr; gap: .25in; align-items: center; }
 .mark { font: 800 30pt/1 "Big Shoulders Display", sans-serif; color: #FF6F99; display: flex; gap: 7px; align-items: center; }
 .mark small { font: 700 5.5pt/1.15 "Public Sans", sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #fff; border-left: 1.4px solid #fff; padding-left: 6px; }
 .top h1 { font-size: 38pt; margin: 16px 0 12px; }
@@ -25,19 +25,19 @@ h2 { font-size: 24pt; margin: 4px 0 10px; }
 .ph img { width: 100%; height: 100%; object-fit: cover; object-position: top; border-radius: 14px; display: block; }
 .wd { border-radius: 9px; padding: 4px; background: #15161A; overflow: hidden; } .wd img { width: 100%; display: block; border-radius: 6px; }
 .top .wd { width: 1.75in; }
-.line { background: #fff; padding: .35in .55in .3in; display: grid; grid-template-columns: auto 1fr; gap: .14in .4in; align-items: center; }
-.big b { font-size: 76pt; color: #B8174F; display: block; } .big b small { font-size: .36em; color: #17181C; margin: 0 .08em; vertical-align: .62em; }
+.line { background: #fff; padding: .28in .55in .24in; display: grid; grid-template-columns: auto 1fr; gap: .14in .4in; align-items: center; }
+.big b { font-size: 66pt; color: #B8174F; display: block; } .big b small { font-size: .36em; color: #17181C; margin: 0 .08em; vertical-align: .62em; }
 .big span { font-size: 12.5pt; font-weight: 600; display: block; max-width: 2.6in; margin-top: 4px; }
 .people { display: grid; grid-template-columns: repeat(10, 1fr); gap: 9px; }
 .people svg { width: 100%; height: auto; fill: #B8174F; display: block; } .people .stay svg { fill: #CFD2D9; }
 .trio { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #E3E4E8; padding-top: 12px; }
-.trio div + div { border-left: 1px solid #E3E4E8; padding-left: 16px; } .trio b { font-size: 28pt; display: block; } .trio span { font-size: 9.5pt; color: #2E3139; }
+.trio div + div { border-left: 1px solid #E3E4E8; padding-left: 16px; } .trio b { font-size: 24pt; display: block; } .trio span { font-size: 9.5pt; color: #2E3139; }
 .mkt { background: #fff; border-bottom: 1px solid #E3E4E8; padding: .3in .55in; display: grid; grid-template-columns: auto auto 1fr; gap: .4in; align-items: center; }
 .mkt b { font-size: 40pt; display: block; } .mkt span { font-size: 9pt; color: #2E3139; } .mkt p { margin: 0; font-size: 10.5pt; }
 .flow { display: grid; grid-template-columns: 1fr 1.8fr 1fr; gap: .3in; align-items: end; }
 .flow > div { display: grid; justify-items: center; text-align: center; gap: 4px; position: relative; }
 .flow > div:not(:last-child)::after { content: "→"; position: absolute; right: -.24in; top: 40%; font: 800 20pt "Big Shoulders Display"; color: #B8174F; }
-.flow .ph { width: 1.25in; height: 1.95in; } .flow .wd { width: 100%; height: 1.95in; } .flow .wd img { height: 100%; object-fit: cover; object-position: top left; }
+.flow .ph { width: 1.1in; height: 1.65in; } .flow .wd { width: 100%; height: 1.65in; } .flow .wd img { height: 100%; object-fit: cover; object-position: top left; }
 .flow b { font-size: 15pt; margin-top: 6px; } .flow span { font-size: 9pt; color: #2E3139; }
 
 /* page 2 */
@@ -70,6 +70,18 @@ h2 { font-size: 24pt; margin: 4px 0 10px; }
 .foot { background: #B8174F; color: #fff; padding: .2in .55in; display: flex; justify-content: space-between; align-items: center; }
 .foot b { font-size: 18pt; } .foot span { display: block; font-size: 9.5pt; opacity: .92; } .foot a { color: #fff; font-weight: 800; text-decoration: none; font-size: 12pt; }
 .pg { position: absolute; }
+
+.ld { display: grid; }
+.ld .row { display: grid; grid-template-columns: 2.4in 1fr; gap: .2in; align-items: center; padding: 5px 0; border-top: 1px solid #E3E4E8; }
+.ld .row i { font-style: normal; font: 700 6pt/1 "Public Sans"; letter-spacing: .12em; text-transform: uppercase; color: #B8174F; display: block; }
+.ld .row b { font: 800 12.5pt/1 "Big Shoulders Display"; text-transform: uppercase; display: block; margin-top: 2px; }
+.ld .row small { font: 700 5.8pt/1 "Public Sans"; letter-spacing: .12em; text-transform: uppercase; color: #6A6E78; display: block; }
+.ld .row em { font-style: normal; font-weight: 800; font-size: 9pt; display: block; margin: 2px 0 3px; }
+.ld .bar { display: block; height: 8px; border-radius: 99px; background: linear-gradient(90deg, #E07A9C, #B8174F); }
+.ld .row.last em { color: #B8174F; } .ld .row.last .bar { height: 12px; background: linear-gradient(90deg, #B8174F, #5E0A2A); }
+.goal { margin-top: 8px; background: #120A0E; color: #fff; border-radius: 10px; padding: 9px 12px; }
+.goal span { font: 700 6pt/1 "Public Sans"; letter-spacing: .14em; text-transform: uppercase; color: #FF8BAA; display: block; margin-bottom: 3px; }
+.goal b { font-size: 17pt; }
 </style></head><body>
 
 <div class="page">
@@ -94,17 +106,7 @@ h2 { font-size: 24pt; margin: 4px 0 10px; }
       <div><div class="ph"><img src="shots/runner.jpg"></div><b class="D">A runner brings it</b><span>several orders on one route</span></div>
     </div>
   </section>
-  <p class="src">Sources: Mashgin, “Beyond the Bases” (2025); Oracle fan survey (3,500+ fans); Live Nation 2025 results; Front Office Sports (2026). Screens are from Agape's working demo.</p>
-</div>
-
-<div class="page">
-  <section class="mkt"><div><b class="D">159M</b><span>fans at Live Nation events alone, 2025</span></div><div><b class="D">71.75M</b><span>at MLB games, 2026: one league of many</span></div><p>Games, concerts, college sports and festivals. Built for any live event, with our first venues likely in Kentucky.</p></section>
-  <section class="money">
-    <div><span class="k">How the money moves</span><h2 class="D">Every dollar flows through Agape</h2><p>Agape keeps its share first, then pays everyone else. Nobody is ever collected from.</p></div>
-    <div class="dia"><div class="n fan">Fans pay</div><div class="ar"></div><div class="n hub"><b>agape</b><small>keeps its share</small></div><div class="ar"></div><div class="out"><div class="n">Stands</div><div class="n">Runners</div><div class="n">Tax</div></div></div>
-    <div class="earn"><div><b>A share</b> of every sale</div><div><b>A delivery fee</b> on every order</div><div><b>Sponsors and bookings</b> at later steps</div></div>
-  </section>
-  <section class="pad" style="padding-bottom:.1in">
+  <section class="pad" style="padding-top:0;padding-bottom:.1in">
     <span class="k">Why Agape wins</span>
     <div class="tiles" style="margin-top:8px">
       <div><b class="D">Times that come true</b><span>Measured live from every kitchen and runner</span></div>
@@ -113,9 +115,20 @@ h2 { font-size: 24pt; margin: 4px 0 10px; }
       <div><b class="D">Live in an afternoon</b><span>A form, not an integration project</span></div>
     </div>
   </section>
+  <p class="src">Sources: Mashgin, “Beyond the Bases” (2025); Oracle fan survey (3,500+ fans); Live Nation 2025 results; Front Office Sports (2026). Screens are from Agape's working demo.</p>
+</div>
+
+<div class="page">
+  <section class="mkt"><div><b class="D">159M</b><span>fans at Live Nation events alone, 2025</span></div><div><b class="D">71.75M</b><span>at MLB games, 2026: one league of many</span></div><p>Games, concerts, college sports and festivals. Built for any live event, with our first venues likely in Kentucky.</p></section>
+  <section class="money">
+    <div><span class="k">How the money moves</span><h2 class="D">Every dollar flows through Agape</h2><p>Agape keeps its share first, then pays everyone else. Nobody is ever collected from.</p></div>
+    <div class="dia"><div class="n fan">Fans pay</div><div class="ar"></div><div class="n hub"><b>agape</b><small>keeps its share</small></div><div class="ar"></div><div class="out"><div class="n">Stands</div><div class="n">Runners</div><div class="n">Tax</div></div></div>
+    <div class="earn"><div><b>A share</b> of every sale</div><div><b>A delivery fee</b> on every order</div><div><b>Marketing, processing</b> and more, step by step</div></div>
+  </section>
   <section class="pad" style="padding-top:.15in">
-    <span class="k">Where it goes</span><h2 class="D">Food is how fans start</h2>
-    <div class="steps" id="steps"></div>
+    <span class="k">Where it goes</span><h2 class="D">Every step makes the next possible</h2>
+    <div class="ld" id="ladder"></div>
+    <div class="goal"><span>The goal</span><b class="D">30% of all live-event spending, flowing through Agape.</b></div>
   </section>
   <section class="pad" style="padding-top:.05in">
     <span class="k">The founders</span>
@@ -127,11 +140,7 @@ h2 { font-size: 24pt; margin: 4px 0 10px; }
 <script>
 const fig = '<svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 22c0-5 3.6-8 8-8s8 3 8 8z"/></svg>';
 document.getElementById("people").innerHTML = Array.from({ length: 10 }, (_, i) => `<i class="${i < 8 ? "" : "stay"}">${fig}</i>`).join("");
-const steps = [["Order to your seat", "Once a game"], ["Rewards and offers", "Every offer"], ["Play along", "All game long"], ["Tickets and travel", "Before and after"], ["All year", "Every day"]];
-const adds = ["Share of every sale", "Sponsors", "Sponsored prizes", "Booking fees", "A daily audience"];
-document.getElementById("steps").innerHTML = steps.map(([name, when], i) => `<div class="col${i === 0 ? " now" : ""}">
-  <span class="when"><small>Fans open Agape</small>${when}</span>
-  <div class="stack">${adds.slice(0, i + 1).map((a, j) => `<span class="chip${j === i ? " new" : ""}">${a}</span>`).join("")}</div>
-  <div class="nm"><i>${i === 0 ? "At launch" : "Step " + (i + 1)}</i><b>${name}</b></div></div>`).join("");
+const L = [["At launch", "Food to the seat", "What fans spend at the event", "Event nights", 10], ["Step 2", "Sponsors and local deals", "+ Marketing budgets", "Event nights", 20], ["Step 3", "Processing for local businesses", "+ Local businesses' card revenue", "Every day", 48], ["Step 4", "Social", "+ Advertising and daily attention", "Every day", 70], ["Step 5", "The marketplace", "+ Everything spent around live events", "Every day", 100]];
+document.getElementById("ladder").innerHTML = L.map(([t, n, f, w, x], i) => `<div class="row${i === 4 ? " last" : ""}"><div><i>${t}</i><b>${n}</b></div><div><small>${w}</small><em>${f}</em><span class="bar" style="width:${x}%"></span></div></div>`).join("");
 </script>
 </body></html>

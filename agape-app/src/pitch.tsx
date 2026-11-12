@@ -96,3 +96,25 @@ export function Tiles({ title, items }: { title: string; items: [string, string,
     <div className="iv2-tiles">{items.map(([i, b, s]) => <div key={b}><i>{i}</i><b>{b}</b><span>{s}</span></div>)}</div>
   </section>;
 }
+
+/** For investors: how each step gives Agape the leverage for the next, and how much more flows through it each time.
+ * The bars grow far faster than the steps, which is the point: event spending, then marketing budgets, then local
+ * businesses' card revenue every day of the year, then daily attention, then the whole economy around live events. */
+const LADDER: { name: string; how: string; flows: string; when: string; w: number }[] = [
+  { name: "Food to the seat", how: "Fans at every event order through Agape, and venues run their night on it.", flows: "What fans spend at the event", when: "Event nights", w: 9 },
+  { name: "Sponsors and local deals", how: "That audience, in the moment, is what sponsors and nearby businesses pay to reach.", flows: "Marketing budgets", when: "Event nights", w: 18 },
+  { name: "Processing for local businesses", how: "Shown the customers Agape sent them, local businesses run their cards through Agape: a share of every card they take.", flows: "Local businesses' card revenue", when: "Every day, all year", w: 46 },
+  { name: "Social", how: "Fans follow teams, players, sections and friends between events, so Agape is open every day.", flows: "Advertising and daily attention", when: "Every day", w: 68 },
+  { name: "The marketplace", how: "Tickets, resale, merch, collectibles and deals between fans, teams, players and sponsors, with buyers already there.", flows: "Everything spent around live events", when: "Every day", w: 100 },
+];
+export function Ladder() {
+  return <section className="site-sec ld">
+    <div className="sec-head"><span className="hm-kicker">Where it goes</span><h2>Every step makes the next one possible</h2>
+      <p className="site-why-demo">Food gets Agape into every seat. Each step turns what the last one built into leverage for the next, and more of the money around live events flows through Agape.</p></div>
+    <ol className="ld-rows">{LADDER.map((s, i) => <li key={s.name} className={i === 0 ? "now" : ""}>
+      <div className="ld-step"><em>{i === 0 ? "At launch" : `Step ${i + 1}`}</em><b>{s.name}</b><small>{s.how}</small></div>
+      <div className="ld-flow"><span className="ld-when">{s.when}</span><b className="ld-label">{i === 0 ? "" : "+ "}{s.flows}</b><div className="ld-bar" style={{ ["--w" as any]: `${s.w}%` }} /></div>
+    </li>)}</ol>
+    <p className="ld-goal"><span>The goal</span><b>30% of all live-event spending, flowing through Agape.</b></p>
+  </section>;
+}
