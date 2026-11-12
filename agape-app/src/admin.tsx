@@ -255,7 +255,7 @@ function Shell({ me, out }: { me: Me; out: () => void }) {
     document.title = total ? `(${total}) Agape Admin` : "Agape Admin";
   });
   useEffect(() => { refresh(); const t = setInterval(refresh, 20000); return () => clearInterval(t); }, []);
-  const tabs: [Tab, string][] = [["inbox", "Messages"], ...(me.oversees ? [["channels", "Channels"]] as [Tab, string][] : []), ...(me.perms.includes("venues") ? [["venues", "Venues"]] as [Tab, string][] : []), ...(me.perms.includes("merchants_view") ? [["merchants", "Merchants"]] as [Tab, string][] : []), ["team", "Team"], ...(me.perms.includes("leads") ? [["leads", "Leads"]] as [Tab, string][] : []), ...(me.perms.includes("accounts") ? [["accounts", "App accounts"]] as [Tab, string][] : []), ["activity", "Activity"], ...(me.role === "host" ? [["mail", "Email setup"]] as [Tab, string][] : []), ["account", "Your account"]];
+  const tabs: [Tab, string][] = [["inbox", "Messages"], ...(me.oversees ? [["channels", "Channels"]] as [Tab, string][] : []), ...(me.perms.includes("venues") ? [["venues", "Venues"]] as [Tab, string][] : []), ...(me.perms.includes("merchants_view") ? [["merchants", "Processing"]] as [Tab, string][] : []), ["team", "Team"], ...(me.perms.includes("leads") ? [["leads", "Leads"]] as [Tab, string][] : []), ...(me.perms.includes("accounts") ? [["accounts", "App accounts"]] as [Tab, string][] : []), ["activity", "Activity"], ...(me.role === "host" ? [["mail", "Email setup"]] as [Tab, string][] : []), ["account", "Your account"]];
   return <div className="ox-app">
     <header className="ox-top">
       <Mark />
@@ -293,20 +293,23 @@ function Merchants({ me, toast }: { me: Me; toast: (s: string) => void }) {
   const [open, setOpen] = useState<{ m: Merchant | null; sheet: boolean } | null>(null);
   const [error, setError] = useState("");
   const load = async () => { const r = await api("merchants"); if (r.ok) { setList(r.merchants); setVenues(r.venues); } else setError(r.error); };
+  const [brought, setBrought] = useState<string | null>(null);
   useEffect(() => { load(); }, []);
   const can = me.perms.includes("merchants_edit");
+  if (brought != null) return <Brought pick={brought} back={() => setBrought(null)} />;
   if (open?.sheet && open.m) return <Sheet m={open.m} back={open.m.id === "blank" ? () => setOpen(null) : () => setOpen({ m: open.m, sheet: false })} close={() => setOpen(null)} />;
   if (open) return <Editor m={open.m} can={can} owner={me.perms.includes("merchants_delete")} venues={venues} toast={toast}
     saved={m => { load(); setOpen({ m, sheet: false }); }} sheet={m => setOpen({ m, sheet: true })} close={() => { setOpen(null); load(); }} />;
   return <>
-    <Head title="Merchants" sub="Each business Agape takes payments for: its processor, the numbers the processor issued, and the VAR sheet to send.">
+    <Head title="Processing" sub="Local businesses Agape processes cards for, as their agent: each one's processor, the numbers it issued, and the VAR sheet that sets Agape up on their account. Businesses Agape pays after event nights are under Venues.">
+      <button className="ox-btn" onClick={() => setBrought("")}>What Agape brought them</button>
       <button className="ox-btn" onClick={() => setOpen({ m: BLANK(), sheet: true })}>Blank VAR sheet</button>
       {can && <button className="ox-btn primary" onClick={() => setOpen({ m: null, sheet: false })}>Add a merchant</button>}
     </Head>
     {error && <p className="ox-err">{error}</p>}
     {list === null ? <p className="ox-empty">Loading…</p> : !list.length ? <div className="ox-blank">
-      <h2>No merchants yet</h2>
-      <p>Add the first one with what you know today: the business, its processor, and how cards are taken. The numbers the processor issues can come later, and the VAR sheet shows what's still pending.</p>
+      <h2>No local businesses yet</h2>
+      <p>Start with a business fans already visit through Agape: "What Agape brought them" shows the customers Agape has sent it, which is the case for processing with Agape. Add the first one with what you know today: the business, its processor, and how cards are taken. The numbers the processor issues can come later, and the VAR sheet shows what's still pending.</p>
       {can && <button className="ox-btn primary" onClick={() => setOpen({ m: null, sheet: false })}>Add a merchant</button>}
     </div> : <div className="ox-table-wrap"><table className="ox-table merch">
       <thead><tr><th>Merchant</th><th>Processor</th><th>MID</th><th>Ready</th><th>Status</th><th>Updated</th><th></th></tr></thead>
@@ -317,9 +320,49 @@ function Merchants({ me, toast }: { me: Me; toast: (s: string) => void }) {
         <td data-l="Ready"><span className="ox-meter" title={`${n} of ${NEEDED.length} required fields`}><i style={{ width: `${(n / NEEDED.length) * 100}%` }} /></span><small>{n}/{NEEDED.length}</small></td>
         <td data-l="Status"><StatusTag s={m.status} /></td>
         <td data-l="Updated"><small>{when(m.at)} · {m.by}</small></td>
-        <td><button className="ox-btn sm" onClick={() => setOpen({ m, sheet: true })}>VAR sheet</button></td>
+        <td className="nowrap"><button className="ox-btn sm" onClick={() => setOpen({ m, sheet: true })}>VAR sheet</button> <button className="ox-btn sm ghost" onClick={() => setBrought(m.fields.dba ?? "")}>Brought</button></td>
       </tr>; })}</tbody>
     </table></div>}
+  </>;
+}
+
+/** What Agape brought a local business: fans who unlocked its offer, fans who came in, and what it sold through Agape,
+ * night by night. Printable, to hand them when asking to process their cards. Simulated nights are marked and never
+ * counted in the totals of a real business. */
+function Brought({ pick, back }: { pick: string; back: () => void }) {
+  const [data, setData] = useState<any>(null);
+  const [error, setError] = useState("");
+  useEffect(() => { (async () => { const r = await api("brought"); if (r.ok) setData(r); else setError(r.error); })(); }, []);
+  const names: string[] = useMemo(() => Array.from(new Set<string>((data?.nights ?? []).flatMap((n: any) => n.businesses.map((b: any) => b.name)))).sort(), [data]);
+  const [who, setWho] = useState(pick);
+  useEffect(() => { if (data && !names.includes(who)) setWho(names.find(n => pick && n.toLowerCase().includes(pick.toLowerCase().split(" ")[0])) ?? names[0] ?? ""); }, [data]);
+  if (error) return <p className="ox-err">{error}</p>;
+  if (!data) return <p className="ox-empty">Loading…</p>;
+  const rows = data.nights.map((n: any) => ({ n, b: n.businesses.find((b: any) => b.name === who) })).filter((x: any) => x.b);
+  const real = rows.filter((x: any) => !x.n.simulated), shown = real.length ? real : rows;
+  const sum = (k: string) => shown.reduce((a: number, x: any) => a + (x.b[k] ?? 0), 0);
+  const sample = !real.length && rows.length > 0;
+  return <>
+    <Head title="What Agape brought them" sub="The customers Agape has sent a local business, from the books of every night. Print it or save it as a PDF to hand them.">
+      <button className="ox-btn ghost" onClick={back}>Back</button>
+      <button className="ox-btn primary" onClick={() => window.print()}>Print</button>
+    </Head>
+    {!names.length ? <div className="ox-blank"><h2>No local businesses on Agape yet</h2><p>When a venue switches on partners nearby, every perk unlocked and every visit is recorded here, night by night.</p></div> : <>
+      <label className="ox-f no-print"><span>Business</span><select value={who} onChange={e => setWho(e.target.value)}>{names.map(n => <option key={n}>{n}</option>)}</select></label>
+      <article className="ox-card brought">
+        <header><Wordmark tag /><div><h1>{who}</h1><p>{sample ? "A sample from the demo's simulated night: no real business's numbers yet" : `${real.length} night${real.length === 1 ? "" : "s"} with Agape`}</p></div></header>
+        <div className="brought-kpis">
+          <div><b>{sum("fans")}</b><span>different fans Agape sent your way</span></div>
+          <div><b>{sum("unlocked")}</b><span>unlocked your offer during an event</span></div>
+          <div><b>{sum("came")}</b><span>came in and used it</span></div>
+          <div><b>{sum("unlocked") ? Math.round((sum("came") / sum("unlocked")) * 100) : 0}%</b><span>of those who unlocked it came in</span></div>
+        </div>
+        {sum("sales") > 0 && <p className="brought-sales">{money(sum("sales"))} sold through Agape across {sum("orders")} orders.</p>}
+        <table className="ox-table tight"><thead><tr><th>Night</th><th>Venue</th><th>Unlocked</th><th>Came in</th><th>Fans</th></tr></thead>
+          <tbody>{rows.map((x: any, i: number) => <tr key={i}><td><small>{when(x.n.at)}</small>{x.n.simulated && <span className="ox-tag draft">Simulated</span>}{x.n.open && <span className="ox-tag live">Tonight</span>}</td><td>{x.n.venue}</td><td className="mono">{x.b.unlocked}</td><td className="mono">{x.b.came}</td><td className="mono">{x.b.fans}</td></tr>)}</tbody></table>
+        <p className="brought-ask">Every card these customers paid you with went through another company. Process with Agape, and the same fans keep coming, with the marketing and support of people who know your business.</p>
+      </article>
+    </>}
   </>;
 }
 

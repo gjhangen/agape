@@ -23,6 +23,7 @@ pub fn view(n: &mut Night, who: &str, v: &Value) -> Value {
         Some("night") if who == "agape" || who == "ops" => n.view_night(),
         // what each fan's card owes: the server's payments only
         Some("payments") if who == "agape" => json!({ "due": n.payments_due() }),
+        Some("brought") if who == "agape" => json!({ "businesses": n.brought() }),
         // problems, remedies and every fan's record: Agape's own team only
         Some("care") if who == "agape" || who == "hq" => n.view_care(),
         _ => json!({ "error": "unknown lens" }),

@@ -141,6 +141,31 @@ impl Night {
                 "followers": self.social.followers(id) })
     }
 
+    /// What Agape brought each local business tonight: fans who unlocked its perk or pass, fans who came in and used
+    /// it, how many different fans that was, and what it sold through Agape. The record a business is shown when
+    /// Agape asks to process its cards: proof of the customers before the ask.
+    pub fn brought(&self) -> Value {
+        let usd = Unit::usd();
+        let mut ids: Vec<(String, String)> = self.world.def.businesses.iter().map(|b| (b.id.clone(), b.name.clone())).collect();
+        for a in &self.world.def.around { let op = a.operator.clone().unwrap_or_else(|| a.id.clone()); if !ids.iter().any(|(i, _)| *i == op) { ids.push((op, a.name.clone())); } }
+        ids.into_iter().map(|(id, name)| {
+            let places: Vec<&crate::world::AroundPlace> = self.world.def.around.iter().filter(|a| a.operator.as_deref() == Some(id.as_str()) || a.id == id).collect();
+            let mut unlocked = 0i64; let mut came = 0i64;
+            let mut fans: std::collections::BTreeSet<String> = Default::default();
+            for a in &places {
+                let unit = crate::sim::pass_unit(&a.id);
+                let supply = a.perk.as_ref().map(|p| p.supply).or(a.service.as_ref().map(|s| s.supply)).unwrap_or(0);
+                unlocked += supply - self.ledger.balance(&acct(&a.id, "passes"), &unit);
+                came += self.ledger.balance(&acct(&a.id, "redeemed"), &unit);
+                for (f, p) in self.redeemed.keys() { if *p == a.id { fans.insert(f.clone()); } }
+                for f in self.fans.iter().map(|f| f.id.clone()) { if self.ledger.balance(&acct(&f, "holdings"), &unit) > 0 { fans.insert(f); } }
+            }
+            let orders = self.ledger.txns.iter().filter(|t| t.postings.iter().any(|p| p.account.party == id && p.account.purpose == "revenue" && p.amount > 0)).count();
+            json!({ "id": id, "name": name, "unlocked": unlocked, "came": came, "fans": fans.len(), "orders": orders,
+                    "sales": self.ledger.balance(&acct(&id, "revenue"), &usd), "places": places.iter().map(|a| a.name.clone()).collect::<Vec<_>>() })
+        }).collect::<Vec<_>>().into()
+    }
+
     /// Who can be looked at as themselves: businesses, and every player (claimed or not).
     pub fn parties(&self) -> Value {
         let biz: Vec<Value> = self.world.def.businesses.iter().map(|b| json!({ "id": b.id, "name": b.name, "kind": b.kind })).collect();

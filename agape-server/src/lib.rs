@@ -442,6 +442,7 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/venue/delete", post(office_venue_delete))
         .route("/api/office/venue/open", post(office_venue_open))
         .route("/api/office/venue/payee", post(office_venue_payee))
+        .route("/api/office/brought", get(office_brought))
         .route("/api/office/venue/staff", post(office_venue_staff))
         .route("/api/office/venue/staff/reset", post(office_venue_staff_reset))
         .route("/api/office/night/{venue}", get(office_night))
@@ -848,6 +849,29 @@ fn payouts_for(app: &App, venue: &str, night: &Value) -> Value {
     pilot::payouts(&d.form, night, &|pid| d.payouts.get(pid).map(|p| p.status == "approved").unwrap_or(false))
 }
 
+/// What Agape brought each local business, night by night: real nights from their reports, and any night open now
+/// (the demo's is marked simulated). Shown to a business when Agape asks to process its cards.
+async fn office_brought(State(app): State<S>, h: HeaderMap) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    if !app.office.lock().unwrap().can(&u, "merchants_view") { return err(StatusCode::FORBIDDEN, "Your role can't see merchants"); }
+    let mut nights = vec![];
+    let dir = nights_dir(&app);
+    if let Ok(rd) = std::fs::read_dir(&dir) {
+        for e in rd.flatten() {
+            let Ok(b) = std::fs::read(e.path()) else { continue };
+            let Ok(r) = serde_json::from_slice::<Value>(&b) else { continue };
+            if r["night"]["brought"].is_array() { nights.push(json!({ "venue": r["name"], "mode": r["mode"], "at": r["opened"], "simulated": false, "businesses": r["night"]["brought"] })); }
+        }
+    }
+    let open: Vec<venue::Handle> = app.venues.lock().unwrap().values().cloned().collect();
+    for v in open {
+        let b = v.view("agape", json!({ "lens": "brought" })).await;
+        nights.push(json!({ "venue": v.name, "mode": if v.init.real() { v.init.mode.clone() } else { "demo".into() }, "at": v.init.opened, "simulated": !v.init.real(), "open": true, "businesses": b["businesses"] }));
+    }
+    nights.sort_by_key(|n| -(n["at"].as_i64().unwrap_or(0)));
+    Json(json!({ "ok": true, "nights": nights })).into_response()
+}
+
 async fn office_venue_payee(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
     let u = match venue_lead(&app, &h) { Ok(u) => u, Err(r) => return r };
     match app.office.lock().unwrap().set_payee(&u, &s(&b, "venue"), &s(&b, "payee"), &s(&b, "do"), &s(&b, "account")) {
@@ -863,6 +887,7 @@ pub async fn archive_real(app: &App, v: &venue::Handle) -> Option<String> {
     let mut night = v.view("agape", json!({ "lens": "night" })).await;
     night["cards"] = app.pay.lock().unwrap().summary(&v.id, v.init.opened);
     night["payouts"] = payouts_for(app, &v.id, &night);
+    night["brought"] = v.view("agape", json!({ "lens": "brought" })).await["businesses"].clone();
     let staff: Vec<Value> = app.auth.lock().unwrap().at_venue(&v.id).iter().map(|a| json!({ "handle": a.handle, "role": a.role, "party": a.party })).collect();
     let closed = now_s();
     let file = format!("{}-{}.json", v.id, closed);

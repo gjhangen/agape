@@ -147,3 +147,18 @@ fn what_each_card_owes_matches_the_books() {
     assert_eq!(captured, paid, "what processors capture is exactly what the ledger says fans paid");
     assert!(conserved(&n));
 }
+
+#[test]
+fn a_local_business_sees_what_agape_brought_it() {
+    // a simulated night, run to the end: fans unlock partners' perks and use them after the game
+    let w: WorldDef = serde_json::from_str(include_str!("../templates/arena.json")).unwrap();
+    let t: Template = serde_json::from_str(include_str!("../templates/basketball.json")).unwrap();
+    let mut n = Night::new(w, t, Config { seed: 5, fans: 1500, runners: 20, ..Config::default() });
+    while n.step() {}
+    let b = n.brought();
+    let all = b.as_array().unwrap();
+    assert!(!all.is_empty());
+    let came: i64 = all.iter().map(|x| x["came"].as_i64().unwrap()).sum();
+    let unlocked: i64 = all.iter().map(|x| x["unlocked"].as_i64().unwrap()).sum();
+    assert!(unlocked > 0 && came > 0 && came <= unlocked, "{b}");
+}

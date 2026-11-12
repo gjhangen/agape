@@ -354,3 +354,15 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
 .ox-payee > .ox-row { grid-column: 1 / -1; }
 .ox-payee input { min-width: 240px; }
 .ox-owed .num { text-align: right; } .ox-owed .ox-total td { border-top: 2px solid var(--line); }
+/* what Agape brought a local business: a page to hand them */
+.brought { display: grid; gap: 18px; padding: 28px; }
+.brought header { display: flex; gap: 20px; align-items: center; justify-content: space-between; flex-wrap: wrap; border-bottom: 1px solid var(--line); padding-bottom: 16px; }
+.brought header h1 { margin: 0; font-size: 28px; } .brought header p { margin: 4px 0 0; color: var(--muted); }
+.brought-kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.brought-kpis > div { display: grid; gap: 4px; padding: 16px; border-radius: 14px; background: var(--bg); }
+.brought-kpis b { font-size: 34px; line-height: 1; color: var(--accent, #B8174F); } .brought-kpis span { font-size: 13.5px; color: var(--muted); }
+.brought-sales { margin: 0; font-weight: 600; }
+.brought-ask { margin: 0; padding: 14px 16px; border-left: 3px solid var(--accent, #B8174F); background: var(--bg); font-size: 15px; }
+@media (max-width: 760px) { .brought-kpis { grid-template-columns: 1fr 1fr; } }
+@media print { .no-print, .ox-top, .ox-head button { display: none !important; } .brought { border: 0; box-shadow: none; } }
+.brought header > :first-child { height: 40px; width: auto; max-width: 200px; flex: none; } .brought header svg { height: 40px; width: auto; }
