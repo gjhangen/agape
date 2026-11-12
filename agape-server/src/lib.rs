@@ -490,10 +490,31 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
     // every response: no sniffing types, no framing by other sites, and links don't leak paths
     use axum::http::{header, HeaderValue};
     use tower_http::set_header::SetResponseHeaderLayer as H;
-    r.layer(H::if_not_present(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")))
+    // Always check for the newest version: a cache (Cloudflare's or a browser's) must never show last week's site.
+    // Unchanged files still come back as a quick "not modified".
+    r.layer(H::if_not_present(header::CACHE_CONTROL, HeaderValue::from_static("no-cache")))
+     .layer(H::if_not_present(header::X_CONTENT_TYPE_OPTIONS, HeaderValue::from_static("nosniff")))
      .layer(H::if_not_present(header::X_FRAME_OPTIONS, HeaderValue::from_static("DENY")))
      .layer(H::if_not_present(header::REFERRER_POLICY, HeaderValue::from_static("strict-origin-when-cross-origin")))
      .layer(H::if_not_present(header::HeaderName::from_static("permissions-policy"), HeaderValue::from_static("camera=(), microphone=(), geolocation=()")))
+     .layer(axum::middleware::from_fn(to_public_address))
+}
+
+/// Once Agape has its secure address (AGAPE_PUBLIC_URL, set when the HTTPS tunnel is on), anyone who reaches it by
+/// the server's port (an old link like agapetoyourseat.com:8080, or the bare IP) is sent to the secure address, so
+/// they get the current site through it. The machine itself (localhost, the update's trial run) is never redirected.
+async fn to_public_address(req: axum::extract::Request, next: axum::middleware::Next) -> Response {
+    if let Ok(public) = std::env::var("AGAPE_PUBLIC_URL") {
+        let host = req.headers().get(axum::http::header::HOST).and_then(|h| h.to_str().ok()).unwrap_or("");
+        let name = host.rsplit_once(':').map(|(n, _)| n).unwrap_or(host);
+        let local = name == "localhost" || name.starts_with("127.") || name == "[::1]";
+        if host.contains(':') && !local && !public.is_empty() {
+            let path = req.uri().path_and_query().map(|p| p.as_str()).unwrap_or("/");
+            let to = format!("{}{}", public.trim_end_matches('/'), path);
+            return (StatusCode::MOVED_PERMANENTLY, [(axum::http::header::LOCATION, to)]).into_response();
+        }
+    }
+    next.run(req).await
 }
 
 /// The pilot venue, from the kernel's own templates.

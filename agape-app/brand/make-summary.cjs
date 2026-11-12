@@ -5,6 +5,8 @@ const path = require("path");
 (async () => {
   const b = await chromium.launch(); const p = await b.newPage();
   await p.goto("file://" + path.join(__dirname, "summary.html"), { waitUntil: "networkidle" });
+  const { WEB_SVG } = await import(path.join(__dirname, "web.mjs"));
+  await p.evaluate(svg => { document.getElementById("web").innerHTML = svg; }, WEB_SVG);
   await p.evaluate(() => document.fonts.ready);
   const over = await p.evaluate(() => [...document.querySelectorAll(".page")].map(pg => pg.scrollHeight - pg.clientHeight));
   over.forEach((o, i) => { if (o > 0) console.log(`WARNING: page ${i + 1} runs ${o}px past the page`); });

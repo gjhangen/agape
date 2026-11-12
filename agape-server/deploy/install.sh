@@ -41,7 +41,7 @@ echo "Building Agape (10-20 minutes the first time)..."
 if ! DOCKER_BUILDKIT=1 docker build -q --build-arg AGAPE_KERNEL_BUILD=$KB -f agape-server/Dockerfile -t agape . >/dev/null 2>/tmp/agape-build.log; then
   # an older Docker without BuildKit: the same build without the caches
   sed -e '/--mount=type=cache/d' -e 's/^    cd agape-server/RUN cd agape-server/' agape-server/Dockerfile > /tmp/agape.Dockerfile
-  docker build -q --build-arg AGAPE_KERNEL_BUILD=$KB -f /tmp/agape.Dockerfile -t agape . >/dev/null || { tail -30 /tmp/agape-build.log; exit 1; }
+  docker build -q --cpu-shares 128 --build-arg AGAPE_KERNEL_BUILD=$KB -f /tmp/agape.Dockerfile -t agape . >/dev/null || { tail -30 /tmp/agape-build.log; exit 1; }
 fi
 # The pilot's clock runs at twice real time, so a night (and a delivery) fits a demo.
 SPEED=$(cat "$DATA/speed" 2>/dev/null || echo 0.2)
@@ -66,14 +66,16 @@ if command -v curl >/dev/null && docker ps --filter name='^agape$' --format '{{.
   if [ -z "$OK" ]; then echo "$(date) the new build didn't start cleanly; the running Agape was left in place"; exit 1; fi
 fi
 docker rm -f agape >/dev/null 2>&1 || true
-docker run -d --name agape --restart unless-stopped -p "$PORT:8080" -v "$DATA:/data" --env-file "$DATA/agape.env" -e AGAPE_SPEED="$SPEED" agape >/dev/null
+PUBLIC=""; [ -s "$DATA/tunnel-token" ] && PUBLIC=https://agapetoyourseat.com
+docker run -d --name agape --restart unless-stopped -p "$PORT:8080" -v "$DATA:/data" --env-file "$DATA/agape.env" -e AGAPE_SPEED="$SPEED" -e AGAPE_PUBLIC_URL="$PUBLIC" agape >/dev/null
 # old images pile up with every update; the build cache is kept so updates stay quick
 docker image prune -f >/dev/null 2>&1 || true
 if command -v ufw >/dev/null && ufw status | grep -q "Status: active"; then ufw allow "$PORT/tcp" >/dev/null; fi
 
 # HTTPS without touching ports 80/443: if a Cloudflare tunnel token has been saved here, a small
 # connector carries https://agapetoyourseat.com to this container. The token never leaves the server.
-if [ -s "$DATA/tunnel-token" ]; then
+# Left alone while it's running: restarting it on every update takes the site offline until it reconnects.
+if [ -s "$DATA/tunnel-token" ] && ! docker ps --filter name='^agape-tunnel$' --filter status=running --format '{{.Names}}' | grep -q agape-tunnel; then
   docker rm -f agape-tunnel >/dev/null 2>&1 || true
   docker run -d --name agape-tunnel --restart unless-stopped --network host cloudflare/cloudflared:2026.10.7 \
     tunnel --no-autoupdate run --token "$(cat "$DATA/tunnel-token")" >/dev/null && echo "Secure address on: https://agapetoyourseat.com"

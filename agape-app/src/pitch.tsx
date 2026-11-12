@@ -1,6 +1,7 @@
 // The visual pieces the front pages tell Agape's story with: the line fans walk away from, the product as three
 // screens, how money moves, and where Agape goes. Each page frames them for its reader.
 import { React } from "./r";
+import { WEB_SVG } from "../brand/web.mjs";
 
 export const SRC = {
   mashgin: "https://business.ricentral.com/ricentral/article/gnwcq-2025-4-8-new-report-finds-long-concession-lines-at-mlb-games-cause-fans-to-miss-crucial-plays-vendors-to-lose-revenue",
@@ -107,24 +108,28 @@ const WEB_SRC = {
   ads: "https://www.bia.com/press-releases/bia-2025-forecast-update-169-billion-in-u-s-local-advertising-and-2-4-year-over-year-decline/",
   cards: "https://nilsonreport.com/articles/merchant-processing-fees-in-the-united-states-2024/",
 };
-const LINES: { chain: string[]; how: string; pool: string; of: string; when: string }[] = [
-  { chain: ["Sponsors"], how: "Prizes, samples and offers, handed to fans while they're buying.", pool: "$39B", of: "sponsorship, worldwide", when: "Event nights" },
-  { chain: ["Wallet", "Marketplace"], how: "Fans' money and buyers already inside: resale, merch, collectibles, upgrades.", pool: "$80B", of: "sports merch, concert tickets and resale", when: "Every day" },
-  { chain: ["Social", "Advertising"], how: "Fans follow teams, sections and friends between events, so brands reach them daily.", pool: "$169B", of: "US local advertising", when: "Every day" },
-  { chain: ["Local deals", "Processing"], how: "Shown the customers Agape sent them, the businesses around every venue run their cards through Agape.", pool: "$11.9T", of: "US card purchases a year", when: "Every day, all year" },
+/** On a phone the web is too wide to read, so each line is shown as its own chain, every arrow labelled the same
+ * way as in the web. */
+const CHAINS: { steps: [string, string][]; pool: string; of: string; loop?: string }[] = [
+  { steps: [["fans mid-purchase", "Sponsors"]], pool: "$39B", of: "sponsorship, worldwide" },
+  { steps: [["every fan pays Agape", "Wallet + payouts"], ["money already inside", "Marketplace"]], pool: "$80B", of: "sports merch, concert tickets and resale" },
+  { steps: [["fans by team + section", "Social"], ["daily attention", "Advertising"]], pool: "$169B", of: "US local advertising" },
+  { steps: [["fans nearby, before + after", "Local deals"], ["proof of customers sent", "Processing"]], pool: "$11.9T", of: "US card purchases a year", loop: "Closed loop: Agape shows the ad, then processes the sale it caused." },
 ];
 export function Web() {
   return <section className="site-sec wb">
-    <div className="sec-head"><span className="hm-kicker">Where it goes</span><h2>One way in. Four lines out.</h2>
-      <p className="site-why-demo">Food to the seat puts Agape in the seat, in the money path and in front of every business nearby. From there, four lines run at once, and each reaches a bigger pool of money than the last.</p></div>
-    <div className="wb-door"><div><em>The way in</em><b>Food to the seat</b><span>Fans pay Agape first. Agape pays the stands, the runners and the tax.</span></div>
-      <ul aria-label="What it leaves Agape holding"><li>The moment</li><li>The money path</li><li>The merchants</li><li>The fans</li></ul></div>
-    <ol className="wb-lines">{LINES.map((l, i) => <li key={l.pool} style={{ ["--i" as any]: i }} className={i === LINES.length - 1 ? "top" : ""}>
-      <span className="wb-when">{l.when}</span>
-      <div className="wb-chain">{l.chain.map((c, j) => <React.Fragment key={c}>{j > 0 && <i aria-hidden="true">→</i>}<b>{c}</b></React.Fragment>)}</div>
-      <p>{l.how}</p>
-      <div className="wb-pool"><strong>{l.pool}</strong><small>{l.of}</small></div>
-    </li>)}</ol>
+    <div className="sec-head"><span className="hm-kicker">Where it goes</span><h2>One way in. A web from there.</h2>
+      <p className="site-why-demo">Food to the seat puts Agape in the seat, in the money path and in front of every business nearby. Each arrow is what one move hands the next, and each line reaches a bigger pool of money.</p></div>
+    <div className="wb-web" dangerouslySetInnerHTML={{ __html: WEB_SVG }} />
+    <div className="wb-phone">
+      <div className="wb-door"><div><em>The way in</em><b>Food to the seat</b><span>Fans order from their seat and pay Agape first. Agape pays the stands, the runners and the tax.</span></div></div>
+      <ol className="wb-lines">{CHAINS.map((c, i) => <li key={c.pool} style={{ ["--i" as any]: i }} className={i === CHAINS.length - 1 ? "top" : ""}>
+        <span className="wb-from">From food to the seat</span>
+        {c.steps.map(([why, to]) => <div key={to} className="wb-step"><i>↓ {why}</i><b>{to}</b></div>)}
+        {c.loop && <small className="wb-loop">{c.loop}</small>}
+        <div className="wb-pool"><strong>{c.pool}</strong><small>{c.of}</small></div>
+      </li>)}</ol>
+    </div>
     <p className="ld-goal"><span>The goal</span><b>30% of all live-event spending flowing through Agape, and the businesses around every venue running on it every day.</b></p>
     <small className="iv2-src wb-src">Pools are yearly, 2025; card purchases 2024. <a href={WEB_SRC.sponsor}>GlobalData via SPORTFIVE</a>, <a href={WEB_SRC.merch}>Licensing International</a>, <a href={SRC.ln}>Live Nation</a>, <a href={WEB_SRC.resale}>StubHub</a>, <a href={WEB_SRC.ads}>BIA</a>, <a href={WEB_SRC.cards}>Nilson Report</a>.</small>
   </section>;
