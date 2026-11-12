@@ -2,7 +2,7 @@
 // Served at /for/<who>/.
 import { React, ReactDOM, useState } from "./r";
 import { Wordmark } from "./logo";
-import { TheLine, Flow, Money, Steps, Built, Tiles, Ladder, SRC } from "./pitch";
+import { TheLine, Flow, Money, Steps, Built, Tiles, Web, SRC } from "./pitch";
 import { TalkToUs } from "./talk";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
@@ -65,9 +65,9 @@ function Invest() {
     </section>
     <Flow title="Agape takes the line away" />
     <Money kicker="How the money moves" title="Every dollar flows through Agape" line="Agape keeps its share first, then pays everyone else. Nobody is ever collected from."
-      chips={[<><b>A share</b> of every sale</>, <><b>A delivery fee</b> on every order</>, <><b>Marketing, processing and more</b> as each step builds on the last</>]} />
+      chips={[<><b>A share</b> of every sale</>, <><b>A delivery fee</b> on every order</>, <><b>Sponsors, processing, ads</b> and more as it grows</>]} />
     <Tiles title="Why Agape wins" items={[["⏱", "Times that come true", "Measured live from every kitchen and runner"], ["↗", "Delivery that pays", "Built around deliveries per runner hour"], ["≡", "One set of books", "Every party, one ledger, to the cent"], ["✓", "Live in an afternoon", "A form, not an integration project"]]} />
-    <Ladder />
+    <Web />
     <Built kicker="Built, not slides" title="Six apps, working today" />
     <section className="site-sec iv2-team">
       <h2>The founders</h2>

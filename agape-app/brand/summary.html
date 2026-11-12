@@ -71,14 +71,23 @@ h2 { font-size: 24pt; margin: 4px 0 10px; }
 .foot b { font-size: 18pt; } .foot span { display: block; font-size: 9.5pt; opacity: .92; } .foot a { color: #fff; font-weight: 800; text-decoration: none; font-size: 12pt; }
 .pg { position: absolute; }
 
-.ld { display: grid; }
-.ld .row { display: grid; grid-template-columns: 2.4in 1fr; gap: .2in; align-items: center; padding: 5px 0; border-top: 1px solid #E3E4E8; }
-.ld .row i { font-style: normal; font: 700 6pt/1 "Public Sans"; letter-spacing: .12em; text-transform: uppercase; color: #B8174F; display: block; }
-.ld .row b { font: 800 12.5pt/1 "Big Shoulders Display"; text-transform: uppercase; display: block; margin-top: 2px; }
-.ld .row small { font: 700 5.8pt/1 "Public Sans"; letter-spacing: .12em; text-transform: uppercase; color: #6A6E78; display: block; }
-.ld .row em { font-style: normal; font-weight: 800; font-size: 9pt; display: block; margin: 2px 0 3px; }
-.ld .bar { display: block; height: 8px; border-radius: 99px; background: linear-gradient(90deg, #E07A9C, #B8174F); }
-.ld .row.last em { color: #B8174F; } .ld .row.last .bar { height: 12px; background: linear-gradient(90deg, #B8174F, #5E0A2A); }
+.door { position: relative; display: flex; justify-content: space-between; align-items: center; gap: .2in; padding: 8px 12px; border: 1.5px solid #B8174F; border-radius: 10px; background: #F7E6EC; }
+.door i { font: 700 6pt/1 "Public Sans"; letter-spacing: .12em; text-transform: uppercase; color: #B8174F; font-style: normal; display: block; }
+.door b { font-size: 17pt; display: block; margin: 2px 0; } .door span { font-size: 8.5pt; color: #33363F; }
+.door ul { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: auto auto; gap: 4px; }
+.door li { font-size: 7.5pt; font-weight: 800; padding: 3px 8px; border-radius: 99px; background: #fff; border: 1px solid #E4B5C5; white-space: nowrap; } .door li::before { content: "✓ "; color: #B8174F; }
+.lines { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-top: 16px; }
+.lines::before { content: ""; position: absolute; top: 7px; left: 12.5%; right: 12.5%; border-top: 1.5px solid #E07A9C; }
+.door::after { content: ""; position: absolute; left: 50%; bottom: -9px; height: 8px; border-left: 1.5px solid #E07A9C; }
+.lines > div { position: relative; display: flex; flex-direction: column; gap: 3px; background: #fff; border: 1px solid #E3E4E8; border-radius: 10px; padding: 8px 9px; }
+.lines > div::before { content: ""; position: absolute; top: -10px; left: 50%; height: 9px; border-left: 1.5px solid #E07A9C; }
+.lines small { font: 700 5.8pt/1 "Public Sans"; letter-spacing: .12em; text-transform: uppercase; color: #6A6E78; }
+.lines b { font-size: 11pt; } .lines b i { font-style: normal; color: #B8174F; }
+.lines span { font-size: 7.5pt; line-height: 1.35; color: #33363F; flex: 1; }
+.lines em { font-style: normal; color: #B8174F; border-top: 1px solid #E3E4E8; padding-top: 4px; }
+.lines u { text-decoration: none; font-size: 6.8pt; font-weight: 700; color: #6A6E78; }
+.lines .big { background: #120A0E; border-color: #120A0E; } .lines .big b, .lines .big em { color: #fff; } .lines .big span { color: rgba(255,255,255,.8); } .lines .big small, .lines .big u { color: #FF8BAA; } .lines .big em { border-color: rgba(255,255,255,.2); }
+.psrc { margin: 4px 0 0; font-size: 6.5pt; color: #6A6E78; }
 .goal { margin-top: 8px; background: #120A0E; color: #fff; border-radius: 10px; padding: 9px 12px; }
 .goal span { font: 700 6pt/1 "Public Sans"; letter-spacing: .14em; text-transform: uppercase; color: #FF8BAA; display: block; margin-bottom: 3px; }
 .goal b { font-size: 17pt; }
@@ -123,12 +132,19 @@ h2 { font-size: 24pt; margin: 4px 0 10px; }
   <section class="money">
     <div><span class="k">How the money moves</span><h2 class="D">Every dollar flows through Agape</h2><p>Agape keeps its share first, then pays everyone else. Nobody is ever collected from.</p></div>
     <div class="dia"><div class="n fan">Fans pay</div><div class="ar"></div><div class="n hub"><b>agape</b><small>keeps its share</small></div><div class="ar"></div><div class="out"><div class="n">Stands</div><div class="n">Runners</div><div class="n">Tax</div></div></div>
-    <div class="earn"><div><b>A share</b> of every sale</div><div><b>A delivery fee</b> on every order</div><div><b>Marketing, processing</b> and more, step by step</div></div>
+    <div class="earn"><div><b>A share</b> of every sale</div><div><b>A delivery fee</b> on every order</div><div><b>Sponsors, processing, ads</b> and more as it grows</div></div>
   </section>
   <section class="pad" style="padding-top:.15in">
-    <span class="k">Where it goes</span><h2 class="D">Every step makes the next possible</h2>
-    <div class="ld" id="ladder"></div>
-    <div class="goal"><span>The goal</span><b class="D">30% of all live-event spending, flowing through Agape.</b></div>
+    <span class="k">Where it goes</span><h2 class="D">One way in. Four lines out.</h2>
+    <div class="door"><div><i>The way in</i><b class="D">Food to the seat</b><span>Fans pay Agape first; Agape pays the stands, runners and tax.</span></div><ul><li>The moment</li><li>The money path</li><li>The merchants</li><li>The fans</li></ul></div>
+    <div class="lines">
+      <div><small>Event nights</small><b class="D">Sponsors</b><span>Prizes, samples and offers to fans while they're buying</span><em class="D" style="font-size:21pt">$39B</em><u>sponsorship, worldwide</u></div>
+      <div><small>Every day</small><b class="D">Wallet <i>→</i> Marketplace</b><span>Resale, merch, collectibles, upgrades, with buyers inside</span><em class="D" style="font-size:24pt">$80B</em><u>sports merch, concert tickets, resale</u></div>
+      <div><small>Every day</small><b class="D">Social <i>→</i> Advertising</b><span>Fans follow teams and friends, so brands reach them daily</span><em class="D" style="font-size:27pt">$169B</em><u>US local advertising</u></div>
+      <div class="big"><small>Every day, all year</small><b class="D">Local deals <i>→</i> Processing</b><span>Shown the customers Agape sent, nearby businesses run their cards through Agape</span><em class="D" style="font-size:34pt">$11.9T</em><u>US card purchases a year</u></div>
+    </div>
+    <div class="goal"><span>The goal</span><b class="D">30% of all live-event spending through Agape, and the businesses around every venue running on it.</b></div>
+    <p class="psrc">Yearly pools, 2025 (card purchases 2024): GlobalData via SPORTFIVE, Licensing International, Live Nation, StubHub, BIA, Nilson Report.</p>
   </section>
   <section class="pad" style="padding-top:.05in">
     <span class="k">The founders</span>
@@ -140,7 +156,5 @@ h2 { font-size: 24pt; margin: 4px 0 10px; }
 <script>
 const fig = '<svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 22c0-5 3.6-8 8-8s8 3 8 8z"/></svg>';
 document.getElementById("people").innerHTML = Array.from({ length: 10 }, (_, i) => `<i class="${i < 8 ? "" : "stay"}">${fig}</i>`).join("");
-const L = [["At launch", "Food to the seat", "What fans spend at the event", "Event nights", 10], ["Step 2", "Sponsors and local deals", "+ Marketing budgets", "Event nights", 20], ["Step 3", "Processing for local businesses", "+ Local businesses' card revenue", "Every day", 48], ["Step 4", "Social", "+ Advertising and daily attention", "Every day", 70], ["Step 5", "The marketplace", "+ Everything spent around live events", "Every day", 100]];
-document.getElementById("ladder").innerHTML = L.map(([t, n, f, w, x], i) => `<div class="row${i === 4 ? " last" : ""}"><div><i>${t}</i><b>${n}</b></div><div><small>${w}</small><em>${f}</em><span class="bar" style="width:${x}%"></span></div></div>`).join("");
 </script>
 </body></html>
