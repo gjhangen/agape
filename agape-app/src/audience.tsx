@@ -87,7 +87,7 @@ function Invest() {
       <ol className="for-points iv-four">
         <li><b>Times that come true</b><span>Every time a fan sees is when it reaches their seat, measured from how fast each kitchen and runner is going right now. A promise kept is what brings a fan back for the second order.</span></li>
         <li><b>Delivery that pays</b><span>Orders are timed so they're ready together, and runners carry several along one route. Deliveries per runner hour is the number that decides whether in-seat delivery makes money, and Agape is built around it.</span></li>
-        <li><b>One set of books</b><span>Fans, stands, runners, the venue and Agape all see the same ledger, balanced to the cent, and Agape runs the cards itself. Nothing to reconcile, nothing lost between systems.</span></li>
+        <li><b>One set of books</b><span>Fans, stands, runners, the venue and Agape all see the same ledger, balanced to the cent. Cards run through a processing partner Agape can change at any time; the record is Agape's. Nothing to reconcile, nothing lost between systems.</span></li>
         <li><b>A venue in an afternoon</b><span>A venue goes live by filling in a form: stands, menu, prices, sections. No integration project, no hardware to install, so Agape can reach venues too small for anyone else.</span></li>
       </ol>
     </section>
@@ -95,7 +95,7 @@ function Invest() {
     <section className="site-sec iv-sec">
       <div className="iv-split">
         <div><span className="hm-kicker">How Agape earns</span><h2>On every order, from the first night</h2>
-          <ul className="iv-list"><li><b>A share of every sale</b> made through Agape</li><li><b>A delivery fee</b> on every order brought to a seat</li><li><b>Card processing</b>, which Agape runs itself, on every dollar that moves</li></ul></div>
+          <ul className="iv-list"><li><b>A share of every sale</b> made through Agape</li><li><b>A delivery fee</b> on every order brought to a seat</li><li><b>More with every level</b>: sponsors and deals in the moment, play along, tickets</li></ul></div>
         <div><span className="hm-kicker">Where it goes</span><h2>Food is the way in</h2>
           <p className="site-why-demo">The order is the first reason a fan opens Agape. Their level, points and history then follow them to every venue on Agape: deals and sponsors in the moment, play along during the game, tickets, and a community that lasts past the final whistle. Each level is a complete product on top of the last, already built and working in the demo.</p>
           <a className="link-inline" href="/#levels">See every level →</a></div>
