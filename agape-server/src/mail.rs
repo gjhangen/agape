@@ -66,7 +66,7 @@ impl Mail {
         if let Some(svc) = Service::load(&self.dir) {
             let from = format!("{} <{}@{}>", from_name.replace(['<', '>', '"', ','], ""), from_local, self.domain);
             let mut out = vec![];
-            for rcpt in to { out.push((rcpt.clone(), svc.send(&from, rcpt, subject, body, reply_to).await)); }
+            for rcpt in to { out.push((rcpt.clone(), svc.send(&from, rcpt, subject, body, reply_to, &[]).await)); }
             return out;
         }
         let mut out = vec![];
@@ -104,6 +104,15 @@ impl Mail {
             }
         }
         Err(last)
+    }
+
+    /// A copy of an incoming email, to someone's own address. Only through the sending service (Agape's server can't
+    /// reach most inboxes on its own). Replying to it goes to the copy's private reply address, back through Agape.
+    pub async fn send_copy(&self, sender: &str, to: &str, subject: &str, body: &str, key: &str, files: &[(String, Vec<u8>)]) -> Result<String, String> {
+        let svc = Service::load(&self.dir).ok_or("No sending service, so no copy")?;
+        let from = format!("{} via Agape <mail@{}>", sender.replace(['<', '>', '"', ','], "").trim(), self.domain);
+        let reply = format!("reply+{key}@{}", self.domain);
+        svc.send(&from, to, subject, body, Some(&reply), files).await
     }
 
     /// Everything that decides whether mail from Agape lands in inboxes, checked live.
@@ -195,6 +204,23 @@ export default {{
 "#)
 }
 
+/// What someone wrote in a reply, without the message they were replying to underneath (Gmail's "On … wrote:",
+/// Outlook's "From:" block or line, lines quoted with ">").
+pub fn new_part(body: &str) -> String {
+    let lines: Vec<&str> = body.lines().collect();
+    let mut cut = lines.len();
+    for (i, l) in lines.iter().enumerate() {
+        let t = l.trim();
+        let next = lines.get(i + 1).map(|x| x.trim()).unwrap_or("");
+        if t.starts_with('>') || t.starts_with("-----Original Message") || t.starts_with("________________________________")
+            || (t.starts_with("On ") && (t.ends_with("wrote:") || next.ends_with("wrote:")))
+            || (t.starts_with("From:") && i > 0 && lines[..i].iter().rev().take(2).any(|x| x.trim().is_empty())) { cut = i; break; }
+    }
+    let kept = lines[..cut].join("\n");
+    let kept = kept.trim();
+    if kept.is_empty() { body.trim().to_string() } else { kept.to_string() }
+}
+
 /// The sending service (Resend): mail from @domain goes out through it, signed for the domain with its own key, so
 /// it lands in inboxes even though Agape's server isn't a known mail sender. The API key is kept only on the server.
 /// Receiving doesn't change: Cloudflare still hands every message to Agape.
@@ -227,9 +253,13 @@ impl Service {
     }
 
     /// One message to one person. A refusal that won't change by trying again says "refused it for good".
-    pub async fn send(&self, from: &str, to: &str, subject: &str, body: &str, reply_to: Option<&str>) -> Result<String, String> {
+    pub async fn send(&self, from: &str, to: &str, subject: &str, body: &str, reply_to: Option<&str>, files: &[(String, Vec<u8>)]) -> Result<String, String> {
         if to.parse::<Mailbox>().is_err() { return Err(format!("{to} isn't an email address")); }
         let mut m = json!({ "from": from, "to": [to], "subject": subject, "text": body });
+        if !files.is_empty() {
+            use base64::Engine;
+            m["attachments"] = json!(files.iter().map(|(n, b)| json!({ "filename": n, "content": base64::engine::general_purpose::STANDARD.encode(b) })).collect::<Vec<_>>());
+        }
         if let Some(r) = reply_to.filter(|r| r.parse::<Mailbox>().is_ok()) { m["reply_to"] = json!(r); }
         let r = http().post("https://api.resend.com/emails").bearer_auth(self.key.trim()).json(&m).send().await.map_err(|e| format!("Couldn't reach Resend yet: {e}"))?;
         let code = r.status().as_u16();
@@ -280,5 +310,19 @@ impl Relay {
             if let Err(e) = t.send(msg).await { last = Err(if e.to_string().contains("535") || e.to_string().to_lowercase().contains("credentials") { "The sending account refused the password. For Gmail, use an app password, not the account password.".into() } else if e.to_string().to_lowercase().contains("connection") { format!("Couldn't reach {} to send: {e}", self.server()) } else { format!("Couldn't send: {e}") }); }
         }
         last
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_reply_keeps_only_what_was_written() {
+        let gmail = "Sounds good, see you Tuesday.\n\nOn Thu, Nov 12, 2026 at 1:16 AM Kentucky via Agape <mail@agapetoyourseat.com>\nwrote:\n> Your application\n> was received.";
+        assert_eq!(super::new_part(gmail), "Sounds good, see you Tuesday.");
+        let one_line = "Yes.\nOn Thu, Nov 12, 2026, Sam wrote:\n> hi";
+        assert_eq!(super::new_part(one_line), "Yes.");
+        let outlook = "Thanks!\n\nFrom: Kentucky <ky@state.example>\nSent: Thursday\nSubject: x";
+        assert_eq!(super::new_part(outlook), "Thanks!");
+        assert_eq!(super::new_part("Just this."), "Just this.");
     }
 }

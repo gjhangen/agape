@@ -5,7 +5,7 @@ import { React, ReactDOM, useEffect, useMemo, useRef, useState } from "./r";
 import { Wordmark } from "./logo";
 import qrcode from "qrcode-generator";
 
-type Me = { mailbox: string; domain: string; id: string; email: string; name: string; role: string; role_name: string; perms: string[]; oversees: boolean; title?: string; boss?: string | null };
+type Me = { send_as?: string[]; copies?: boolean; mailbox: string; domain: string; id: string; email: string; name: string; role: string; role_name: string; perms: string[]; oversees: boolean; title?: string; boss?: string | null };
 type Merchant = { id: string; fields: Record<string, string>; status: Status; at: number; by: string };
 type Status = "draft" | "requested" | "issued" | "live";
 type Field = { k: string; l: string; hint?: string; ph?: string; opts?: string[]; wide?: boolean; long?: boolean; num?: boolean; secret?: boolean };
@@ -764,7 +764,7 @@ function Roles({ t, load, toast }: { t: TeamView; load: () => void; toast: (s: s
 
 type Msg = { id: string; at: number; from: string; from_name: string; to: string[]; to_names: string[]; subject: string; body: string; kind: string; mine: boolean; sent: boolean; unread: boolean;
   ext_from: string; ext_to: string[]; status: string[]; attachments: string[]; channels: string[] };
-type Draft = { to: string[]; subject: string; body: string };
+type Draft = { to: string[]; subject: string; body: string; from?: string };
 
 function useNotes() {
   const [notes, setNotes] = useState<Msg[] | null>(null);
@@ -805,7 +805,8 @@ function Inbox({ me, toast, seen }: { me: Me; toast: (s: string) => void; seen: 
   const [draft, setDraft] = useState<Draft | null>(null);
   const [contacts, setContacts] = useState<{ id: string; name: string; title?: string }[]>([]);
   useEffect(() => { api("team").then(r => r.ok && setContacts([...r.contacts, ...r.groups.map((g: any) => ({ id: g.id, name: g.name, title: "everyone in the group" }))])); }, []);
-  const reply = (n: Msg) => setDraft({ to: [n.ext_from ? n.ext_from.replace(/.*</, "").replace(/>.*/, "") : n.from].filter(Boolean), subject: /^re:/i.test(n.subject) ? n.subject : "Re: " + n.subject, body: `\n\nOn ${when(n.at)}, ${n.from_name} wrote:\n` + n.body.trimEnd().split("\n").map(l => "> " + l).join("\n") });
+  const cameTo = (n: Msg) => (n.ext_to ?? []).map(t => t.toLowerCase().replace(/.*</, "").replace(/>.*/, "")).filter(t => t.endsWith("@" + me.domain)).map(t => t.split("@")[0].split("+")[0]).find(l => (me.send_as ?? []).includes(l));
+  const reply = (n: Msg) => setDraft({ from: n.ext_from ? cameTo(n) : undefined, to: [n.ext_from ? n.ext_from.replace(/.*</, "").replace(/>.*/, "") : n.from].filter(Boolean), subject: /^re:/i.test(n.subject) ? n.subject : "Re: " + n.subject, body: `\n\nOn ${when(n.at)}, ${n.from_name} wrote:\n` + n.body.trimEnd().split("\n").map(l => "> " + l).join("\n") });
   const mine = (notes ?? []).filter(n => n.mine);
   return <>
     <Head title="Messages" sub={<>{me.mailbox && <>Your address is <b>{me.mailbox}@{me.domain}</b>. </>}Email to it, messages from your team and notices for you.{me.boss ? " The people above you can see these too." : ""}</>}>
@@ -850,6 +851,8 @@ function Channels({ me, seen }: { me: Me; seen: () => void }) {
 function Compose({ me, d, contacts, done }: { me: Me; d: Draft; contacts: { id: string; name: string; title?: string }[]; done: (m?: string) => void }) {
   const [to, setTo] = useState<string[]>(d.to);
   const [typed, setTyped] = useState("");
+  const [from, setFrom] = useState(d.from ?? me.mailbox);
+  const as = me.send_as ?? [me.mailbox];
   const f = useForm({ subject: d.subject, body: d.body });
   const label = (x: string) => contacts.find(c => c.id === x)?.name ?? x;
   const add = (x: string) => { const v = x.trim().replace(/[,;]$/, ""); if (v && !to.includes(v)) setTo([...to, v]); setTyped(""); };
@@ -857,11 +860,12 @@ function Compose({ me, d, contacts, done }: { me: Me; d: Draft; contacts: { id: 
     <form onSubmit={e => f.run(e, async () => {
       const all = typed.trim() ? [...to, typed.trim()] : to;
       if (!all.length) return "Add who it's for";
-      const r = await api("email", { to: all, subject: f.v.subject, body: f.v.body });
+      const r = await api("email", { to: all, subject: f.v.subject, body: f.v.body, from });
       if (!r.ok) return r.error;
       done(r.failed ? `Sent, but ${r.failed} address${r.failed > 1 ? "es" : ""} couldn't be reached. Open it to see why.` : "Sent.");
     })}>
-      <p className="ox-meta">From {me.name} &lt;{me.mailbox}@{me.domain}&gt;</p>
+      {as.length > 1 ? <label className="ox-f"><span>From</span><select value={from} onChange={e => setFrom(e.target.value)}>{as.map(l => <option key={l} value={l}>{me.name} &lt;{l}@{me.domain}&gt;{l === me.mailbox ? "" : " · shared"}</option>)}</select></label>
+        : <p className="ox-meta">From {me.name} &lt;{me.mailbox}@{me.domain}&gt;</p>}
       <div className="ox-f"><span>To</span>
         <div className="ox-chips">{to.map(x => <span key={x} className="ox-chip">{label(x)}<button type="button" aria-label={`Remove ${label(x)}`} onClick={() => setTo(to.filter(y => y !== x))}>×</button></span>)}
           <input value={typed} placeholder={to.length ? "Add another" : "Email address, or pick someone below"} onChange={e => { const v = e.target.value; if (/[,;\s]$/.test(v) && v.includes("@")) add(v); else setTyped(v); }} onKeyDown={e => { if (e.key === "Enter" && typed.includes("@")) { e.preventDefault(); add(typed); } }} />
@@ -908,6 +912,41 @@ function Alerts({ toast, service }: { toast: (s: string) => void; service: boole
       {error && <p className="ox-err wide" role="alert">{error}</p>}
       <div className="ox-row wide"><button className="ox-btn primary" disabled={busy}>{busy ? "Sending a test…" : d.set ? "Save and send a test" : "Turn on alerts"}</button>{d.set && <button type="button" className="ox-btn ghost" onClick={off}>Turn off</button>}</div>
     </form>
+  </section>;
+}
+
+/** Addresses several people share (apply@, team@, support@): mail reaches everyone in it, any of them can send as it,
+ * and each gets their copy at their own email if they have copies on. */
+function SharedAddresses({ domain, toast }: { domain: string; toast: (s: string) => void }) {
+  const [d, setD] = useState<{ shared: { local: string; name: string; members: string[] }[]; manage: boolean } | null>(null);
+  const [people, setPeople] = useState<{ id: string; name: string; title?: string }[]>([]);
+  const [edit, setEdit] = useState<{ was: string; local: string; name: string; members: string[] } | null>(null);
+  const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
+  const load = () => api("shared").then(r => r.ok && setD(r));
+  useEffect(() => { load(); Promise.all([api("me"), api("team")]).then(([m, t]) => setPeople([...(m.ok ? [{ id: m.me.id, name: m.me.name + " (you)", title: m.me.title }] : []), ...(t.ok ? t.contacts : [])])); }, []);
+  if (!d) return null;
+  const nameOf = (id: string) => people.find(p => p.id === id)?.name ?? id;
+  const save = async (e: React.FormEvent) => {
+    e.preventDefault(); if (!edit) return; setBusy(true); setError("");
+    const r = await api("shared", edit); setBusy(false);
+    if (r.ok) { toast(`${edit.local}@${domain} is ready.`); setEdit(null); load(); } else setError(r.error);
+  };
+  const del = async (local: string) => { if (!confirm(`Remove ${local}@${domain}? Mail to it would go to the host instead. Past email stays in Messages.`)) return; const r = await api("shared", { delete: true, local }); if (r.ok) { toast("Removed."); load(); } else toast(r.error); };
+  return <section className="ox-card">
+    <h2>Shared addresses</h2>
+    <p className="ox-sub">An address several people share, like apply@ for applications or team@. Email to it reaches everyone in it (and their copies), and any of them can send as it from Messages. Replies come back to all of them.</p>
+    {d.shared.length ? <ul className="ox-shared">{d.shared.map(x => <li key={x.local}>
+      <div><b>{x.local}@{domain}</b>{x.name !== x.local && <small>{x.name}</small>}<span>{x.members.map(nameOf).join(", ")}</span></div>
+      {d.manage && <div className="ox-row"><button className="ox-btn sm" onClick={() => setEdit({ was: x.local, local: x.local, name: x.name, members: x.members })}>Change</button><button className="ox-btn sm ghost" onClick={() => del(x.local)}>Remove</button></div>}
+    </li>)}</ul> : <p className="ox-empty">None yet.</p>}
+    {d.manage && !edit && <button className="ox-btn" onClick={() => setEdit({ was: "", local: "", name: "", members: [] })}>Add a shared address</button>}
+    {edit && <form className="ox-grid" onSubmit={save}>
+      <label className="ox-f"><span>Address</span><div className="ox-addr"><input required value={edit.local} onChange={e => setEdit({ ...edit, local: e.target.value.toLowerCase().replace(/\s/g, "") })} placeholder="apply" /><small>@{domain}</small></div></label>
+      <label className="ox-f"><span>What it's for</span><input value={edit.name} onChange={e => setEdit({ ...edit, name: e.target.value })} placeholder="Applications and grants" /></label>
+      <fieldset className="ox-f wide"><span>Goes to</span><div className="ox-checks">{people.map(p => <label key={p.id} className="ox-check"><input type="checkbox" checked={edit.members.includes(p.id)} onChange={e => setEdit({ ...edit, members: e.target.checked ? [...edit.members, p.id] : edit.members.filter(m => m !== p.id) })} /> {p.name}{p.title ? <small> · {p.title}</small> : null}</label>)}</div></fieldset>
+      {error && <p className="ox-err wide" role="alert">{error}</p>}
+      <div className="ox-row wide"><button className="ox-btn primary" disabled={busy}>{busy ? "Saving…" : edit.was ? "Save" : "Create it"}</button><button type="button" className="ox-btn ghost" onClick={() => { setEdit(null); setError(""); }}>Cancel</button></div>
+    </form>}
   </section>;
 }
 
@@ -964,6 +1003,7 @@ function MailSetup({ toast }: { toast: (s: string) => void }) {
       </form>
       {test && <p className={test.delivered ? "ox-ok" : "ox-err"}>{test.delivered ? "Sent. Check that it's in the inbox (not spam), then reply to it. " : "Not sent. "}{test.detail}</p>}
     </section>
+    <SharedAddresses domain={d.domain} toast={toast} />
     <Alerts toast={toast} service={!!sv.set} />
     <details className="ox-card ox-fold">
       <summary><h2>Receiving: Cloudflare Email Routing</h2><small>{d.last_inbound ? "Working" : c.mx.ok ? "Set to Cloudflare; nothing received yet" : "Not set up"}</small></summary>
@@ -1055,6 +1095,19 @@ function MailboxForm({ me, toast }: { me: Me; toast: (s: string) => void }) {
   </form>;
 }
 
+/** A copy of each email at the address they sign in with, so it reaches their phone. Replying to the copy answers
+ * from their Agape address; their own address is never shown. */
+function Copies({ me, toast }: { me: Me; toast: (s: string) => void }) {
+  const [on, setOn] = useState(me.copies !== false);
+  const atAgape = me.email.toLowerCase().endsWith("@" + me.domain);
+  if (atAgape) return null;
+  return <section className="ox-card narrow">
+    <h2>Copies at your own email</h2>
+    <p className="ox-sub">{on ? <>Every email to your Agape addresses also goes to <b>{me.email}</b>, attachments included. Reply to it from your phone or Gmail and it goes out from your Agape address; <b>{me.email}</b> is never shown to anyone.</> : <>Off. Email to your Agape addresses only shows up here, in Messages.</>}</p>
+    <label className="ox-check"><input type="checkbox" checked={on} onChange={async e => { const v = e.target.checked; setOn(v); const r = await api("copies", { on: v }); toast(r.ok ? (v ? "Copies are on." : "Copies are off.") : r.error); }} /> Send me a copy of each email</label>
+  </section>;
+}
+
 function Account({ me, toast, out }: { me: Me; toast: (s: string) => void; out: () => void }) {
   const f = useForm({ old: "", new: "", again: "" });
   return <>
@@ -1077,6 +1130,7 @@ function Account({ me, toast, out }: { me: Me; toast: (s: string) => void; out: 
       <p className="ox-sub">Mail to it lands in Messages. People above you can read it, as with everything here.</p>
       <MailboxForm me={me} toast={toast} />
     </section>
+    <Copies me={me} toast={toast} />
     <section className="ox-card narrow">
       <h2>Change your password</h2>
       <p className="ox-sub">You'll be signed out everywhere, including here.</p>

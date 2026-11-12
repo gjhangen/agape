@@ -482,6 +482,8 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/mail/test", post(office_mail_test))
         .route("/api/office/mail/relay", get(office_relay_get).post(office_relay_set))
         .route("/api/office/mail/service", post(office_service_set))
+        .route("/api/office/shared", get(office_shared).post(office_shared_set))
+        .route("/api/office/copies", post(office_copies))
         .route("/api/mail/health", get(mail_health))
         .route("/api/mail/inbound", post(mail_inbound).layer(axum::extract::DefaultBodyLimit::max(30_000_000)))
         .route("/api/office/role", post(office_role))
@@ -654,7 +656,25 @@ async fn office_signin(State(app): State<S>, Json(b): Json<Value>) -> Response {
     signed(&app, r, StatusCode::UNAUTHORIZED)
 }
 async fn office_signout(State(app): State<S>, h: HeaderMap) -> Response { app.office.lock().unwrap().sign_out(&bearer(&h)); Json(json!({ "ok": true })).into_response() }
-async fn office_me(State(app): State<S>, h: HeaderMap) -> Response { match staffer(&app, &h) { Ok(u) => { let o = app.office.lock().unwrap(); let (mine, pings) = o.unread(&u); Json(json!({ "ok": true, "me": person_in(&o, &u), "unread": mine, "pings": pings, "domain": app.mail.domain })).into_response() } Err(r) => r } }
+async fn office_me(State(app): State<S>, h: HeaderMap) -> Response { match staffer(&app, &h) { Ok(u) => { let o = app.office.lock().unwrap(); let (mine, pings) = o.unread(&u); let mut me = person_in(&o, &u); me["send_as"] = json!(o.send_as(&u)); me["copies"] = json!(!u.no_copies); Json(json!({ "ok": true, "me": me, "unread": mine, "pings": pings, "domain": app.mail.domain })).into_response() } Err(r) => r } }
+
+/// The shared addresses, who's in each, and which ones this person can manage.
+async fn office_shared(State(app): State<S>, h: HeaderMap) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    let o = app.office.lock().unwrap();
+    let list: Vec<Value> = o.shared().iter().map(|x| json!({ "local": x.local, "name": x.name, "members": x.members })).collect();
+    Json(json!({ "ok": true, "shared": list, "manage": u.role == admin::HOST || o.can(&u, "people") })).into_response()
+}
+async fn office_shared_set(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    let mut o = app.office.lock().unwrap();
+    done(if b["delete"] == true { o.delete_shared(&u, &s(&b, "local")) } else { o.save_shared(&u, &s(&b, "was"), &s(&b, "local"), &s(&b, "name"), &strs(&b, "members")) })
+}
+async fn office_copies(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    app.office.lock().unwrap().set_copies(&u, b["on"].as_bool().unwrap_or(true));
+    Json(json!({ "ok": true })).into_response()
+}
 async fn office_password(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
     let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
     done(app.office.lock().unwrap().change_password(&u, &s(&b, "old"), &s(&b, "new")))
@@ -785,7 +805,10 @@ async fn office_email(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) 
     let subject = if subject.is_empty() { "(no subject)".to_string() } else { subject };
     let (inside, outside, mailbox) = {
         let o = app.office.lock().unwrap();
-        match o.recipients(&strs(&b, "to"), &app.mail.domain) { Ok((i, x)) => (i, x, u.mailbox.clone()), Err(e) => return err(StatusCode::BAD_REQUEST, &e) }
+        // their own address, or a shared one they're in
+        let want = s(&b, "from").trim().to_lowercase();
+        let mailbox = if want.is_empty() { u.mailbox.clone() } else if o.send_as(&u).contains(&want) { want } else { return err(StatusCode::FORBIDDEN, "You can't send as that address") };
+        match o.recipients(&strs(&b, "to"), &app.mail.domain) { Ok((i, x)) => (i, x, mailbox), Err(e) => return err(StatusCode::BAD_REQUEST, &e) }
     };
     if mailbox.is_empty() { return err(StatusCode::BAD_REQUEST, "You don't have an address yet. Choose one under Your account."); }
     let (mut status, mut retry) = (vec![], vec![]);
@@ -799,7 +822,7 @@ async fn office_email(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) 
             }
         }
     }
-    app.office.lock().unwrap().record_sent(&u, inside, outside, &subject, &body, status.clone(), retry);
+    app.office.lock().unwrap().record_sent(&u, inside, outside, &subject, &body, status.clone(), retry, &mailbox);
     Json(json!({ "ok": true, "failed": failed, "status": status })).into_response()
 }
 
@@ -848,7 +871,26 @@ async fn mail_inbound(State(app): State<S>, h: HeaderMap, body: axum::body::Byte
     let hv = |k: &str| h.get(k).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
     let m = mail::parse(&body, &hv("x-envelope-to"), &hv("x-envelope-from"));
     let _ = std::fs::write(app.data.join("mail-last-inbound"), admin::now().to_string());
-    let (n, note) = app.office.lock().unwrap().receive(&m.from, &m.from_name, &m.to, &m.subject, &m.body, m.attachments, &app.mail.domain);
+    // someone on the team answering a copy from their own email: it goes out from their Agape address, as them
+    let domain = app.mail.domain.to_lowercase();
+    if let Some(key) = m.to.iter().filter_map(|t| t.to_lowercase().strip_suffix(&format!("@{domain}")).and_then(|l| l.strip_prefix("reply+")).map(String::from)).next() {
+        let found = app.office.lock().unwrap().reply_key(&key);
+        if let Some((u, to, subject, local)) = found {
+            let from_ok = [m.from.to_lowercase(), hv("x-envelope-from").to_lowercase()].iter().any(|f| f.trim() == u.email.trim().to_lowercase());
+            if from_ok && !to.is_empty() {
+                let text = mail::new_part(&m.body);
+                let subject = if subject.to_lowercase().starts_with("re:") { subject } else { format!("Re: {subject}") };
+                let (mut status, mut retry) = (vec![], vec![]);
+                for (t, r) in app.mail.send(&u.name, &local, &[to.clone()], &subject, &text, None).await {
+                    match r { Ok(x) => status.push(format!("{t}: delivered ({x})")), Err(e) if mail::permanent(&e) => status.push(format!("{t}: not delivered. {e}")), Err(e) => { status.push(format!("{t}: not delivered yet; Agape will keep trying for two days. {e}")); retry.push((t, 0u32, admin::now() + 600)); } }
+                }
+                app.office.lock().unwrap().record_sent(&u, vec![], vec![to], &subject, &text, status, retry, &local);
+                return Json(json!({ "ok": true, "replied_for": u.id })).into_response();
+            }
+        }
+        // a key nobody has, or sent from someone else's address: kept like any other mail (it lands with the host)
+    }
+    let (n, note, copies) = app.office.lock().unwrap().receive(&m.from, &m.from_name, &m.to, &m.subject, &m.body, m.attachments, &app.mail.domain);
     // attachments are kept on disk beside the mail, readable only by people who can see the message
     if !m.files.is_empty() {
         let dir = app.data.join("mail-files").join(&note);
@@ -857,6 +899,20 @@ async fn mail_inbound(State(app): State<S>, h: HeaderMap, body: axum::body::Byte
             let _ = std::fs::write(dir.join(format!("{i}.bin")), bytes);
             let _ = std::fs::write(dir.join(format!("{i}.json")), json!({ "name": name, "type": ctype, "size": bytes.len() }).to_string());
         }
+    }
+    // a copy to each person's own email, with the attachments (up to 20 MB of them); replying answers through Agape
+    if !copies.is_empty() {
+        let app2 = app.clone();
+        let files: Vec<(String, Vec<u8>)> = { let mut total = 0; m.files.iter().filter(|f| { total += f.2.len(); total <= 20_000_000 }).map(|f| (f.0.clone(), f.2.clone())).collect() };
+        let sender = if m.from_name.trim().is_empty() { m.from.clone() } else { m.from_name.clone() };
+        let (from_line, subject, body) = (if m.from_name.trim().is_empty() { m.from.clone() } else { format!("{} <{}>", m.from_name.trim(), m.from) }, m.subject.clone(), m.body.clone());
+        let left_out = m.files.len() - files.len();
+        tokio::spawn(async move {
+            for (name, own, key, local) in copies {
+                let text = format!("From: {from_line}\nTo: {local}@{d}\n\n{body}\n\n——\nA copy of email to {local}@{d}, sent to you by Agape.{more} Reply to this email to answer from {local}@{d}; your own address stays private. Everything is also in Agape Admin under Messages: https://{d}/admin/", d = app2.mail.domain, more = if left_out > 0 { format!(" {left_out} large attachment(s) are only in Agape Admin.") } else { String::new() });
+                if let Err(e) = app2.mail.send_copy(&sender, &own, &subject, &text, &key, &files).await { eprintln!("copy to {name}: {e}"); }
+            }
+        });
     }
     Json(json!({ "ok": true, "kept_for": n })).into_response()
 }

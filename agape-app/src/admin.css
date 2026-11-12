@@ -404,3 +404,11 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
 .ox-fold > summary::after { content: "Show"; margin-left: auto; color: var(--brand); font-weight: 700; font-size: 13px; }
 .ox-fold[open] > summary::after { content: "Hide"; }
 .ox-fold[open] > summary { margin-bottom: 12px; }
+.ox-shared { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 8px; }
+.ox-shared li { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; flex-wrap: wrap; }
+.ox-shared li > div:first-child { display: grid; gap: 2px; } .ox-shared li span, .ox-shared small { color: var(--muted); }
+.ox-addr { display: flex; align-items: center; gap: 6px; } .ox-addr input { flex: 1; } .ox-addr small { color: var(--muted); font-weight: 600; }
+.ox-checks { display: flex; flex-wrap: wrap; gap: 8px 18px; }
+fieldset.ox-f { border: 0; padding: 0; margin: 0; min-width: 0; }
+.ox-check { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
+.ox-check input { width: 18px; height: 18px; accent-color: var(--brand); }
