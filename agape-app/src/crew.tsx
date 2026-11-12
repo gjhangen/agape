@@ -4,7 +4,7 @@ import { Wordmark } from "./logo";
 import { boot, kernel, setWorldOverride } from "./kernel";
 import { Icon, money, runnerName, venueTime, countdown, BRAND, PlaceView } from "./parts";
 import { RunnerView } from "./roles";
-import { Beat, Shell, EVENT, demoWorld, useToasts } from "./shell";
+import { Beat, Shell, EVENT, demoWorld, useToasts, useStages } from "./shell";
 import { Note } from "./explain";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
@@ -190,7 +190,7 @@ function beat(stage: Stage, r: RunnerView | null): Beat {
 }
 
 function App() {
-  const [stage, setStage] = useState<Stage>("boot");
+  const [stage, setStage, stepBack] = useStages<Stage>("boot");
   const [r, setR] = useState<RunnerView | null>(null);
   const [ready, setReady] = useState(false);
   const { toasts, toast } = useToasts();
@@ -203,7 +203,7 @@ function App() {
     kernel.step(START_MINUTE * 6); refresh(); setReady(true);
     setTimeout(() => setStage("welcome"), 1700);
   })(); }, []);
-  return <Shell tag="Runner · Agape Crew" device="phone" ready={ready} onTick={refresh} hold={!!(r?.trip && !r.trip.accepted)} toasts={toasts} notes={NOTES} explainable={stage === "app"}
+  return <Shell back={stepBack} tag="Runner · Agape Crew" device="phone" ready={ready} onTick={refresh} hold={!!(r?.trip && !r.trip.accepted)} toasts={toasts} notes={NOTES} explainable={stage === "app"}
     beat={beat(stage, r)} meta={r && stage === "app" ? <><span>Online runners can be offered trips; offline, the night goes on without them.</span></> : undefined}
     screen={<Crew r={r} stage={stage} next={setStage} toast={toast} refresh={refresh} />} />;
 }

@@ -6,7 +6,7 @@ import { boot, kernel, setWorldOverride } from "./kernel";
 import { BRAND, Icon, money, MeasureTile, venueTime } from "./parts";
 import { OpsView } from "./roles";
 import { CareDesk, CareView, Policies } from "./care";
-import { Beat, Invite, Shell, demoWorld, useToasts } from "./shell";
+import { Beat, Invite, Shell, demoWorld, useToasts, useStages } from "./shell";
 import { Note } from "./explain";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
@@ -119,7 +119,7 @@ function beat(stage: Stage, o: OpsView | null, c: CareView | null): Beat {
 }
 
 function App() {
-  const [stage, setStage] = useState<Stage>("boot");
+  const [stage, setStage, stepBack] = useStages<Stage>("boot");
   const [o, setO] = useState<OpsView | null>(null);
   const [c, setC] = useState<CareView | null>(null);
   const [ready, setReady] = useState(false);
@@ -131,7 +131,7 @@ function App() {
     kernel.step(70 * 6); kernel.act({ do: "drive", party: "ops" }); refresh(); setReady(true);
     setTimeout(() => setStage("signin"), 1500);
   })(); }, []);
-  return <Shell tag="HQ · Agape HQ" device="laptop" ready={ready} onTick={refresh} toasts={toasts} notes={NOTES} explainable={stage === "app"}
+  return <Shell back={stepBack} tag="HQ · Agape HQ" device="laptop" ready={ready} onTick={refresh} toasts={toasts} notes={NOTES} explainable={stage === "app"}
     beat={beat(stage, o, c)} screen={<HQ o={o} c={c} stage={stage} next={setStage} toast={toast} refresh={refresh} />} />;
 }
 

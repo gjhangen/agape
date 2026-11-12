@@ -7,7 +7,7 @@ import { BRAND, Icon, money, levelFeatures } from "./parts";
 import { OpsLens, OpsView } from "./roles";
 import { BusinessLens, redeemedHere } from "./deals";
 import { SetupLens } from "./setup";
-import { Beat, Invite, Shell, EVENT, demoWorld, levelParam, useToasts } from "./shell";
+import { Beat, Invite, Shell, EVENT, demoWorld, levelParam, useToasts, useStages } from "./shell";
 import { Note } from "./explain";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
@@ -97,7 +97,7 @@ function beat(stage: Stage, o: OpsView | null): Beat {
 }
 
 function App() {
-  const [stage, setStage] = useState<Stage>("boot");
+  const [stage, setStage, stepBack] = useStages<Stage>("boot");
   const [o, setO] = useState<OpsView | null>(null);
   const [b, setB] = useState<any>(null);
   const [parties, setParties] = useState<any>(null);
@@ -124,7 +124,7 @@ function App() {
     refresh(); setReady(true);
     setTimeout(() => setStage("signin"), 1500);
   })(); }, []);
-  return <Shell tag={PARTNER ? "Partner · Agape for partners" : "Venue · Agape Venue"} device="laptop" ready={ready} onTick={refresh} toasts={toasts} notes={PARTNER ? PARTNER_NOTES : VENUE_NOTES} explainable={stage === "app"} level={LEVEL} minLevel={PARTNER ? 4 : 1}
+  return <Shell back={stepBack} tag={PARTNER ? "Partner · Agape for partners" : "Venue · Agape Venue"} device="laptop" ready={ready} onTick={refresh} toasts={toasts} notes={PARTNER ? PARTNER_NOTES : VENUE_NOTES} explainable={stage === "app"} level={LEVEL} minLevel={PARTNER ? 4 : 1}
     beat={beat(stage, o)} screen={<Console stage={stage} next={setStage} toast={toast} o={o} b={b} parties={parties} refresh={refresh} />} />;
 }
 

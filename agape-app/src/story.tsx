@@ -9,7 +9,7 @@ import { BRAND, Icon, LEVELS, levelFeatures, momentText, runnerName, venueTime }
 import { applyLook, applyMode, savedLook, savedMode, setVenueColor } from "./themes";
 import { TalkToUs } from "./talk";
 import { ExplainCard, ExplainLayer, FAN_NOTES, Note } from "./explain";
-import { DemoModal, OnYourPhone, useTopHeight, EVENT, EventSwitch, HeldCard, demoWorld, useFull, useHoldOnBeat, withParam } from "./shell";
+import { DemoModal, OnYourPhone, useTopHeight, EVENT, EventSwitch, HeldCard, demoWorld, useFull, useHoldOnBeat, withParam, useStages } from "./shell";
 
 declare const AGAPE_WORLD: any;
 const SPEEDS = [{ label: "1×", tps: 0.1 }, { label: "6×", tps: 0.6 }, { label: "30×", tps: 3 }];
@@ -180,7 +180,7 @@ function roar(ctx: { current: AudioContext | null }) {
 
 function Story() {
   const [level, setLevel] = useState(levelFromUrl());
-  const [stage, setStage] = useState<Stage>("boot");
+  const [stage, setStage, stepBack] = useStages<Stage>("boot");
   const [v, setV] = useState<FanView | null>(null);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [speed, setSpeed] = useState(1);
@@ -268,6 +268,7 @@ function Story() {
           <div className="device-frame">
             <div className="device-notch" />
             <div className="device-screen">
+              {stepBack && <button className="ob-back" onClick={stepBack} aria-label="Back to the step before"><span aria-hidden="true">‹</span> Back</button>}
               {stage === "app" && v ? <FanApp v={v} refresh={refresh} sheet={sheet} setSheet={setSheet} toast={toast} />
                 : <Onboarding stage={stage} next={setStage} onLocated={setLocated} seatChosen={async (sec, row, place) => {
                   if (`s${sec}` !== "s104") { await start(level, `s${sec}`); }

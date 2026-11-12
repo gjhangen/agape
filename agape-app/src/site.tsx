@@ -44,7 +44,7 @@ function Site() {
     <div className="site hm">
       <header className="site-top hm-top">
         <a className="site-mark" href="/"><Wordmark tag /></a>
-        <nav><a href="/for/venues/">Venues</a><a href="/for/investors/">Investors</a><a href="#demo">Demo</a><button className="btn sm primary" onClick={open}>Talk to us</button></nav>
+        <nav><a href="/for/venues/">Venues</a><a href="/for/investors/">Investors</a><a href="/get/">Get the app</a><a href="#demo">Demo</a><button className="btn sm primary" onClick={open}>Talk to us</button></nav>
       </header>
 
       <section className="hm-hero">
@@ -53,7 +53,7 @@ function Site() {
           <h1>Order from your seat.<br />It comes to you.</h1>
           <p className="lede">Food, drinks and gear at games, concerts and every live event, made by the venue's own kitchens and carried to your seat, so you never miss the moment you came for.</p>
           <div className="site-acts"><a className="btn primary big" href={"/try/" + q}>Try it as a fan <b aria-hidden="true">→</b></a><button className="btn big hm-ghost" onClick={open}>Bring Agape to your venue</button></div>
-          <small className="hero-note">No sign-up. Runs in your browser, on your phone or computer.</small>
+          <small className="hero-note">No sign-up. Runs in your browser, on your phone or computer, or <a href="/get/">install the app</a>.</small>
         </div>
         <div className="hm-art" aria-hidden="true">
           <figure className="hm-phone back"><img src="/img/fan-item.jpg" alt="" /></figure>
@@ -96,7 +96,7 @@ function Site() {
         <div className="hm-more">
           <a href={"/try/partner/" + q}><b>Partners and sponsors</b><span>Reach fans in the moment, and see what it brought in.</span></a>
           <a href={"/try/hq/" + q}><b>Agape HQ</b><span>Every venue, the crew and the money, in one place.</span></a>
-          <a className="dark" href={"/demo/" + q}><b>Behind the scenes</b><span>Every role at once: the whole arena, sped up.</span></a>
+          <a href={"/demo/" + q}><b>Behind the scenes</b><span>Every role at once: the whole arena, sped up.</span></a>
         </div>
       </section>
 
@@ -108,7 +108,7 @@ function Site() {
 
       <footer className="site-foot hm-foot">
         <span>Agape · to your seat</span>
-        <nav>{([["fans", "Fans"], ["runners", "Runners"], ["venues", "Venues"], ["stands", "Food service"], ["partners", "Partners"], ["investors", "Investors"], ["team", "Agape team"]] as const).map(([k, l]) => <a key={k} href={`/for/${k}/`}>{l}</a>)}<a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav>
+        <nav>{([["fans", "Fans"], ["runners", "Runners"], ["venues", "Venues"], ["stands", "Food service"], ["partners", "Partners"], ["investors", "Investors"], ["team", "Agape team"]] as const).map(([k, l]) => <a key={k} href={`/for/${k}/`}>{l}</a>)}<a href="/get/">Get the app</a><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav>
         <button className="link-inline" onClick={open}>Talk to us</button>
       </footer>
       {talk && <TalkToUs close={close} version={null} />}

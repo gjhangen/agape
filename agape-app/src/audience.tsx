@@ -109,7 +109,7 @@ function Audience() {
     <div className="site hm">
       <header className="site-top">
         <a className="site-mark" href="/" aria-label="Agape home"><Wordmark tag /></a>
-        <nav><a href="/">Home</a><a className="btn sm" href="#demo">Try it</a><button className="btn sm primary" onClick={() => setTalk(true)}>Talk to us</button></nav>
+        <nav><a href="/">Home</a><a href="/get/">Get the app</a><a className="btn sm" href="#demo">Try it</a><button className="btn sm primary" onClick={() => setTalk(true)}>Talk to us</button></nav>
       </header>
       <section className={"hm-hero for" + (p.wide ? " wide" : "")}>
         <div className="hm-copy">
@@ -144,7 +144,7 @@ function Audience() {
       </section>
       <footer className="site-foot">
         <span>Agape · to your seat</span>
-        <nav><a href="/">Home</a>{AUDIENCES.filter(([k]) => k !== key).map(([k, l]) => <a key={k} href={`/for/${k}/`}>{l}</a>)}<a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav>
+        <nav><a href="/">Home</a>{AUDIENCES.filter(([k]) => k !== key).map(([k, l]) => <a key={k} href={`/for/${k}/`}>{l}</a>)}<a href="/get/">Get the app</a><a href="/privacy/">Privacy</a><a href="/terms/">Terms</a></nav>
       </footer>
       {talk && <TalkToUs close={() => setTalk(false)} version={null} role={p.role} />}
     </div>

@@ -5,6 +5,7 @@ import { kernel } from "./kernel";
 import { BRAND, LEVELS, concertWorld, isConcert, momentText } from "./parts";
 import { ExplainCard, ExplainLayer, Note } from "./explain";
 import { TalkToUs } from "./talk";
+import { InstallSteps } from "./install";
 
 export const SPEEDS = [{ label: "1×", tps: 0.1 }, { label: "6×", tps: 0.6 }, { label: "30×", tps: 3 }];
 
@@ -28,7 +29,26 @@ export function useNight(ready: boolean, paused: boolean, speed: number, tick: (
 
 export type Beat = { id: string; title: string; body: React.ReactNode };
 
-export function Shell({ tag, device, screen, beat, meta, notes, explainable, toasts, ready, onTick, hold, level, minLevel = 1 }: {
+/** The steps before the app itself (welcome, sign in, pick a seat…): each can go back to the one before, with the
+ * Back button, the phone's back gesture or the browser's. Once the app itself is open, the sign-in steps are behind
+ * them, as in any app. */
+export function useStages<T extends string>(first: T): [T, (s: T) => void, (() => void) | null] {
+  const [stage, setStage] = useState<T>(first);
+  const hist = useRef<T[]>([]);
+  const cur = useRef<T>(first); cur.current = stage;
+  const next = (s: T) => {
+    if (s === cur.current) return;
+    if (s === ("app" as T)) hist.current = [];
+    else if (cur.current !== ("boot" as T)) { hist.current.push(cur.current); try { history.pushState({ step: hist.current.length }, ""); } catch { /* fine */ } }
+    setStage(s);
+  };
+  const back = () => { const prev = hist.current.pop(); if (prev) setStage(prev); };
+  useEffect(() => { const f = () => { if (hist.current.length && cur.current !== ("app" as T)) back(); }; addEventListener("popstate", f); return () => removeEventListener("popstate", f); }, []);
+  return [stage, next, hist.current.length && stage !== ("app" as T) ? () => { try { history.back(); } catch { back(); } } : null];
+}
+
+export function Shell({ tag, device, screen, beat, meta, notes, explainable, toasts, ready, onTick, hold, level, minLevel = 1, back }: {
+  back?: (() => void) | null;
   tag: string; device: "phone" | "tablet" | "laptop"; screen: React.ReactNode; beat: Beat; meta?: React.ReactNode;
   notes: Note[]; explainable: boolean; toasts: { id: number; text: string }[]; ready: boolean; onTick: () => void; hold?: boolean; level?: number; minLevel?: number;
 }) {
@@ -37,7 +57,8 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
   const [explain, setExplain] = useState(false);
   const [note, setNote] = useState<Note | null>(null);
   const [talk, setTalk] = useState(false);
-  const [phone, setPhone] = useState(false);
+  // opened from the Get the app page: show how to install it straight away
+  const [phone, setPhone] = useState(() => new URLSearchParams(location.search).has("install"));
   const [fan, setFan] = useState<any>(null);
   const [pulse, setPulse] = useState(0);
   const last = useRef("");
@@ -93,6 +114,7 @@ export function Shell({ tag, device, screen, beat, meta, notes, explainable, toa
           <div className={"device-frame " + device}>
             {device === "phone" && <div className="device-notch" />}
             <div className="device-screen">
+              {back && <button className="ob-back" onClick={back} aria-label="Back to the step before"><span aria-hidden="true">‹</span> Back</button>}
               {screen}
               <ExplainLayer on={explain && explainable} root={() => document.querySelector(".device-screen")} notes={notes} pick={setNote} picked={note} />
               <div className="toasts in-phone" aria-live="polite">{toasts.slice(-1).map(t => <p key={t.id} className="toast">{t.text}</p>)}</div>
@@ -221,17 +243,12 @@ export function HeldCard({ beat, on, exit }: { beat: Beat; on: boolean; exit: ()
 /** How to put this app on a phone's home screen, or send it to someone. */
 export function OnYourPhone({ close }: { close: () => void }) {
   const url = location.origin + location.pathname;
-  const [copied, setCopied] = useState(false);
-  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent);
+  const name = document.querySelector('meta[name="apple-mobile-web-app-title"]')?.getAttribute("content") || "Agape";
   return <div className="explain-card">
     <div className="row gap"><span className="eyebrow grow">On your phone</span><button className="btn ghost sm" onClick={close}>Close</button></div>
-    <h2>Use it like an app</h2>
-    <dl>
-      <dt>On this phone</dt><dd>{ios ? <>Tap Share in Safari, then <b>Add to Home Screen</b>.</> : <>Open your browser's menu, then <b>Install app</b> or <b>Add to Home screen</b>.</>} It opens on its own, full screen, with its own icon.</dd>
-      <dt>On another phone</dt><dd>Send this link and do the same there: <span className="num">{url.replace(/^https?:\/\//, "")}</span></dd>
-      <dt>Updates</dt><dd>It's always the latest version. Nothing to update.</dd>
-    </dl>
-    <button className="btn primary block" onClick={() => { try { navigator.clipboard?.writeText(url); setCopied(true); } catch { /* fine */ } }}>{copied ? "Link copied" : "Copy the link"}</button>
+    <h2>Install {name}</h2>
+    <p className="muted">It opens on its own, full screen, with its own icon, and it's always the latest version.</p>
+    <InstallSteps name={name} link={url + "?install=1"} />
   </div>;
 }
 

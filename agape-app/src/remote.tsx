@@ -9,6 +9,7 @@ import { BRAND, momentText, venueTime } from "./parts";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 import { LookPicker } from "./lookpicker";
 import { TalkToUs } from "./talk";
+import { InstallSteps, device } from "./install";
 
 type Account = { id: string; handle: string; role: "fan" | "runner" | "stand" | "business" | "player" | "ops"; party: string; venue: string | null };
 const store = {
@@ -87,6 +88,11 @@ function Gate({ done }: { done: (token: string, a: Account) => void }) {
         <button type="button" className="link-inline" onClick={() => { setMode(mode === "up" ? "in" : "up"); setError(""); }}>{mode === "up" ? "I already have an account" : "I'm new here"}</button>
         {mode === "up" && <small className="legal-note">By continuing you agree to Agape's <a href="/terms/" target="_blank" rel="noopener">terms</a> and <a href="/privacy/" target="_blank" rel="noopener">privacy policy</a>.</small>}
       </form>
+      {!device().installed && <section className="l-install" id="install" ref={el => { if (el && new URLSearchParams(location.search).has("install")) setTimeout(() => el.scrollIntoView({ block: "start" }), 50); }}>
+        <h2>Put Agape on your home screen</h2>
+        <p>Its own icon, full screen, signed in all night. No app store needed.</p>
+        <InstallSteps name="Agape" link={location.origin + "/get/"} />
+      </section>}
       <ul className="l-points">
         <li><b>Order to your seat.</b> Food, drinks and gear, with the honest time it'll reach you before you tap.</li>
         {(!real() || world()?.features?.predictions || world()?.features?.cards) && <li><b>Play along.</b> Call each quarter for points. Collect the night's big plays as cards before they're gone.</li>}
@@ -162,7 +168,7 @@ function PilotInfo({ close }: { close: () => void }) {
   );
 }
 
-function Join({ joined, a }: { joined: () => void; a: Account }) {
+function Join({ joined, a, signOut }: { joined: () => void; a: Account; signOut: () => void }) {
   useEffect(() => { scrollTo(0, 0); }, []);
   const key = `agape.joined.${a.id}`;
   const back = store.get(key) === "1";
@@ -174,7 +180,7 @@ function Join({ joined, a }: { joined: () => void; a: Account }) {
   const go = () => { setBusy(true); const r = kernel.act({ do: "join", seat, row, place }); setBusy(false); if (r.ok) { store.set(key, "1"); joined(); } else setError(r.error); };
   return (
     <div className="landing join">
-      <header className="l-top"><span className="l-mark">agape</span><span className="l-tag">to your seat</span></header>
+      <header className="l-top"><span className="l-mark">agape</span><span className="l-tag">to your seat</span><button className="l-sim-link" onClick={signOut}>Sign out</button></header>
       <h1 className="l-head">{back ? `A new night, ${a.handle}.` : "Where are you sitting?"}</h1>
       <p className="l-sub">{back ? "Your level and points came with you. Where are you sitting tonight?" : "Your section is where we bring things, and who you're up against in tonight's section battle."}</p>
       {bowls().map(([name, blurb, secs]) => (
@@ -191,7 +197,8 @@ function Join({ joined, a }: { joined: () => void; a: Account }) {
         </div>
       </section>}
       {error && <p className="banner warn" role="alert">{error}</p>}
-      <div className="join-go"><button className="btn primary big wide" disabled={!seat || busy} onClick={go}>{seat ? `I'm in section ${seat.slice(1)}${row ? `, row ${row.toUpperCase()}` : ""}${place ? `, seat ${place}` : ""}` : "Tap your section"}</button></div>
+      <div className="join-go"><button className="btn primary big wide" disabled={!seat || busy} onClick={go}>{seat ? `I'm in section ${seat.slice(1)}${row ? `, row ${row.toUpperCase()}` : ""}${place ? `, seat ${place}` : ""}` : "Tap your section"}</button>
+        <small className="join-out">Not at the game yet? <button className="link-inline" onClick={signOut}>Sign out</button> and come back when you're in your seat. Your account and points stay.</small></div>
     </div>
   );
 }
@@ -207,7 +214,7 @@ function Signed({ a, signOut }: { a: Account; signOut: () => void }) {
   const lens = a.role === "fan" ? "fan" : a.role;
   const v = kernel.view(lens as any, "");
   if (v?.error || v?.ok === false) return <div className="gate"><p>{v.error}</p><button className="btn" onClick={signOut}>Sign out</button></div>;
-  if (a.role === "fan" && !(v as FanView).you?.seat) return <Join joined={refresh} a={a} />;
+  if (a.role === "fan" && !(v as FanView).you?.seat) return <Join joined={refresh} a={a} signOut={signOut} />;
   const noop = () => {};
   if (a.role === "fan") {
     const settings = (

@@ -5,7 +5,7 @@ import { boot, kernel, setWorldOverride } from "./kernel";
 import { Icon, money, venueTime, BRAND, countdown } from "./parts";
 import { StandView } from "./roles";
 import { ItemArt } from "./Art";
-import { Beat, Shell, EVENT, demoWorld, useToasts } from "./shell";
+import { Beat, Shell, EVENT, demoWorld, useToasts, useStages } from "./shell";
 import { Note } from "./explain";
 import { applyLook, applyMode, savedLook, savedMode } from "./themes";
 
@@ -117,7 +117,7 @@ function beat(stage: Stage, s: StandView | null): Beat {
 }
 
 function App() {
-  const [stage, setStage] = useState<Stage>("boot");
+  const [stage, setStage, stepBack] = useStages<Stage>("boot");
   const [s, setS] = useState<StandView | null>(null);
   const [ready, setReady] = useState(false);
   const { toasts, toast } = useToasts();
@@ -128,7 +128,7 @@ function App() {
     kernel.step(START_MINUTE * 6); refresh(); setReady(true);
     setTimeout(() => setStage("pin"), 1600);
   })(); }, []);
-  return <Shell tag="Stand · Agape Station" device="tablet" ready={ready} onTick={refresh} toasts={toasts} notes={NOTES} explainable={stage === "app"}
+  return <Shell back={stepBack} tag="Stand · Agape Station" device="tablet" ready={ready} onTick={refresh} toasts={toasts} notes={NOTES} explainable={stage === "app"}
     beat={beat(stage, s)} meta={s && stage === "app" ? <span>{BRAND.venue} · {s.queue_len} waiting · {s.ready.length + (s.pickups?.length ?? 0)} on the shelf</span> : undefined}
     screen={<Station s={s} stage={stage} next={setStage} toast={toast} refresh={refresh} />} />;
 }
