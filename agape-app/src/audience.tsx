@@ -117,7 +117,7 @@ function Audience() {
           <h1>{p.title}</h1>
           <p className="lede">{p.lede}</p>
           <div className="site-acts"><a className="btn primary big" href={q(p.demos[0].href)}>{p.demos[0].who} <b aria-hidden="true">→</b></a>
-            {key === "investors" ? <a className="btn big hm-ghost" href="/agape-summary.pdf" download="Agape investor summary.pdf">Download the summary (PDF)</a> : <button className="btn big hm-ghost" onClick={() => setTalk(true)}>{p.ask}</button>}</div>
+            {key === "investors" ? <a className="btn big hm-ghost" href="/agape-summary.pdf?v=98ca3c1c" download="Agape investor summary.pdf">Download the summary (PDF)</a> : <button className="btn big hm-ghost" onClick={() => setTalk(true)}>{p.ask}</button>}</div>
           {p.more && <small className="hero-note">{p.more}</small>}
         </div>
         <figure className={"hm-shot " + (p.wide ? "k-wide" : "k-phone")}><img src={`/img/${p.shot}.jpg`} alt="" /></figure>
