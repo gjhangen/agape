@@ -6,94 +6,107 @@
 @page { size: Letter; margin: 0; }
 * { box-sizing: border-box; }
 html, body { margin: 0; }
-body { font: 9pt/1.38 "Public Sans", sans-serif; color: #17181C; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
-.page { width: 8.5in; height: 11in; display: grid; grid-template-rows: auto auto 1fr auto; overflow: hidden; }
-.top { background: radial-gradient(ellipse at 85% 30%, #6E0E33 0%, #1A0910 55%, #0E0B0D 100%); color: #fff; padding: .32in .5in .28in; display: grid; grid-template-columns: 1.35fr 1fr; gap: .3in; align-items: center; }
-.mark { font: 800 30pt/1 "Big Shoulders Display", sans-serif; color: #FF6F99; letter-spacing: .01em; display: flex; align-items: center; gap: 8px; }
-.mark small { font: 700 5.5pt/1.15 "Public Sans", sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #fff; border-left: 1.5px solid #fff; padding-left: 6px; }
-h1 { font: 800 27pt/.92 "Big Shoulders Display", sans-serif; text-transform: uppercase; margin: 14px 0 10px; }
-.lede { color: rgba(255,255,255,.82); font-size: 9.8pt; margin: 0; }
-.shots { display: flex; gap: 10px; justify-content: flex-end; align-items: flex-end; }
-.phone { width: 1.3in; height: 2.05in; overflow: hidden; border-radius: 18px; padding: 4px; background: #050506; box-shadow: 0 0 0 1px #3A3C44; }
-.phone img { width: 100%; height: 100%; object-fit: cover; object-position: top; display: block; border-radius: 15px; }
-.wide { width: 1.55in; border-radius: 8px; padding: 4px; background: #15161A; }
-.wide img { width: 100%; display: block; border-radius: 5px; }
-.stats { display: grid; grid-template-columns: repeat(4, 1fr); border-bottom: 1px solid #E3E4E8; }
-.stats div { padding: .12in .18in .1in; border-left: 1px solid #E3E4E8; }
-.stats div:first-child { border-left: 0; padding-left: .5in; }
-.stats b { display: block; font: 800 21pt/1 "Big Shoulders Display", sans-serif; color: #B8174F; }
-.stats span { font-size: 8.6pt; color: #3D4049; }
-.stats i { display: block; font-style: normal; font-size: 6.6pt; color: #8A8D96; margin-top: 3px; }
-.body { padding: .16in .5in .06in; display: grid; grid-template-columns: 1fr 1fr; gap: .1in .36in; align-content: start; }
-h2 { font: 800 12.5pt/1 "Big Shoulders Display", sans-serif; text-transform: uppercase; letter-spacing: .02em; margin: 0 0 5px; color: #17181C; }
-h2 em { font-style: normal; color: #B8174F; }
-p { margin: 0 0 4px; }
-ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
-li { padding-left: 11px; position: relative; } li::before { content: ""; position: absolute; left: 0; top: .55em; width: 5px; height: 5px; border-radius: 50%; background: #B8174F; }
-li b { color: #17181C; }
-.market { display: flex; gap: 14px; margin: 2px 0 5px; } .market b { font: 800 18pt/1 "Big Shoulders Display", sans-serif; color: #17181C; } .market span { display: block; font-size: 7.8pt; color: #3D4049; }
-.sim { background: #F4F4F6; border-radius: 8px; padding: 7px 9px; font-size: 8.4pt; margin-top: 5px; } .sim b { color: #B8174F; }
-.team b { font: 800 11pt/1 "Big Shoulders Display", sans-serif; text-transform: uppercase; }
-.foot { background: #B8174F; color: #fff; padding: .15in .5in; display: flex; justify-content: space-between; align-items: center; gap: 16px; }
-.foot b { font: 800 15pt/1 "Big Shoulders Display", sans-serif; text-transform: uppercase; }
-.foot span { font-size: 9pt; opacity: .92; }
-.foot a { color: #fff; font-weight: 700; text-decoration: none; font-size: 10.5pt; }
-.src { font-size: 6.4pt; color: #8A8D96; padding: 0 .5in .1in; }
+body { font: 9pt/1.35 "Public Sans", sans-serif; color: #17181C; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.page { width: 8.5in; height: 11in; display: flex; flex-direction: column; overflow: hidden; background: #F6F6F8; }
+.D { font-family: "Big Shoulders Display", sans-serif; font-weight: 800; text-transform: uppercase; line-height: .92; }
+.k { font: 700 6.6pt/1 "Public Sans", sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #B8174F; }
+.top { background: radial-gradient(ellipse at 82% 35%, #7A0F38 0%, #1A0910 55%, #0E0B0D 100%); color: #fff; padding: .24in .45in .2in; display: grid; grid-template-columns: 1.25fr 1fr; gap: .2in; align-items: center; }
+.mark { font: 800 24pt/1 "Big Shoulders Display", sans-serif; color: #FF6F99; display: flex; gap: 6px; align-items: center; }
+.mark small { font: 700 4.6pt/1.15 "Public Sans", sans-serif; letter-spacing: .14em; text-transform: uppercase; color: #fff; border-left: 1.2px solid #fff; padding-left: 5px; }
+.top h1 { font-size: 31pt; margin: 10px 0 8px; }
+.top p { margin: 0; color: rgba(255,255,255,.8); font-size: 9.6pt; max-width: 3.6in; }
+.shots { display: flex; gap: 8px; justify-content: flex-end; align-items: flex-end; }
+.ph { width: 1.0in; height: 1.55in; border-radius: 15px; padding: 3px; background: #050506; overflow: hidden; box-shadow: 0 0 0 1px #3A3C44; }
+.ph img { width: 100%; height: 100%; object-fit: cover; object-position: top; border-radius: 12px; display: block; }
+.wd { width: 1.5in; border-radius: 7px; padding: 3px; background: #15161A; } .wd img { width: 100%; display: block; border-radius: 5px; }
+.line { background: #fff; padding: .14in .45in .12in; display: grid; grid-template-columns: auto 1fr; gap: .08in .3in; align-items: center; border-bottom: 1px solid #E3E4E8; }
+.big { display: grid; gap: 3px; } .big b { font-size: 46pt; color: #B8174F; } .big b small { font-size: .38em; color: #17181C; margin: 0 .08em; vertical-align: .6em; }
+.big span { font-size: 10pt; font-weight: 600; max-width: 2.1in; }
+.people { display: grid; grid-template-columns: repeat(10, 1fr); gap: 8px; max-width: 3.6in; justify-self: end; width: 100%; }
+.people svg { width: 100%; height: auto; fill: #B8174F; display: block; } .people .stay svg { fill: #CFD2D9; }
+.trio { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); border-top: 1px solid #E3E4E8; padding-top: 7px; }
+.trio div + div { border-left: 1px solid #E3E4E8; padding-left: 12px; } .trio b { font-size: 19pt; display: block; } .trio span { font-size: 8.2pt; color: #3D4049; }
+.how { padding: .12in .45in .1in; }
+.how h2 { font-size: 17pt; margin: 0 0 8px; }
+.flow { display: grid; grid-template-columns: 1fr 1.7fr 1fr; gap: .22in; align-items: end; }
+.flow > div { display: grid; justify-items: center; text-align: center; gap: 3px; position: relative; }
+.flow > div:not(:last-child)::after { content: "→"; position: absolute; right: -.17in; top: 38%; font: 800 15pt "Big Shoulders Display"; color: #B8174F; }
+.flow .ph { width: .82in; height: 1.15in; } .flow .wd { width: 2.3in; height: 1.15in; overflow: hidden; } .flow .wd img { height: 100%; object-fit: cover; object-position: top left; }
+.flow b { font-size: 12pt; margin-top: 3px; } .flow span { font-size: 7.8pt; color: #3D4049; }
+.money { background: #120A0E; color: #fff; padding: .13in .45in; display: grid; grid-template-columns: 1fr 1.25fr; gap: .1in .3in; align-items: center; }
+.money h2 { font-size: 17pt; margin: 3px 0 4px; } .money p { margin: 0; color: rgba(255,255,255,.75); font-size: 8.6pt; } .money .k { color: #FF8BAA; }
+.dia { display: grid; grid-template-columns: auto .32in auto .14in 1fr; align-items: center; }
+.n { padding: 6px 9px; border-radius: 8px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.16); font-weight: 700; font-size: 8.4pt; text-align: center; }
+.n.fan { background: #fff; color: #111; }
+.n.hub { background: #B8174F; border-color: #B8174F; padding: 8px 11px; box-shadow: 0 0 0 4px rgba(184,23,79,.3); } .n.hub b { display: block; font: 800 15pt/1 "Big Shoulders Display"; } .n.hub small { font-size: 6.4pt; }
+.ar { height: 2px; background: #FF5C8A; position: relative; } .ar::after { content: ""; position: absolute; right: -1px; top: -4px; border: 5px solid transparent; border-left: 6px solid #FF5C8A; }
+.out { display: grid; gap: 4px; border-left: 2px solid #FF5C8A; padding-left: 8px; } .out .n { text-align: left; padding: 4px 8px; }
+.earn { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.earn div { background: rgba(255,255,255,.07); border-radius: 7px; padding: 6px 8px; font-size: 8pt; color: rgba(255,255,255,.8); } .earn b { color: #fff; }
+.lv { padding: .11in .45in .06in; }
+.lv h2 { font-size: 17pt; margin: 3px 0 7px; }
+.stairs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 5px; align-items: end; height: .85in; }
+.stairs div { border-radius: 8px 8px 2px 2px; padding: 6px 7px; background: linear-gradient(180deg, #F6DCE6, #FFFFFF); border: 1px solid #E8D5DD; align-self: end; }
+.stairs div.now { background: #B8174F; color: #fff; border-color: #B8174F; }
+.stairs i { font-style: normal; font: 700 5.6pt/1 "Public Sans"; letter-spacing: .12em; text-transform: uppercase; color: #B8174F; display: block; } .stairs .now i { color: #FFD3E0; }
+.stairs b { font: 800 10.5pt/1 "Big Shoulders Display"; text-transform: uppercase; display: block; margin-top: 2px; }
+.bottom { padding: .08in .45in .12in; display: grid; grid-template-columns: 1fr 1fr 1.25fr; gap: .2in; align-items: start; }
+.mk b { font-size: 26pt; display: block; } .mk span { font-size: 7.8pt; color: #3D4049; }
+.team div { margin-top: 4px; } .team b { font-size: 12.5pt; } .team span { display: block; font-size: 7.8pt; color: #B8174F; font-weight: 700; }
+.src { padding: 0 .45in .06in; font-size: 6pt; color: #8A8D96; margin: auto 0 0; }
+.foot { background: #B8174F; color: #fff; padding: .11in .45in; display: flex; justify-content: space-between; align-items: center; }
+.foot b { font-size: 14pt; } .foot span { display: block; font-size: 8pt; opacity: .9; } .foot a { color: #fff; font-weight: 800; text-decoration: none; font-size: 10pt; }
 </style></head><body>
 <div class="page">
   <section class="top">
     <div>
       <div class="mark">agape<small>To<br>your<br>seat</small></div>
-      <h1>The money every venue loses in line.</h1>
-      <p class="lede">Most fans have walked away from a concession line without buying. Agape brings what they wanted to their seat, and turns every order into a relationship with the fan that follows them to every event on Agape.</p>
+      <h1 class="D">The money every venue loses in line.</h1>
+      <p>Agape brings what fans wanted to their seat, and turns every order into a relationship that follows them to every event.</p>
     </div>
-    <div class="shots"><figure class="wide" style="margin:0"><img src="shots/venue.jpg"></figure><figure class="phone" style="margin:0"><img src="shots/fan-menu.jpg"></figure></div>
+    <div class="shots"><div class="wd"><img src="shots/venue.jpg"></div><div class="ph"><img src="shots/fan-menu.jpg"></div></div>
   </section>
-  <section class="stats">
-    <div><b>79%</b><span>of fans have missed a key play waiting in a concession line</span><i>Mashgin, 2025 · 530+ MLB fans</i></div>
-    <div><b>80%+</b><span>have walked away from a line without buying</span><i>Mashgin, 2025</i></div>
-    <div><b>77%</b><span>would buy more if the wait were shorter</span><i>Mashgin, 2025</i></div>
-    <div><b>+43%</b><span>more per party, per game, if waits were cut in half</span><i>Oracle survey · 3,500+ fans</i></div>
+  <section class="line">
+    <div class="big"><b class="D">8<small>in</small>10</b><span>fans have walked away from a concession line without buying.</span></div>
+    <div class="people" id="people"></div>
+    <div class="trio"><div><b class="D">79%</b><span>missed a key play in line</span></div><div><b class="D">77%</b><span>would buy more with a shorter wait</span></div><div><b class="D">+43%</b><span>more spent per game if waits were halved</span></div></div>
   </section>
-  <section class="body">
-    <div>
-      <h2>The <em>market</em></h2>
-      <div class="market"><div><b>159M</b><span>fans at Live Nation events alone, 2025</span></div><div><b>71.75M</b><span>fans at MLB games, 2026: one league of many</span></div></div>
-      <p>Games, concerts, college sports, festivals and arenas of every size. Agape is built for any live event, and our first venues are likely to be in Kentucky.</p>
-    </div>
-    <div>
-      <h2>How Agape <em>earns</em></h2>
-      <ul><li><b>A share of every sale</b> made through Agape</li><li><b>A delivery fee</b> on every order brought to a seat</li><li><b>More with every level:</b> sponsors and deals in the moment, play along, tickets</li></ul>
-      <p style="margin-top:5px">Fans pay Agape; Agape keeps its share and pays the stands and runners. Nobody is ever collected from.</p>
-    </div>
-    <div>
-      <h2>Why Agape <em>wins</em></h2>
-      <ul>
-        <li><b>Times that come true.</b> Every time shown is when it reaches the seat, measured from how fast each kitchen and runner is going right now.</li>
-        <li><b>Delivery that pays.</b> Orders timed to be ready together and carried several to a route: built around deliveries per runner hour.</li>
-        <li><b>One set of books.</b> Fans, stands, runners, the venue and Agape see one ledger, balanced to the cent.</li>
-        <li><b>A venue in an afternoon.</b> Live by filling in a form. No hardware, no integration project.</li>
-      </ul>
-    </div>
-    <div>
-      <h2>Where it <em>goes</em></h2>
-      <p>Food is the way in. A fan's level, points and history follow them to every venue on Agape: deals and sponsors in the moment, play along, tickets, and a community that lasts past the final whistle. Nearby businesses Agape sends fans to can become its card-processing customers.</p>
-      
-    </div>
-    <div>
-      <h2>Built, <em>not slides</em></h2>
-      <ul><li><b>Six apps on one system:</b> fans, runners, stands, the venue, partners, Agape's team</li><li><b>Ready for a first venue:</b> real nights, a live console, reports that reconcile at close</li><li><b>Payments ready to connect:</b> cards held at order, charged on delivery</li></ul>
-      <div class="sim">On a simulated night at the demo arena: <b>6 min</b> average to the seat, <b>90%</b> within 10 minutes, <b>3,000</b> fans ordering at once, <b>$0.00</b> off in the books.</div>
-    </div>
-    <div class="team">
-      <h2>The <em>founders</em></h2>
-      <p><b>Gabriel Hangen</b> · Co-founder, technology. Designed and built every part of Agape.</p>
-      <p><b>Phillip Morgan</b> · Co-founder, deals and operations. Brings venues, partners and investors to Agape.</p>
+  <section class="how">
+    <h2 class="D">Agape takes the line away</h2>
+    <div class="flow">
+      <div><div class="ph"><img src="shots/fan-menu.jpg"></div><b class="D">The fan orders</b><span>and sees when it reaches their seat</span></div>
+      <div><div class="wd"><img src="shots/stand.jpg"></div><b class="D">The stand makes it</b><span>timed to leave on time</span></div>
+      <div><div class="ph"><img src="shots/runner.jpg"></div><b class="D">A runner brings it</b><span>several orders on one route</span></div>
     </div>
   </section>
-  <div>
-    <p class="src">Sources: Mashgin, “Beyond the Bases” (2025); Oracle Food and Beverage fan survey (2016); Live Nation 2025 full-year results; Front Office Sports (2026). Demo figures are from a simulated night, not a real venue.</p>
-    <section class="foot"><div><b>See it working</b><br><span>The 2-minute tour runs a whole night in your browser, every role at once.</span></div><a href="https://agapetoyourseat.com/for/investors/">agapetoyourseat.com/for/investors</a></section>
-  </div>
+  <section class="money">
+    <div><span class="k">How the money moves</span><h2 class="D">Every dollar flows through Agape</h2><p>Agape keeps its share first, then pays everyone else. Nobody is ever collected from.</p></div>
+    <div class="dia"><div class="n fan">Fans pay</div><div class="ar"></div><div class="n hub"><b>agape</b><small>keeps its share</small></div><div class="ar"></div><div class="out"><div class="n">Stands</div><div class="n">Runners</div><div class="n">Tax</div></div></div>
+    <div class="earn"><div><b>A share</b> of every sale</div><div><b>A delivery fee</b> on every order</div><div><b>Sponsors, deals, tickets</b> as levels switch on</div></div>
+  </section>
+  <section class="lv">
+    <span class="k">Where it goes</span><h2 class="D">Food is the way in</h2>
+    <div class="stairs">
+      <div class="now" style="height:40%"><i>Launch</i><b>Order to your seat</b></div>
+      <div style="height:55%"><i>Level 2</i><b>Deals</b></div>
+      <div style="height:70%"><i>Level 3</i><b>Play</b></div>
+      <div style="height:85%"><i>Level 4</i><b>Beyond the night</b></div>
+      <div style="height:100%"><i>Level 5</i><b>Community</b></div>
+    </div>
+  </section>
+  <section class="bottom">
+    <div class="mk"><b class="D">159M</b><span>fans at Live Nation events alone, 2025</span></div>
+    <div class="mk"><b class="D">71.75M</b><span>at MLB games, 2026. First venues likely in Kentucky.</span></div>
+    <div class="team"><span class="k" style="color:#17181C">The founders</span>
+      <div><b class="D">Phillip Morgan</b><span>Co-founder · Deals and operations</span></div>
+      <div><b class="D">Gabriel Hangen</b><span>Co-founder · Technology</span></div>
+    </div>
+  </section>
+  <p class="src">Sources: Mashgin, “Beyond the Bases” (2025); Oracle fan survey (3,500+ fans); Live Nation 2025 results; Front Office Sports (2026). Screens are from Agape's working demo.</p>
+  <section class="foot"><div><b class="D">See it working</b><span>A 2-minute tour of a whole night, every role at once.</span></div><a href="https://agapetoyourseat.com/for/investors/">agapetoyourseat.com/for/investors</a></section>
 </div>
+<script>
+const fig = '<svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4"/><path d="M4 22c0-5 3.6-8 8-8s8 3 8 8z"/></svg>';
+document.getElementById("people").innerHTML = Array.from({ length: 10 }, (_, i) => `<i class="${i < 8 ? "" : "stay"}">${fig}</i>`).join("");
+</script>
 </body></html>

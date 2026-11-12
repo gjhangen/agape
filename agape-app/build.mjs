@@ -127,7 +127,7 @@ for (const f of ["og.png", "icon-512.png", "icon-192.png", "apple-touch-icon.png
 copyFileSync("brand/icon-small.svg", "dist/server/favicon.svg");
 // screens from the product itself, shown on the front pages
 mkdirSync("dist/server/img", { recursive: true });
-for (const f of ["fan-menu", "fan-item", "fan-track", "runner", "stand", "venue"]) copyFileSync(`brand/shots/${f}.jpg`, `dist/server/img/${f}.jpg`);
+for (const f of ["fan-menu", "fan-item", "fan-track", "runner", "stand", "venue", "partner"]) copyFileSync(`brand/shots/${f}.jpg`, `dist/server/img/${f}.jpg`);
 // the one-page investor summary (made from brand/summary.html by brand/make-summary.cjs)
 copyFileSync("brand/agape-summary.pdf", "dist/server/agape-summary.pdf");
 writeFileSync("dist/server/manifest.json", JSON.stringify({ name: "Agape", short_name: "Agape", start_url: "/app/", display: "standalone", background_color: "#F3F4F7", theme_color: "#B8174F",

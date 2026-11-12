@@ -60,69 +60,90 @@ const SRC = {
   mlb: "https://frontofficesports.com/article/mlb-attendance-fourth-straight-year/",
 };
 
-/** The investor page's case: the problem in fans' own numbers, the size, why Agape wins, how it earns, what exists. */
+/** The investor page, told mostly in pictures: the line, the product, how money moves, where it goes, what exists. */
 function Invest() {
+  const people = Array.from({ length: 10 }, (_, i) => i < 8);
   return <>
-    <section className="site-sec iv-sec">
-      <div className="sec-head"><span className="hm-kicker">The problem</span><h2>The line costs everyone</h2>
-        <p className="site-why-demo">Fans want to buy. The line stops them, and the venue never sees the sale it lost.</p></div>
-      <div className="iv-stats">
-        <div><b>79%</b><span>of fans have missed a key play waiting in a concession line</span><a href={SRC.mashgin}>Mashgin, 2025 · 530+ MLB fans</a></div>
-        <div><b>80%+</b><span>have walked away from a line without buying anything</span><a href={SRC.mashgin}>Mashgin, 2025</a></div>
-        <div><b>77%</b><span>would buy more food and drinks if the wait were shorter</span><a href={SRC.mashgin}>Mashgin, 2025</a></div>
-        <div><b>+43%</b><span>more per party, per game, that U.S. fans say they'd spend if waits were cut in half</span><a href={SRC.oracle}>Oracle survey · 3,500+ fans</a></div>
+    <section className="iv2-line">
+      <div className="iv2-line-in">
+        <div className="iv2-big"><b>8<small>in</small>10</b><span>fans have walked away from a concession line without buying.</span></div>
+        <div className="iv2-people" aria-hidden="true">{people.map((gone, i) => <i key={i} className={gone ? "gone" : ""}><svg viewBox="0 0 24 24"><circle cx="12" cy="7" r="4" /><path d="M4 22c0-5 3.6-8 8-8s8 3 8 8z" /></svg></i>)}</div>
+        <div className="iv2-trio">
+          <div><b>79%</b><span>missed a key play in line</span></div>
+          <div><b>77%</b><span>would buy more with a shorter wait</span></div>
+          <div><b>+43%</b><span>more spent per game if waits were halved</span></div>
+        </div>
+        <small className="iv2-src">Fans surveyed by <a href={SRC.mashgin}>Mashgin (2025)</a> and <a href={SRC.oracle}>Oracle</a>.</small>
       </div>
     </section>
 
-    <section className="site-sec iv-sec iv-dark">
-      <div className="sec-head"><span className="hm-kicker">The market</span><h2>It shows up every night</h2></div>
-      <div className="iv-market">
-        <div><b>159M</b><span>fans at Live Nation events alone in 2025</span><a href={SRC.ln}>Live Nation, 2025 results</a></div>
-        <div><b>71.75M</b><span>fans at Major League Baseball games in 2026, one league of many</span><a href={SRC.mlb}>Front Office Sports</a></div>
-        <p>Games, concerts, college sports, festivals, minor leagues and arenas of every size. Every one of those fans buys something during the event, or wanted to. Agape is built for any live event, not one sport or one venue type, and our first venues are likely to be in Kentucky.</p>
-      </div>
-    </section>
-
-    <section className="site-sec iv-sec">
-      <div className="sec-head"><span className="hm-kicker">Why Agape wins</span><h2>Built to be right, not just fast</h2></div>
-      <ol className="for-points iv-four">
-        <li><b>Times that come true</b><span>Every time a fan sees is when it reaches their seat, measured from how fast each kitchen and runner is going right now. A promise kept is what brings a fan back for the second order.</span></li>
-        <li><b>Delivery that pays</b><span>Orders are timed so they're ready together, and runners carry several along one route. Deliveries per runner hour is the number that decides whether in-seat delivery makes money, and Agape is built around it.</span></li>
-        <li><b>One set of books</b><span>Fans, stands, runners, the venue and Agape all see the same ledger, balanced to the cent. Cards run through a processing partner Agape can change at any time; the record is Agape's. Nothing to reconcile, nothing lost between systems.</span></li>
-        <li><b>A venue in an afternoon</b><span>A venue goes live by filling in a form: stands, menu, prices, sections. No integration project, no hardware to install, so Agape can reach venues too small for anyone else.</span></li>
+    <section className="site-sec iv2-how">
+      <h2>Agape takes the line away</h2>
+      <ol className="iv2-flow">
+        <li><figure className="ph"><img src="/img/fan-menu.jpg" alt="The fan's app" /></figure><b>The fan orders</b><span>and sees when it'll reach their seat</span></li>
+        <li><figure className="tb"><img src="/img/stand.jpg" alt="The stand's tablet" /></figure><b>The stand makes it</b><span>timed to leave on time</span></li>
+        <li><figure className="ph"><img src="/img/runner.jpg" alt="The runner's app" /></figure><b>A runner brings it</b><span>several orders on one route</span></li>
       </ol>
     </section>
 
-    <section className="site-sec iv-sec">
-      <div className="iv-split">
-        <div><span className="hm-kicker">How Agape earns</span><h2>On every order, from the first night</h2>
-          <ul className="iv-list"><li><b>A share of every sale</b> made through Agape</li><li><b>A delivery fee</b> on every order brought to a seat</li><li><b>More with every level</b>: sponsors and deals in the moment, play along, tickets</li></ul></div>
-        <div><span className="hm-kicker">Where it goes</span><h2>Food is the way in</h2>
-          <p className="site-why-demo">The order is the first reason a fan opens Agape. Their level, points and history then follow them to every venue on Agape: deals and sponsors in the moment, play along during the game, tickets, and a community that lasts past the final whistle. Each level is a complete product on top of the last, already built and working in the demo.</p>
-          <a className="link-inline" href="/#levels">See every level →</a></div>
+    <section className="iv2-money">
+      <div className="iv2-money-in">
+        <div className="iv2-money-copy"><span className="hm-kicker">How the money moves</span><h2>Every dollar flows through Agape</h2><p>Agape keeps its share first, then pays everyone else. Nobody is ever collected from.</p></div>
+        <div className="iv2-diagram" aria-label="Fans pay Agape; Agape keeps its share and pays the stands, the runners and the tax">
+          <div className="n fan">Fans pay</div>
+          <div className="arrow" />
+          <div className="n hub"><b>agape</b><span>keeps its share</span></div>
+          <div className="fan-out"><div className="n">Stands</div><div className="n">Runners</div><div className="n">Tax</div></div>
+        </div>
+        <ul className="iv2-earn"><li><b>A share</b> of every sale</li><li><b>A delivery fee</b> on every order</li><li><b>Sponsors, deals and tickets</b> as each level switches on</li></ul>
       </div>
     </section>
 
-    <section className="site-sec iv-sec">
-      <div className="sec-head"><span className="hm-kicker">Where Agape is today</span><h2>Built, not slides</h2>
-        <p className="site-why-demo">Everything below works today, and you can try every part of it on this site.</p></div>
-      <ul className="iv-built">
-        <li><b>Six apps on one system</b><span>Fans, runners, stands, the venue, partners and Agape's own team.</span></li>
-        <li><b>Ready for a first venue</b><span>Real nights with real staff, a live console, and a report that reconciles at close.</span></li>
-        <li><b>Payments ready to connect</b><span>Cards held at order and charged only on delivery, in step with the books.</span></li>
-        <li><b>Proven at scale</b><span>Load-tested at 3,000 fans ordering at once, with daily backups and round-the-clock monitoring.</span></li>
-      </ul>
+    <section className="site-sec iv2-levels">
+      <div className="sec-head"><span className="hm-kicker">Where it goes</span><h2>Food is the way in</h2></div>
+      <ol className="iv2-stairs">{LEVELS_IV.map(([n, name, line], i) => <li key={n} style={{ ["--h" as any]: `${40 + i * 15}%` }} className={i === 0 ? "now" : ""}>
+        <span className="st-tag">{i === 0 ? "Launch" : `Level ${n}`}</span><b>{name}</b><small>{line}</small></li>)}</ol>
+      <p className="iv2-note">A fan's level, points and history follow them to every venue on Agape. Every level is built and working in the demo.</p>
     </section>
 
-    <section className="site-sec iv-sec">
-      <div className="sec-head"><span className="hm-kicker">The founders</span><h2>Built by the people who'll run it</h2></div>
-      <div className="iv-team">
-        <div><b>Gabriel Hangen</b><span>Co-founder · Technology. Designed and built every part of Agape, from the system underneath to each app.</span></div>
-        <div><b>Phillip Morgan</b><span>Co-founder · Deals and operations. Brings venues, partners and investors to Agape and runs the business side.</span></div>
+    <section className="iv2-market">
+      <div><b>159M</b><span>fans at Live Nation events alone, 2025</span></div>
+      <div><b>71.75M</b><span>at Major League Baseball games, 2026</span></div>
+      <div className="txt"><span>Games, concerts, college sports and festivals. Built for any live event, with our first venues likely in Kentucky.</span><small><a href={SRC.ln}>Live Nation</a> · <a href={SRC.mlb}>Front Office Sports</a></small></div>
+    </section>
+
+    <section className="site-sec iv2-wins">
+      <h2>Why Agape wins</h2>
+      <div className="iv2-tiles">
+        <div><i>⏱</i><b>Times that come true</b><span>Measured live from every kitchen and runner</span></div>
+        <div><i>↗</i><b>Delivery that pays</b><span>Built around deliveries per runner hour</span></div>
+        <div><i>≡</i><b>One set of books</b><span>Every party, one ledger, to the cent</span></div>
+        <div><i>✓</i><b>Live in an afternoon</b><span>A form, not an integration project</span></div>
+      </div>
+    </section>
+
+    <section className="site-sec iv2-built">
+      <div className="sec-head"><span className="hm-kicker">Built, not slides</span><h2>Six apps, working today</h2></div>
+      <div className="iv2-collage">
+        <figure className="c-stand"><img src="/img/stand.jpg" alt="" /><figcaption>Stand</figcaption></figure>
+        <figure className="c-partner"><img src="/img/partner.jpg" alt="" /><figcaption>Partner</figcaption></figure>
+        <figure className="c-fan ph"><img src="/img/fan-item.jpg" alt="" /><figcaption>Fan · ordering</figcaption></figure>
+        <figure className="c-run ph"><img src="/img/fan-track.jpg" alt="" /><figcaption>Fan · tracking</figcaption></figure>
+      </div>
+      <div className="iv2-proof"><div><b>6 min</b><span>to the seat</span></div><div><b>3,000</b><span>fans at once</span></div><div><b>$0.00</b><span>off in the books</span></div><small>A simulated night at the demo arena</small></div>
+    </section>
+
+    <section className="site-sec iv2-team">
+      <h2>The founders</h2>
+      <div className="iv2-founders">
+        <div><b>Phillip Morgan</b><span>Co-founder · Deals and operations</span></div>
+        <div><b>Gabriel Hangen</b><span>Co-founder · Technology</span><small>Designed and built Agape's technology</small></div>
       </div>
     </section>
   </>;
 }
+
+const LEVELS_IV: [number, string, string][] = [[1, "Order to your seat", "Food, drinks and gear"], [2, "Deals", "Points, offers, sponsors"], [3, "Play", "Calls, battles, collectibles"], [4, "Beyond the night", "Tickets, rides, places nearby"], [5, "Community", "Sections, profiles, following"]];
 
 function Audience() {
   const key = location.pathname.split("/").filter(Boolean)[1] ?? "fans";
@@ -141,13 +162,13 @@ function Audience() {
           <span className="hm-kicker">{p.eyebrow}</span>
           <h1>{p.title}</h1>
           <p className="lede">{p.lede}</p>
-          <div className="site-acts"><a className="btn primary big" href={q(p.demos[0].href)}>{p.demos[0].who} <b aria-hidden="true">→</b></a><button className="btn big hm-ghost" onClick={() => setTalk(true)}>{p.ask}</button></div>
+          <div className="site-acts"><a className="btn primary big" href={q(p.demos[0].href)}>{p.demos[0].who} <b aria-hidden="true">→</b></a>
+            {key === "investors" ? <a className="btn big hm-ghost" href="/agape-summary.pdf" download="Agape investor summary.pdf">Download the summary (PDF)</a> : <button className="btn big hm-ghost" onClick={() => setTalk(true)}>{p.ask}</button>}</div>
           {p.more && <small className="hero-note">{p.more}</small>}
-          {key === "investors" && <a className="hero-pdf" href="/agape-summary.pdf" download="Agape investor summary.pdf">Download the one-page summary (PDF)</a>}
         </div>
         <figure className={"hm-shot " + (p.wide ? "k-wide" : "k-phone")}><img src={`/img/${p.shot}.jpg`} alt="" /></figure>
       </section>
-      {p.proof && <section className="hm-proof" aria-label="A simulated night at Harbor Arena">
+      {p.proof && key !== "investors" && <section className="hm-proof" aria-label="A simulated night at Harbor Arena">
         <div><b>6 min</b><span>average from order to seat</span></div>
         <div><b>90%</b><span>at the seat within 10 minutes</span></div>
         <div><b>3,000</b><span>fans ordering at once</span></div>
@@ -157,13 +178,12 @@ function Audience() {
       {key === "investors" ? <Invest /> : <section className="site-sec">
         <ol className="for-points">{p.points.map(([a, b]) => <li key={a}><b>{a}</b><span>{b}</span></li>)}</ol>
       </section>}
-      <section className="site-sec" id="demo">
+      {key !== "investors" && <section className="site-sec" id="demo">
         <div className="sec-head"><h2>See it for yourself</h2><p className="site-why-demo">Agape isn't at a venue yet, so we built a whole night you can step into. These are the parts that matter to you.</p></div>
-        {p.demos.some(d => d.href.startsWith("/try/")) && <div className="demo-pick"><div className="seg kind" role="group" aria-label="Kind of night">{(["game", "concert"] as const).map(k => <button key={k} className={kind === k ? "on" : ""} aria-pressed={kind === k} onClick={() => setKind(k)}>{k === "game" ? "A game" : "A concert"}</button>)}</div></div>}
         <div className="site-seats">{p.demos.map(d => <a key={d.href} className="site-seat" href={q(d.href)}>
           <span className="ss-top"><span className="ss-who">{d.who}</span></span><span className="ss-line">{d.line}</span>
           <span className="ss-foot"><span className="ss-meta">{d.device} · {d.time}</span><span className="ss-go">Open <b aria-hidden="true">→</b></span></span></a>)}</div>
-      </section>
+      </section>}
       <section className="site-cta">
         <div><h2>{p.ask}</h2><p>Leave a way to reach you and we'll get back to you within a day.</p></div>
         <div className="site-acts"><button className="btn primary big" onClick={() => setTalk(true)}>Talk to us <b aria-hidden="true">→</b></button><a className="btn big" href={q(p.demos[0].href)}>{p.demos[0].who}</a></div>

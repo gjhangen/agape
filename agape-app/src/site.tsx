@@ -82,7 +82,6 @@ function Site() {
         <div className="sec-head">
           <h2>One night, every seat in the building</h2>
           <p className="site-why-demo">Agape isn't at a venue yet, so we built a whole night you can walk into: a full arena and thousands of fans, running in your browser. Step into anyone's night.</p>
-          <div className="seg kind" role="group" aria-label="Kind of night">{(["game", "concert"] as const).map(k => <button key={k} className={kind === k ? "on" : ""} aria-pressed={kind === k} onClick={() => setKind(k)}>{k === "game" ? "A game" : "A concert"}</button>)}</div>
         </div>
         {([
           ["fan", "The fan", "Never miss the play for a line.", "Everything shows when it would reach your seat, before you tap. Order, keep watching, and it arrives. Charged only when it does.", "/try/", "/img/fan-track.jpg", "phone", "/for/fans/"],

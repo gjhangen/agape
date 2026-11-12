@@ -2057,6 +2057,88 @@ svg.wordmark { display: block; width: auto; overflow: visible; }
 .stand-install span { color: var(--ink-2); grid-column: 1; } .stand-install .btn { grid-row: 1 / 3; grid-column: 2; }
 .legal-note { display: block; text-align: center; color: var(--muted); font-size: 12.5px; margin-top: 8px; } .legal-note a { color: inherit; }
 .hero-pdf { color: #fff; font-weight: 700; font-size: 15px; text-decoration: underline; text-underline-offset: 3px; justify-self: start; } .hero-pdf:hover { color: #FF8BAA; }
+
+/* ---------- Investor page, told in pictures ---------- */
+.iv2-line { background: #FFF; border-bottom: 1px solid var(--line); }
+.iv2-line-in { max-width: 1120px; margin: 0 auto; padding: 64px 20px 40px; display: grid; grid-template-columns: auto 1fr; gap: 28px 56px; align-items: center; }
+.iv2-big { display: grid; gap: 10px; max-width: 360px; }
+.iv2-big b { font: 800 clamp(96px, 13vw, 170px)/.8 var(--display); color: var(--accent); letter-spacing: -.01em; }
+.iv2-big b small { font-size: .38em; color: var(--ink); margin: 0 .12em; vertical-align: .55em; }
+.iv2-big span { font-size: 21px; line-height: 1.3; font-weight: 600; color: var(--ink); }
+.iv2-people { display: grid; grid-template-columns: repeat(10, 1fr); gap: 10px; }
+.iv2-people i svg { width: 100%; height: auto; fill: var(--accent); display: block; }
+.iv2-people i:not(.gone) svg { fill: #CFD2D9; }
+.iv2-people i.gone { animation: iv2-walk 3s ease-in-out infinite; } .iv2-people i.gone:nth-child(2n) { animation-delay: .4s; } .iv2-people i.gone:nth-child(3n) { animation-delay: .9s; }
+@keyframes iv2-walk { 0%, 70%, 100% { transform: none; opacity: 1; } 85% { transform: translateX(6px); opacity: .55; } }
+.iv2-trio { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 0; border-top: 1px solid var(--line); padding-top: 22px; }
+.iv2-trio div { display: grid; gap: 4px; padding-right: 20px; } .iv2-trio div + div { border-left: 1px solid var(--line); padding-left: 24px; }
+.iv2-trio b { font: 800 46px/1 var(--display); color: var(--ink); } .iv2-trio span { font-size: 16px; color: var(--ink-2); }
+.iv2-src { grid-column: 1 / -1; color: var(--muted); font-size: 12.5px; } .iv2-src a { color: inherit; }
+.iv2-how h2, .iv2-wins h2, .iv2-team h2 { margin: 0 0 28px; }
+.iv2-flow { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr 1.5fr 1fr; gap: 28px; align-items: end; counter-reset: s; }
+.iv2-flow li { display: grid; gap: 6px; justify-items: center; text-align: center; position: relative; }
+.iv2-flow li:not(:last-child)::after { content: "→"; position: absolute; right: -24px; top: 40%; font: 800 28px/1 var(--display); color: var(--accent); }
+.iv2-flow figure { margin: 0 0 10px; background: #050506; padding: 7px; box-shadow: 0 24px 50px rgb(20 10 15 / .2); }
+.iv2-flow figure.ph { width: min(230px, 100%); border-radius: 34px; } .iv2-flow figure.ph img { border-radius: 28px; aspect-ratio: 706 / 1100; object-fit: cover; object-position: top; }
+.iv2-flow figure.tb { width: 100%; border-radius: 20px; background: #15161A; } .iv2-flow figure.tb img { border-radius: 13px; }
+.iv2-flow img { display: block; width: 100%; height: auto; }
+.iv2-flow b { font: 800 26px/1 var(--display); text-transform: uppercase; } .iv2-flow span { color: var(--ink-2); font-size: 15.5px; }
+.iv2-money { background: #120A0E; color: #fff; }
+.iv2-money-in { max-width: 1120px; margin: 0 auto; padding: 64px 20px; display: grid; grid-template-columns: 1fr 1.3fr; gap: 24px 56px; align-items: center; }
+.iv2-money-copy { display: grid; gap: 12px; } .iv2-money .hm-kicker { color: #FF8BAA; } .iv2-money h2 { color: #fff; margin: 0; font: 800 clamp(34px, 4.2vw, 54px)/.95 var(--display); text-transform: uppercase; } .iv2-money p { color: rgb(255 255 255 / .75); font-size: 18px; margin: 0; }
+.iv2-diagram { display: grid; grid-template-columns: auto 60px auto 1fr; align-items: center; gap: 0; }
+.iv2-diagram .n { padding: 14px 18px; border-radius: 14px; background: rgb(255 255 255 / .08); border: 1px solid rgb(255 255 255 / .14); font-weight: 700; text-align: center; }
+.iv2-diagram .n.fan { background: #fff; color: #111; }
+.iv2-diagram .arrow { height: 3px; background: linear-gradient(90deg, #fff, #FF5C8A); position: relative; } .iv2-diagram .arrow::after { content: ""; position: absolute; right: -2px; top: -6px; border: 7.5px solid transparent; border-left: 10px solid #FF5C8A; }
+.iv2-diagram .n.hub { background: var(--accent); border-color: var(--accent); padding: 20px 22px; display: grid; gap: 2px; box-shadow: 0 0 0 8px rgb(184 23 79 / .25), 0 0 60px rgb(255 60 120 / .35); }
+.iv2-diagram .n.hub b { font: 800 30px/1 var(--display); } .iv2-diagram .n.hub span { font-size: 12.5px; font-weight: 600; opacity: .9; }
+.iv2-diagram .fan-out { display: grid; gap: 10px; padding-left: 40px; position: relative; }
+.iv2-diagram .fan-out::before { content: ""; position: absolute; left: 0; top: 50%; width: 22px; height: 3px; background: #FF5C8A; }
+.iv2-diagram .fan-out::after { content: ""; position: absolute; left: 22px; top: 22px; bottom: 22px; width: 3px; background: #FF5C8A; border-radius: 2px; }
+.iv2-diagram .fan-out .n { position: relative; text-align: left; } .iv2-diagram .fan-out .n::before { content: ""; position: absolute; left: -18px; top: 50%; width: 18px; height: 3px; background: #FF5C8A; }
+.iv2-earn { grid-column: 1 / -1; list-style: none; margin: 8px 0 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+.iv2-earn li { padding: 16px 18px; border-radius: 14px; background: rgb(255 255 255 / .06); color: rgb(255 255 255 / .8); font-size: 15.5px; } .iv2-earn b { color: #fff; }
+.iv2-levels .sec-head { display: grid; gap: 10px; justify-items: start; margin-bottom: 26px; }
+.iv2-stairs { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(5, 1fr); gap: 12px; align-items: end; height: 330px; }
+.iv2-stairs li { height: var(--h); display: grid; align-content: start; gap: 6px; padding: 18px 16px; border-radius: 16px 16px 4px 4px; background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 16%, var(--surface)), var(--surface)); border: 1px solid var(--line); }
+.iv2-stairs li.now { background: var(--accent); color: #fff; border-color: var(--accent); }
+.iv2-stairs .st-tag { font: 700 11px/1 var(--body); letter-spacing: .12em; text-transform: uppercase; color: var(--accent); } .iv2-stairs li.now .st-tag { color: #FFD3E0; }
+.iv2-stairs b { font: 800 22px/1 var(--display); text-transform: uppercase; } .iv2-stairs small { font-size: 13.5px; color: var(--ink-2); } .iv2-stairs li.now small { color: rgb(255 255 255 / .85); }
+.iv2-note { margin: 18px 0 0; color: var(--ink-2); font-size: 16px; max-width: 640px; }
+.iv2-market { max-width: 1120px; margin: 0 auto; padding: 48px 20px; display: grid; grid-template-columns: 1fr 1fr 1.3fr; gap: 28px; align-items: center; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+.iv2-market b { display: block; font: 800 clamp(56px, 7vw, 88px)/.9 var(--display); color: var(--ink); } .iv2-market span { font-size: 16px; color: var(--ink-2); }
+.iv2-market .txt { display: grid; gap: 8px; } .iv2-market .txt span { font-size: 17px; color: var(--ink); } .iv2-market small, .iv2-market small a { color: var(--muted); font-size: 12px; }
+.iv2-tiles { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+.iv2-tiles div { display: grid; gap: 8px; padding: 24px 20px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); }
+.iv2-tiles i { font-style: normal; width: 44px; height: 44px; display: grid; place-items: center; border-radius: 12px; background: color-mix(in srgb, var(--accent) 12%, transparent); color: var(--accent); font-size: 22px; font-weight: 800; }
+.iv2-tiles b { font: 800 22px/1.05 var(--display); text-transform: uppercase; } .iv2-tiles span { color: var(--ink-2); font-size: 15px; }
+.iv2-built .sec-head { display: grid; gap: 10px; justify-items: start; margin-bottom: 26px; }
+.iv2-collage { display: grid; grid-template-columns: 1.3fr .55fr .55fr; grid-template-rows: auto auto; gap: 16px; align-items: start; }
+.iv2-collage figure { margin: 0; position: relative; background: #15161A; padding: 7px; border-radius: 16px; box-shadow: 0 20px 44px rgb(20 10 15 / .16); }
+.iv2-collage img { display: block; width: 100%; height: auto; border-radius: 10px; }
+.iv2-collage .ph { border-radius: 30px; background: #050506; } .iv2-collage .ph img { border-radius: 24px; aspect-ratio: 706 / 1300; object-fit: cover; object-position: top; }
+.iv2-collage .c-stand { grid-column: 1; grid-row: 1; } .iv2-collage .c-partner { grid-column: 1; grid-row: 2; } .iv2-collage .c-fan { grid-column: 2; grid-row: 1 / 3; } .iv2-collage .c-run { grid-column: 3; grid-row: 1 / 3; }
+.iv2-collage figcaption { position: absolute; left: 14px; bottom: 14px; padding: 5px 10px; border-radius: 999px; background: rgb(0 0 0 / .72); color: #fff; font-size: 12.5px; font-weight: 700; }
+.iv2-proof { display: flex; gap: 40px; align-items: baseline; flex-wrap: wrap; margin-top: 26px; }
+.iv2-proof div { display: grid; } .iv2-proof b { font: 800 44px/1 var(--display); } .iv2-proof span { color: var(--ink-2); font-size: 14.5px; } .iv2-proof small { color: var(--muted); font-size: 12.5px; }
+.iv2-founders { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+.iv2-founders div { display: grid; gap: 4px; padding: 26px; border-radius: 18px; background: var(--surface); border: 1px solid var(--line); }
+.iv2-founders b { font: 800 34px/1 var(--display); text-transform: uppercase; } .iv2-founders span { color: var(--accent); font-weight: 700; } .iv2-founders small { color: var(--ink-2); font-size: 15px; }
+@media (max-width: 960px) {
+  .iv2-line-in, .iv2-money-in { grid-template-columns: 1fr; }
+  .iv2-flow { grid-template-columns: 1fr; gap: 40px; } .iv2-flow li:not(:last-child)::after { content: "↓"; right: auto; left: 50%; top: auto; bottom: -34px; transform: translateX(-50%); }
+  .iv2-diagram { grid-template-columns: 1fr; justify-items: center; gap: 0; }
+  .iv2-diagram .arrow { width: 3px; height: 34px; background: linear-gradient(180deg, #fff, #FF5C8A); } .iv2-diagram .arrow::after { right: -6px; top: auto; bottom: -12px; border: 7.5px solid transparent; border-top: 10px solid #FF5C8A; }
+  .iv2-diagram .fan-out { grid-template-columns: repeat(3, 1fr); padding: 34px 0 0; width: 100%; } .iv2-diagram .fan-out::before { left: 50%; top: 0; width: 3px; height: 18px; } .iv2-diagram .fan-out::after { left: 16%; right: 16%; top: 18px; bottom: auto; width: auto; height: 3px; } .iv2-diagram .fan-out .n { text-align: center; } .iv2-diagram .fan-out .n::before { left: 50%; top: -16px; width: 3px; height: 16px; }
+  .iv2-earn, .iv2-trio { grid-template-columns: 1fr; gap: 12px; } .iv2-trio div + div { border-left: 0; padding-left: 0; border-top: 1px solid var(--line); padding-top: 12px; }
+  .iv2-stairs { grid-template-columns: 1fr; height: auto; } .iv2-stairs li { height: auto; border-radius: 14px; margin-left: calc((4 - var(--i, 0)) * 0px); }
+  .iv2-market { grid-template-columns: 1fr 1fr; } .iv2-market .txt { grid-column: 1 / -1; }
+  .iv2-tiles { grid-template-columns: 1fr 1fr; } .iv2-founders { grid-template-columns: 1fr; }
+  .iv2-collage { grid-template-columns: 1fr 1fr; } .iv2-collage .c-stand, .iv2-collage .c-partner { grid-column: 1 / -1; grid-row: auto; } .iv2-collage .c-fan, .iv2-collage .c-run { grid-column: auto; grid-row: auto; }
+  .iv2-people { gap: 6px; }
+}
+@media (max-width: 520px) { .iv2-tiles { grid-template-columns: 1fr; } }
+@media (prefers-reduced-motion: reduce) { .iv2-people i.gone { animation: none; } }
 </style></head><body>
 <div id="root"><div class="gate"><h1>Harbor Arena</h1><p>Opening the doors…</p></div></div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
