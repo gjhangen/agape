@@ -42,7 +42,9 @@ export type FanView = {
   live: {
     event: LiveItem[]; league: { id: string; home: string; away: string; home_name: string; away_name: string; home_score: number; away_score: number; status: string }[]; chat: ChatLine[]; chat_section: ChatLine[];
     prediction: { question: string; options: { id: string; share: number }[]; locks: number; open: boolean; result: string | null; picks: number; yours: string | null; won: boolean; points: number } | null;
-    battle: { orders_5m: number; rank: number | null; of: number; ahead: { section: string; orders: number } | null };
+    battle: { orders_5m: number; rank: number | null; of: number; ahead: { section: string; orders: number } | null;
+      result?: { section?: string; orders?: number; t?: number; fans?: number; prize: number; yours?: boolean; decides_at?: number } };
+    challenges?: { id: string; name: string; how: string; points: number; have: number; of: number; done: boolean }[];
   };
   me: {
     orders: Order[]; receipts: Order[]; points: number; spent: number; credit?: number; tip?: { bps: number; min: number }; delivery?: { fee: number; free_over: number }; holdings: { thing: string; name: string; qty: number }[];
@@ -580,12 +582,15 @@ function Battle({ v, go }: Ctx) {
   return (
     <section className="block battle-block">
       <div className="block-head"><h2>Section battle</h2><span className="sub">orders in the last 5 min</span></div>
-      <p className="explain">Every order from your section counts. The section on top when ordering closes wins free snacks for everyone in it at the next event here.</p>
-      <div className="battle">
+      {b.result?.section ? <div className={"battle-won" + (b.result.yours ? " yours" : "")}>
+        <b>{b.result.yours ? `Section ${sec(b.result.section)} won. That's you.` : `Section ${sec(b.result.section)} won the battle`}</b>
+        <small>On top with {b.result.orders} orders in the five minutes before {W.lastCallWhen.replace(/ starts$/, "")}. {b.result.yours ? `${b.result.prize} points just landed in your wallet, for everyone in the section.` : `Everyone there got ${b.result.prize} points. Next time, it could be your section.`}</small>
+      </div> : <p className="explain">Every order from your section counts. The section on top of this board when {W.lastCallWhen} wins {b.result?.prize ?? 150} points for every fan in it.</p>}
+      {!b.result?.section && <div className="battle">
         <div><b className="big num">{b.rank ? `Section ${sec(v.you.seat)} is #${b.rank} of ${b.of}` : `Section ${sec(v.you.seat)} isn't on the board yet`}</b>
           <small>{b.rank === 1 ? "Leading the arena." : b.ahead ? `${gap} order${gap === 1 ? "" : "s"} to pass section ${sec(b.ahead.section)}` : "One order puts you on it"}</small></div>
         <button className="btn primary" onClick={() => go("get")}>{b.rank === 1 ? "Hold the lead" : "Order to climb"}</button>
-      </div>
+      </div>}
     </section>
   );
 }
@@ -601,6 +606,13 @@ function Play(ctx: Ctx) {
     <>
       {feature("predictions") && <section className="block"><div className="block-head"><h2>Call it</h2><span className="sub">50 pts for each one you get right</span></div>{v.live.prediction ? <Prediction {...ctx} /> : <p className="empty">The first call opens at tip-off: who takes the first quarter. Get it right for 50 points.</p>}</section>}
       {feature("battle") && <Battle {...ctx} />}
+      {!!v.live.challenges?.length && <section className="block">
+        <div className="block-head"><h2>Tonight's challenges</h2><span className="sub">{v.live.challenges.filter(c => c.done).length} of {v.live.challenges.length} done</span></div>
+        <ul className="challenges">{v.live.challenges.map(c => <li key={c.id} className={c.done ? "done" : ""}>
+          <span className="ch-mark" aria-hidden="true">{c.done ? "✓" : `${c.have}/${c.of}`}</span>
+          <span className="grow"><b>{c.name}</b><small>{c.how}</small></span>
+          <span className="num ch-pts">+{c.points}</span><span className="vh">{c.done ? "done" : "not done yet"}</span></li>)}</ul>
+      </section>}
       {feature("cards") && (
         <section className="block">
           <div className="block-head"><h2>Moments</h2><span className="sub">free to collect while they last</span></div>

@@ -204,6 +204,8 @@ function Join({ joined, a, signOut }: { joined: () => void; a: Account; signOut:
 }
 
 function Signed({ a, signOut }: { a: Account; signOut: () => void }) {
+  // a signed-in fan has an account: the app shows their name, never "Guest"
+  if (a.role === "fan") try { const o = JSON.parse(localStorage.getItem("agape.profile") || "{}"); if (o.name !== a.handle || o.guest) localStorage.setItem("agape.profile", JSON.stringify({ ...o, name: a.handle, guest: false })); } catch { /* private mode */ }
   const [, bump] = useState(0);
   const [sheet, setSheet] = useState<Sheet>(null);
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
@@ -335,7 +337,7 @@ function App() {
   }, []);
   if (!checked) return <div className="gate"><h1>{BRAND.venue}</h1><p>Opening the doors…</p></div>;
   if (!a) return <Gate done={(token, acc) => { store.set("agape.token", token); enter(token, acc); }} />;
-  return <Signed a={a} signOut={() => { const t = store.get("agape.token"); fetch("/api/signout", { method: "POST", headers: { authorization: `Bearer ${t}` } }).finally(() => { store.set("agape.token", null); location.reload(); }); }} />;
+  return <Signed a={a} signOut={() => { const t = store.get("agape.token"); fetch("/api/signout", { method: "POST", headers: { authorization: `Bearer ${t}` } }).finally(() => { store.set("agape.token", null); store.set("agape.profile", null); location.reload(); }); }} />;
 }
 
 /** The venue's own operations account marks the real game: fans see the period and score from it. */

@@ -199,6 +199,8 @@ fn phase_of(s: &[(i64, &'static str, i64)], minute: i64) -> (&'static str, f64) 
 }
 
 #[path = "community.rs"] mod community;
+#[path = "play.rs"] pub mod play;
+#[path = "sponsor.rs"] pub mod sponsor;
 
 /// One line of what happened, for the feed.
 #[derive(Clone, Debug)]
@@ -241,6 +243,12 @@ pub struct Night {
     /// Runner waypoints: (time, place) for the current run.
     pub plans: BTreeMap<String, Vec<(i64, String)>>,
     pub done: bool,
+    /// The section battle, once decided at last call.
+    pub battle: Option<play::BattleResult>,
+    /// (fan, challenge) already paid.
+    pub challenged: BTreeSet<(String, String)>,
+    /// Deals sponsors wrote for tonight.
+    pub sponsor_deals: Vec<sponsor::SponsorDeal>,
     /// Section chat: (t, author, section, text), newest last.
     pub chat: std::collections::VecDeque<(i64, String, String, String)>,
     /// Quarter predictions: who scores more this quarter. Correct picks earn points through the ledger.
@@ -426,7 +434,7 @@ impl Night {
             cfg, terms, rng, log, engine, ledger, fans, runners, costs: Costs::new(), attr: Attribution::default(), orders: vec![],
             queues: BTreeMap::new(), stations, ready: vec![], events: vec![], ev_seq: 0, book: OfferBook::new(120_000), checkouts: vec![], scheduled: vec![],
             report: Report::default(), placed_by_phase: BTreeMap::new(), batches: (0, 0), score: (0, 0), script, end_min, menu, t: 0,
-            feed: vec![], recent: Default::default(), plans: BTreeMap::new(), done: false, chat: Default::default(), predictions: vec![], world,
+            feed: vec![], recent: Default::default(), plans: BTreeMap::new(), done: false, battle: None, challenged: BTreeSet::new(), sponsor_deals: vec![], chat: Default::default(), predictions: vec![], world,
             league, social: crate::social::Social::default(), last_scorer: BTreeMap::new(), seatmaps: BTreeMap::new(),
             trade: Default::default(), claimed: BTreeSet::new(), driven, redeemed: BTreeMap::new(), replies: vec![], replay_check: std::cell::Cell::new((0, true)), live: BTreeSet::new(), trips: BTreeMap::new(), songs_played: 0, pay_stats: (0, 0, 0, 0), problems: vec![], policy: Default::default(), proof_set: BTreeMap::new(), wage_minutes: BTreeMap::new(), halt: None, ratings: vec![], names: BTreeMap::new(), wearing: BTreeMap::new(), renames: BTreeMap::new(), spots: BTreeMap::new(), level_offset: BTreeMap::new(), passports: BTreeMap::new(), transfers: BTreeMap::new(),
         }.seeded_live()
@@ -1042,6 +1050,7 @@ impl Night {
             self.note_about("score", team, format!("+{pts}"), &m.id, None);
         }
         if sim { self.crowd_posts(t); }
+        self.play_tick(t);
         // the crowd talks, more when something happens
         if sim && t <= self.end_min * 60_000 && ph != "postgame" && self.on("chat") {
             let last_moment = self.feed.iter().rev().find(|f| f.kind == "moment" && t - f.t < 60_000).map(|f| (f.text.clone(), f.team.clone()));

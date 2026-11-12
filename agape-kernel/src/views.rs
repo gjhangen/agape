@@ -213,7 +213,8 @@ impl Night {
             "items": items,
             "community": if self.on("chat") { self.community_json(fan) } else { Value::Null },
             "live": { "event": event, "league": self.league_tonight(), "chat": chat_all, "chat_section": chat_section, "prediction": prediction,
-                      "battle": { "orders_5m": mine_n, "rank": pos.map(|p| p + 1), "of": rank.len(), "ahead": ahead.map(|(s, n)| json!({ "section": s, "orders": n })) } },
+                      "battle": { "orders_5m": mine_n, "rank": pos.map(|p| p + 1), "of": rank.len(), "ahead": ahead.map(|(s, n)| json!({ "section": s, "orders": n })), "result": self.battle_json(fan) },
+                      "challenges": self.challenges_json(fan) },
             "me": self.me_json(fan, &active, receipts, spent, holdings),
             "map": self.view_map(Some(&seat), self.orders.iter().rev().find(|o| o.c.quote.fan == fan && matches!(o.c.stage, Stage::Assigned | Stage::PickedUp))
                     .and_then(|o| o.c.quote.runner.clone()).map(|r| self.runner_at(&r))),
@@ -566,9 +567,13 @@ impl Night {
                    ("called_it", "Called it", "Made a call that came true", called),
                    ("collector", "Collector", "Hold three different cards", unit_cards >= 3),
                    ("trader", "Trader", "Bought or sold a card", traded),
-                   ("good_tipper", "Good tipper", "Tipped your runners $5 in a night", tips >= 500)];
+                   ("good_tipper", "Good tipper", "Tipped your runners $5 in a night", tips >= 500),
+                   ("regular", "Regular", "Three orders brought to you in one night", self.orders.iter().filter(|o| o.c.quote.fan == fan && o.c.stage == Stage::Settled).count() >= 3),
+                   ("champions", "Champions", "Your section won the section battle", self.won_battle(fan)),
+                   ("voice", "Voice of the crowd", "Posted or commented for everyone to see", self.social.posts.iter().any(|p| p.author == fan || p.comments.iter().any(|c| c.1 == fan))),
+                   ("connector", "Connector", "Follow three people, players or teams", self.social.follows.get(fan).map_or(0, |s| s.len()) >= 3)];
         // only the badges this night can actually give
-        all.iter().filter(|(id, ..)| match *id { "called_it" => self.on("predictions"), "collector" | "trader" => self.on("cards"), _ => true })
+        all.iter().filter(|(id, ..)| match *id { "called_it" => self.on("predictions"), "collector" | "trader" => self.on("cards"), "champions" => self.on("battle"), "voice" | "connector" => self.on("chat"), _ => true })
             .map(|(id, name, how, got)| json!({ "id": id, "name": name, "how": how, "earned": got })).collect()
     }
 
@@ -585,6 +590,8 @@ impl Night {
                 "sale" => if d > 0 { "Sold a card".into() } else { "Bought a card".into() },
                 "tickets" => "Bought tickets".into(),
                 "unlock" => "Unlocked a partner perk".into(),
+                "prize" => txn.memo.splitn(2, ' ').nth(1).unwrap_or("Prize").to_string(),
+                "challenge" => format!("Challenge done: {}", txn.memo.splitn(2, ' ').nth(1).unwrap_or("")),
                 m => m.to_string(),
             };
             v.push(json!({ "t": t, "points": d, "why": why }));

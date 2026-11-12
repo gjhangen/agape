@@ -239,6 +239,7 @@ export function BusinessLens({ b, businesses, pick, toast, refresh }: { b: any; 
             {x.recent.length > 0 && <ul className="earned">{x.recent.map((r: any, i: number) => <li key={i}><span className="grow">{r.who}</span><time className="num">{venueTime(r.t)}</time></li>)}</ul>}
           </section>
         ))}
+        {b.sponsor && <SponsorDeals s={b.sponsor} as={b.id} toast={toast} refresh={refresh} />}
         {b.drivers.length > 0 && (
           <section className="block">
             <div className="block-head"><h2>Drivers</h2><span className="sub">{b.drivers.filter((d: any) => d.status === "Free").length} free</span></div>
@@ -270,5 +271,38 @@ export function BusinessLens({ b, businesses, pick, toast, refresh }: { b: any; 
         </section></>}
       </div>
     </div>
+  );
+}
+
+/** A business writes its own deal for tonight: when it opens, what's off, and for how many fans. */
+function SponsorDeals({ s, as, toast, refresh }: { s: any; as: string; toast: (t: string) => void; refresh: () => void }) {
+  const [moment, setMoment] = useState(s.moments[0]?.id ?? "halftime");
+  const [thing, setThing] = useState(s.menu.find((m: any) => m.id === "slice")?.id ?? s.menu[0]?.id ?? "");
+  const [off, setOff] = useState("3");
+  const [cap, setCap] = useState("50");
+  const item = s.menu.find((m: any) => m.id === thing);
+  const cents = Math.round((+off || 0) * 100), n = Math.round(+cap || 0);
+  const write = (e: React.FormEvent) => {
+    e.preventDefault();
+    const r = kernel.act({ do: "sponsor_offer", as, moment, thing, discount: cents, cap: n });
+    toast(r.ok ? (s.next_game ? "Deal set for the next game. It opens to fans at that moment, and the budget is held for it now." : "Deal set. It opens to fans at that moment, and the budget is held for it now.") : r.error); refresh();
+  };
+  return (
+    <section className="block sp-block">
+      <div className="block-head"><h2>Write a deal{s.next_game ? " for the next game" : " for tonight"} <Opt k="offers" /></h2><span className="sub">{money(s.budget_set_aside)} set aside for deals</span></div>
+      <form className="sp-form" onSubmit={write}>
+        <label>When<select value={moment} onChange={e => setMoment(e.target.value)}>{s.moments.map((m: any) => <option key={m.id} value={m.id}>{m.label}</option>)}</select></label>
+        <label>On<select value={thing} onChange={e => setThing(e.target.value)}>{s.menu.map((m: any) => <option key={m.id} value={m.id}>{m.name} · {money(m.price)}</option>)}</select></label>
+        <label>Take off ($)<input inputMode="decimal" value={off} onChange={e => setOff(e.target.value.replace(/[^\d.]/g, ""))} /></label>
+        <label>For the first<input inputMode="numeric" value={cap} onChange={e => setCap(e.target.value.replace(/\D/g, ""))} /><small>fans</small></label>
+        <p className="sp-sum">{item ? <>Fans see <b>{item.name} for {money(Math.max(0, item.price - cents))}</b> (was {money(item.price)}), from you. You pay {money(cents)} only when a fan claims it, up to <b>{money(cents * n)}</b>.</> : "Pick an item."}</p>
+        <button className="btn primary">Set this deal</button>
+      </form>
+      {s.deals.length > 0 && <ul className="sp-list">{s.deals.map((d: any) => <li key={d.id}>
+        <span className={"sp-st " + d.status}>{d.status === "live" ? "Live" : d.status === "ended" ? "Ended" : d.status === "next" ? "Next game" : "Waiting"}</span>
+        <span className="grow"><b>{money(d.discount)} off {d.name}</b><small>{d.when} · first {d.cap} fans</small></span>
+        <span className="num sp-n"><b>{d.claimed}</b><small>claimed · {money(d.spent)}</small></span>
+      </li>)}</ul>}
+    </section>
   );
 }

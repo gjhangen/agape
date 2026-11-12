@@ -2357,3 +2357,28 @@ button.l-sim-link { background: none; cursor: pointer; }
 .away-pts .pair small, .away-pts > small { color: var(--ink-2); font-size: 13px; }
 .cm-feed.flush { padding: 0; }
 .ob-away { margin-top: 10px; color: inherit; opacity: .9; }
+/* ---------- Play: battle result, challenges ---------- */
+.battle-won { display: grid; gap: 4px; padding: 14px; border-radius: 14px; background: var(--sunk); }
+.battle-won.yours { background: var(--accent); color: var(--accent-ink); }
+.battle-won b { font-size: 17px; } .battle-won small { font-size: 13.5px; opacity: .9; }
+.challenges { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.challenges li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.challenges li .grow { display: grid; gap: 2px; } .challenges li b { font-size: 14.5px; color: var(--ink); } .challenges li small { color: var(--ink-2); font-size: 12.5px; }
+.ch-mark { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 12.5px; background: var(--sunk); color: var(--ink-2); flex: none; }
+.challenges li.done .ch-mark { background: var(--good, #1E8E4E); color: var(--surface); font-size: 16px; }
+.ch-pts { font-weight: 800; color: var(--accent); }
+.challenges li.done .ch-pts { color: var(--ink-2); }
+/* ---------- A sponsor writes its own deal ---------- */
+.sp-form { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 10px 12px; align-items: end; }
+.sp-form label { display: grid; gap: 5px; font-size: 12.5px; font-weight: 700; color: var(--ink-2); position: relative; }
+.sp-form select, .sp-form input { font: inherit; font-size: 15px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); min-width: 0; }
+.sp-form label small { position: absolute; right: 10px; bottom: 11px; color: var(--muted); font-weight: 500; }
+.sp-sum { grid-column: 1 / -1; margin: 0; font-size: 14px; color: var(--ink-2); line-height: 1.45; }
+.sp-sum b { color: var(--ink); }
+.sp-form .btn { grid-column: 1 / -1; justify-self: start; }
+.sp-list { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 8px; }
+.sp-list li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.sp-list .grow { display: grid; gap: 2px; } .sp-list small { color: var(--ink-2); font-size: 12.5px; }
+.sp-st { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; padding: 3px 8px; border-radius: 99px; background: var(--sunk); color: var(--ink-2); }
+.sp-st.live { background: var(--accent); color: var(--accent-ink); }
+.sp-n { display: grid; text-align: right; } .sp-n b { font-size: 18px; color: var(--ink); }
