@@ -15,6 +15,7 @@ const D = {
   venue: { href: "/try/venue/", who: "Run the venue", line: "Every order, runner and dollar, live, on one screen.", device: "Laptop", time: "3 min" },
   partner: { href: "/try/partner/", who: "Be the partner", line: "Fans unlock your perk and walk over after the event.", device: "Laptop", time: "2 min" },
   hq: { href: "/try/hq/", who: "Run Agape", line: "Every venue, the crew, the policies and the money.", device: "Laptop", time: "2 min" },
+  tour: { href: "/demo/?tour=1", who: "Take the 2-minute tour", line: "A whole night at the arena, every role at once, with someone pointing out what matters.", device: "Computer", time: "2 min" },
   sim: { href: "/demo/", who: "Behind the scenes", line: "The whole arena at once, sped up: 3,000 fans, 40 runners, every dollar.", device: "Computer", time: "5 min" },
 } satisfies Record<string, Demo>;
 
@@ -39,10 +40,10 @@ const PAGES: Record<string, Page> = {
     lede: "Put a perk in front of every fan at the event. They unlock it with the points they earn ordering, and you pay for the people who walk through your door.",
     points: [["Results, not impressions", "Every unlock and every redemption at your counter, live."], ["At the right moment", "Fans see your perk during the event and come to you after it."], ["Simple to run", "Check a code at the counter. That's the whole integration."]],
     demos: [{ ...D.partner, href: "/try/partner/" }, D.fan], ask: "Partner with Agape." },
-  investors: { shot: "venue", wide: true, proof: true, eyebrow: "For investors", title: "The money every venue loses in line.", role: "investor",
+  investors: { shot: "venue", wide: true, proof: true, more: "The 2-minute tour walks you through a whole night, every role at once.", eyebrow: "For investors", title: "The money every venue loses in line.", role: "investor",
     lede: "Most fans have walked away from a concession line without buying. Agape brings what they wanted to their seat, and turns every order into a relationship with the fan that follows them to every event on Agape.",
     points: [],
-    demos: [D.sim, D.fan, D.hq], ask: "Talk to the founders" },
+    demos: [D.tour, D.fan, D.hq], ask: "Talk to the founders" },
   team: { shot: "venue", wide: true, eyebrow: "For Agape's team", title: "Run many venues from one place.", role: "other",
     lede: "Agape HQ is where Agape's own people run the company: every venue at once, problems made right by policy, runner pay, and the money.",
     points: [["Policies, not tickets", "How problems are made right, who pays for what, tips, proof at the handoff and runner pay, set once for every venue."], ["Evidence at hand", "Photos, where the runner's phone was at the handoff, and every fan's record, for Agape's eyes only."], ["One set of books", "The same ledger every party sees, so there's nothing to reconcile."]],

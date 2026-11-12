@@ -2,6 +2,16 @@
 import { React, useEffect, useState } from "./r";
 import { Wordmark } from "./logo";
 
+// what each kind of visitor wants to hear next to the form
+const PITCH: Record<string, string[]> = {
+  venue: ["Start with ordering to the seat; switch on more when you want it", "Your own kitchens make everything, and independent runners carry it", "Agape earns a share of what it sells, so it only earns when you do"],
+  stand: ["Orders land on a tablet at your stand, timed so they leave on time", "No new hardware to install and nothing to integrate", "You're paid after every event, with every order itemized"],
+  business: ["Reach fans during the event, when they're deciding where to go after", "See exactly how many came in because of Agape", "Pay for results you can count"],
+  runner: ["Pick your shifts at the events you'd go to anyway", "Every trip shows its route and pay before you take it", "Keep every tip"],
+  investor: ["A founder replies to you directly, within a day", "We'll walk you through the product live and share the numbers behind it", "Every part you see on this site works today"],
+  other: ["Tell us what you have in mind", "A real person reads every message", "We'll get back to you within a day"],
+};
+
 export function TalkToUs({ close, version, role = "venue" }: { close: () => void; version?: string | null; role?: string }) {
   const [f, setF] = useState({ name: "", contact: "", org: "", role, note: "" });
   const [state, setState] = useState<"idle" | "busy" | "sent" | string>("idle");
@@ -23,9 +33,9 @@ export function TalkToUs({ close, version, role = "venue" }: { close: () => void
       <header className="talk-top"><span className="site-mark"><Wordmark tag /></span><button type="button" className="btn ghost sm" onClick={close}>Close</button></header>
       <div className="talk-body">
         <div className="talk-pitch">
-          <h1>Talk to the Agape team</h1>
-          <p>Bringing Agape to a venue, partnering, or investing: leave a way to reach you and we'll get back to you within a day.</p>
-          <ul><li>Start with ordering to the seat; switch on more when you want it</li><li>Your own kitchens make everything, and independent runners carry it</li><li>Agape earns a share of what it sells, so it only earns when you do</li></ul>
+          <h1>{f.role === "investor" ? "Talk to the founders" : "Talk to the Agape team"}</h1>
+          <p>{f.role === "investor" ? "Leave a way to reach you and a founder will get back to you within a day." : "Bringing Agape to a venue, partnering, or investing: leave a way to reach you and we'll get back to you within a day."}</p>
+          <ul>{(PITCH[f.role] ?? PITCH.venue).map(x => <li key={x}>{x}</li>)}</ul>
         </div>
         {state === "sent" ? <div className="talk-form talk-done"><h2>Thanks, {f.name.split(" ")[0]}.</h2><p>We'll be in touch within a day.</p><button type="button" className="btn primary big wide" onClick={close}>Done</button></div> :
         <form className="talk-form talk" onSubmit={send}>

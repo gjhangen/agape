@@ -66,6 +66,8 @@ function App() {
   const closeIntro = () => { setIntro(false); try { localStorage.setItem("agape.sim.intro", "seen"); } catch { /* shown again next visit */ } };
   useEffect(() => { try { if (sessionStorage.getItem("agape.badlink")) { sessionStorage.removeItem("agape.badlink"); setTimeout(() => toast("That link didn't open a saved version, so this is the sample venue."), 600); } } catch { /* fine */ } }, []);
   const goTour = (i: number | null) => { setTour(i); if (i != null) setPersp(tourList()[i].persp); };
+  // a link straight into the guided tour (the investor page sends people here)
+  useEffect(() => { if (new URLSearchParams(location.search).get("tour")) { const t = setTimeout(() => { setIntro(false); goTour(0); }, 400); return () => clearTimeout(t); } }, []);
   const acc = useRef(0);
   const st = useRef({ persp, runnerId, standId, wide, playerId, bizId });
   st.current = { persp, runnerId, standId, wide, playerId, bizId };
