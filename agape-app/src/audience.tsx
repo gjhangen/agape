@@ -39,10 +39,10 @@ const PAGES: Record<string, Page> = {
     lede: "Put a perk in front of every fan at the event. They unlock it with the points they earn ordering, and you pay for the people who walk through your door.",
     points: [["Results, not impressions", "Every unlock and every redemption at your counter, live."], ["At the right moment", "Fans see your perk during the event and come to you after it."], ["Simple to run", "Check a code at the counter. That's the whole integration."]],
     demos: [{ ...D.partner, href: "/try/partner/" }, D.fan], ask: "Partner with Agape." },
-  investors: { shot: "venue", wide: true, proof: true, eyebrow: "For investors", title: "The fan relationship at every live event.", role: "investor",
-    lede: "Agape starts with the most direct thing a fan buys at an event, food to their seat, and builds the relationship from there: deals, play, tickets and community, at every venue on Agape.",
-    points: [["How it earns", "A share of every sale, a delivery fee, and the margin on card processing, which Agape runs itself."], ["Built, not slides", "Every app works end to end in a simulated arena, down to a ledger that balances to the cent."], ["Grows by level", "Each level is a complete product on top of the last, switched on venue by venue."]],
-    demos: [D.sim, D.fan, D.hq], ask: "Talk to the founders." },
+  investors: { shot: "venue", wide: true, proof: true, eyebrow: "For investors", title: "The money every venue loses in line.", role: "investor",
+    lede: "Most fans have walked away from a concession line without buying. Agape brings what they wanted to their seat, and turns every order into a relationship with the fan that follows them to every event on Agape.",
+    points: [],
+    demos: [D.sim, D.fan, D.hq], ask: "Talk to the founders" },
   team: { shot: "venue", wide: true, eyebrow: "For Agape's team", title: "Run many venues from one place.", role: "other",
     lede: "Agape HQ is where Agape's own people run the company: every venue at once, problems made right by policy, runner pay, and the money.",
     points: [["Policies, not tickets", "How problems are made right, who pays for what, tips, proof at the handoff and runner pay, set once for every venue."], ["Evidence at hand", "Photos, where the runner's phone was at the handoff, and every fan's record, for Agape's eyes only."], ["One set of books", "The same ledger every party sees, so there's nothing to reconcile."]],
@@ -50,6 +50,78 @@ const PAGES: Record<string, Page> = {
 };
 
 const AUDIENCES: [string, string][] = [["fans", "Fans"], ["runners", "Runners"], ["venues", "Venues"], ["stands", "Food service"], ["partners", "Partners"], ["investors", "Investors"], ["team", "Agape team"]];
+
+
+const SRC = {
+  mashgin: "https://business.ricentral.com/ricentral/article/gnwcq-2025-4-8-new-report-finds-long-concession-lines-at-mlb-games-cause-fans-to-miss-crucial-plays-vendors-to-lose-revenue",
+  oracle: "https://prnewswire.com/news-releases/oracle-cloud-solves-undiscovered-stadium-revenue-growth-as-sports-fans-desire-mobile-food--beverage-ordering-300297035.html",
+  ln: "https://news.livenationentertainment.com/news/live-nation-entertainment-full-year-and-fourth-quarter-2025-results",
+  mlb: "https://frontofficesports.com/article/mlb-attendance-fourth-straight-year/",
+};
+
+/** The investor page's case: the problem in fans' own numbers, the size, why Agape wins, how it earns, what exists. */
+function Invest() {
+  return <>
+    <section className="site-sec iv-sec">
+      <div className="sec-head"><span className="hm-kicker">The problem</span><h2>The line costs everyone</h2>
+        <p className="site-why-demo">Fans want to buy. The line stops them, and the venue never sees the sale it lost.</p></div>
+      <div className="iv-stats">
+        <div><b>79%</b><span>of fans have missed a key play waiting in a concession line</span><a href={SRC.mashgin}>Mashgin, 2025 · 530+ MLB fans</a></div>
+        <div><b>80%+</b><span>have walked away from a line without buying anything</span><a href={SRC.mashgin}>Mashgin, 2025</a></div>
+        <div><b>77%</b><span>would buy more food and drinks if the wait were shorter</span><a href={SRC.mashgin}>Mashgin, 2025</a></div>
+        <div><b>+43%</b><span>more per party, per game, that U.S. fans say they'd spend if waits were cut in half</span><a href={SRC.oracle}>Oracle survey · 3,500+ fans</a></div>
+      </div>
+    </section>
+
+    <section className="site-sec iv-sec iv-dark">
+      <div className="sec-head"><span className="hm-kicker">The market</span><h2>It shows up every night</h2></div>
+      <div className="iv-market">
+        <div><b>159M</b><span>fans at Live Nation events alone in 2025</span><a href={SRC.ln}>Live Nation, 2025 results</a></div>
+        <div><b>71.75M</b><span>fans at Major League Baseball games in 2026, one league of many</span><a href={SRC.mlb}>Front Office Sports</a></div>
+        <p>Games, concerts, college sports, festivals, minor leagues and arenas of every size. Every one of those fans buys something during the event, or wanted to. Agape is built for any live event, not one sport or one venue type.</p>
+      </div>
+    </section>
+
+    <section className="site-sec iv-sec">
+      <div className="sec-head"><span className="hm-kicker">Why Agape wins</span><h2>Built to be right, not just fast</h2></div>
+      <ol className="for-points iv-four">
+        <li><b>Times that come true</b><span>Every time a fan sees is when it reaches their seat, measured from how fast each kitchen and runner is going right now. A promise kept is what brings a fan back for the second order.</span></li>
+        <li><b>Delivery that pays</b><span>Orders are timed so they're ready together, and runners carry several along one route. Deliveries per runner hour is the number that decides whether in-seat delivery makes money, and Agape is built around it.</span></li>
+        <li><b>One set of books</b><span>Fans, stands, runners, the venue and Agape all see the same ledger, balanced to the cent, and Agape runs the cards itself. Nothing to reconcile, nothing lost between systems.</span></li>
+        <li><b>A venue in an afternoon</b><span>A venue goes live by filling in a form: stands, menu, prices, sections. No integration project, no hardware to install, so Agape can reach venues too small for anyone else.</span></li>
+      </ol>
+    </section>
+
+    <section className="site-sec iv-sec">
+      <div className="iv-split">
+        <div><span className="hm-kicker">How Agape earns</span><h2>On every order, from the first night</h2>
+          <ul className="iv-list"><li><b>A share of every sale</b> made through Agape</li><li><b>A delivery fee</b> on every order brought to a seat</li><li><b>Card processing</b>, which Agape runs itself, on every dollar that moves</li></ul></div>
+        <div><span className="hm-kicker">Where it goes</span><h2>Food is the way in</h2>
+          <p className="site-why-demo">The order is the first reason a fan opens Agape. Their level, points and history then follow them to every venue on Agape: deals and sponsors in the moment, play along during the game, tickets, and a community that lasts past the final whistle. Each level is a complete product on top of the last, already built and working in the demo.</p>
+          <a className="link-inline" href="/#levels">See every level →</a></div>
+      </div>
+    </section>
+
+    <section className="site-sec iv-sec">
+      <div className="sec-head"><span className="hm-kicker">Where Agape is today</span><h2>Built, not slides</h2>
+        <p className="site-why-demo">Everything below works today, and you can try every part of it on this site.</p></div>
+      <ul className="iv-built">
+        <li><b>Six apps on one system</b><span>Fans, runners, stands, the venue, partners and Agape's own team.</span></li>
+        <li><b>Ready for a first venue</b><span>Real nights with real staff, a live console, and a report that reconciles at close.</span></li>
+        <li><b>Payments ready to connect</b><span>Cards held at order and charged only on delivery, in step with the books.</span></li>
+        <li><b>Proven at scale</b><span>Load-tested at 3,000 fans ordering at once, with daily backups and round-the-clock monitoring.</span></li>
+      </ul>
+    </section>
+
+    <section className="site-sec iv-sec">
+      <div className="sec-head"><span className="hm-kicker">The founders</span><h2>Built by the people who'll run it</h2></div>
+      <div className="iv-team">
+        <div><b>Gabriel Hangen</b><span>Co-founder · Technology. Designed and built every part of Agape, from the system underneath to each app.</span></div>
+        <div><b>Phillip Morgan</b><span>Co-founder · Deals and operations. Brings venues, partners and investors to Agape and runs the business side.</span></div>
+      </div>
+    </section>
+  </>;
+}
 
 function Audience() {
   const key = location.pathname.split("/").filter(Boolean)[1] ?? "fans";
@@ -80,9 +152,9 @@ function Audience() {
         <div><b>$0.00</b><span>off in the books, every night</span></div>
         <small>Measured on a simulated night at Harbor Arena: 3,000 fans, 40 runners, 8 stands.</small>
       </section>}
-      <section className="site-sec">
+      {key === "investors" ? <Invest /> : <section className="site-sec">
         <ol className="for-points">{p.points.map(([a, b]) => <li key={a}><b>{a}</b><span>{b}</span></li>)}</ol>
-      </section>
+      </section>}
       <section className="site-sec" id="demo">
         <div className="sec-head"><h2>See it for yourself</h2><p className="site-why-demo">Agape isn't at a venue yet, so we built a whole night you can step into. These are the parts that matter to you.</p></div>
         {p.demos.some(d => d.href.startsWith("/try/")) && <div className="demo-pick"><div className="seg kind" role="group" aria-label="Kind of night">{(["game", "concert"] as const).map(k => <button key={k} className={kind === k ? "on" : ""} aria-pressed={kind === k} onClick={() => setKind(k)}>{k === "game" ? "A game" : "A concert"}</button>)}</div></div>}
