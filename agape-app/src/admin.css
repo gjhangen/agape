@@ -397,3 +397,10 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
 .bx-view-nav { display: flex; justify-content: space-between; gap: 10px; }
 @media (max-width: 720px) { .bx-final { grid-template-columns: 1fr; } .bx-grid { grid-template-columns: 1fr; } }
 .bx-grid:has(> .bx-pic:only-child) { grid-template-columns: minmax(0, 900px); }
+.ox-fold > summary { display: flex; align-items: baseline; gap: 12px; cursor: pointer; list-style: none; }
+.ox-fold > summary::-webkit-details-marker { display: none; }
+.ox-fold > summary h2 { margin: 0; }
+.ox-fold > summary small { color: var(--muted); }
+.ox-fold > summary::after { content: "Show"; margin-left: auto; color: var(--brand); font-weight: 700; font-size: 13px; }
+.ox-fold[open] > summary::after { content: "Hide"; }
+.ox-fold[open] > summary { margin-bottom: 12px; }

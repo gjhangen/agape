@@ -880,13 +880,13 @@ function Compose({ me, d, contacts, done }: { me: Me; d: Draft; contacts: { id: 
 /** For the host: what has to be true for Agape's own email to work, checked live, with the exact records to add. */
 /** Until Agape's own mail can send: a sending account (a Gmail address with an app password) that emails the
  * founders the moment someone writes in through the site. The password is kept on the server and never shown again. */
-function Alerts({ toast }: { toast: (s: string) => void }) {
+function Alerts({ toast, service }: { toast: (s: string) => void; service: boolean }) {
   const [d, setD] = useState<any>(null);
   const [f, setF] = useState({ address: "", password: "", alert_to: "" });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const load = async () => { const r = await api("mail/relay"); if (r.ok) { setD(r); setF({ address: "", password: "", alert_to: (r.alert_to ?? []).join(", ") }); } };
-  useEffect(() => { load(); }, []);
+  useEffect(() => { load(); }, [service]);
   const save = async (e: React.FormEvent) => {
     e.preventDefault(); setBusy(true); setError("");
     const r = await api("mail/relay", { address: f.address, password: f.password, alert_to: f.alert_to.split(/[,\s]+/).filter(Boolean) });
@@ -895,13 +895,16 @@ function Alerts({ toast }: { toast: (s: string) => void }) {
   };
   const off = async () => { if (!confirm("Stop sending alerts by email?")) return; await api("mail/relay", { clear: true }); toast("Alerts are off."); load(); };
   if (!d) return null;
+  const from = service ? `alerts@${location.hostname.replace(/^www\./, "")}` : d.address;
   return <section className="ox-card">
     <h2>Alerts by email</h2>
-    <p className="ox-sub">{d.set ? <>On: when someone writes in through the site, <b>{d.address}</b> emails {d.alert_to.join(", ")}. Reply to the alert to answer them directly.</> : "Off. When someone writes in through the site, it only lands in Messages here. Turn this on so you hear about it right away, by email or on your phone."}</p>
+    <p className="ox-sub">{d.set ? <>On: when someone writes in through the site, <b>{from}</b> emails {d.alert_to.join(", ")}. Reply to the alert to answer them directly.</> : "Off. When someone writes in through the site, it only lands in Messages here. Turn this on so you hear about it right away, by email or on your phone."}</p>
     <form className="ox-grid" onSubmit={save}>
-      <label className="ox-f"><span>Sending address</span><input type="email" value={f.address} onChange={e => setF({ ...f, address: e.target.value })} placeholder={d.set ? d.address : "a Gmail address"} autoComplete="off" /><small>Can be temporary; change it here any time</small></label>
-      <label className="ox-f"><span>App password</span><input type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} placeholder={d.set ? "Kept on the server · leave empty to keep it" : "16 letters from Google"} autoComplete="new-password" /><small>Google Account → Security → 2-Step Verification → App passwords. Not your Gmail password.</small></label>
-      <label className="ox-f wide"><span>Send alerts to</span><input value={f.alert_to} onChange={e => setF({ ...f, alert_to: e.target.value })} placeholder="you@example.com, partner@example.com" /><small>Each founder's everyday email, separated by commas</small></label>
+      {!service && <>
+        <label className="ox-f"><span>Sending address</span><input type="email" value={f.address} onChange={e => setF({ ...f, address: e.target.value })} placeholder={d.set && d.address ? d.address : "a Gmail address"} autoComplete="off" /><small>Only until Resend is set up above; then alerts come from alerts@ the domain</small></label>
+        <label className="ox-f"><span>App password</span><input type="password" value={f.password} onChange={e => setF({ ...f, password: e.target.value })} placeholder={d.set ? "Kept on the server · leave empty to keep it" : "16 letters from Google"} autoComplete="new-password" /><small>Google Account → Security → 2-Step Verification → App passwords. Not your Gmail password.</small></label>
+      </>}
+      <label className="ox-f wide"><span>Send alerts to</span><input value={f.alert_to} onChange={e => setF({ ...f, alert_to: e.target.value })} placeholder="you@example.com, partner@example.com" /><small>Where each founder wants to hear about it, separated by commas. These addresses are never shown to anyone.</small></label>
       {error && <p className="ox-err wide" role="alert">{error}</p>}
       <div className="ox-row wide"><button className="ox-btn primary" disabled={busy}>{busy ? "Sending a test…" : d.set ? "Save and send a test" : "Turn on alerts"}</button>{d.set && <button type="button" className="ox-btn ghost" onClick={off}>Turn off</button>}</div>
     </form>
@@ -913,53 +916,79 @@ function MailSetup({ toast }: { toast: (s: string) => void }) {
   const [testTo, setTestTo] = useState("");
   const [test, setTest] = useState<{ delivered: boolean; detail: string } | null>(null);
   const [busy, setBusy] = useState(false);
+  const [key, setKey] = useState(""); const [keyErr, setKeyErr] = useState(""); const [keyBusy, setKeyBusy] = useState(false);
   const load = async () => { setD(null); const r = await api("mail/setup"); setD(r.ok ? r : { error: r.error }); };
   useEffect(() => { load(); }, []);
   const copy = (t: string) => navigator.clipboard?.writeText(t).then(() => toast("Copied."));
   if (!d) return <><Head title="Email setup" /><p className="ox-empty">Checking everything live…</p></>;
   if (d.error) return <><Head title="Email setup" /><p className="ox-err">{d.error}</p></>;
-  const c = d.check;
+  const c = d.check, sv = d.service ?? { set: false };
+  const verified = sv.set && (sv.status === "verified" || sv.status === "unknown");
   const row = (ok: boolean, title: string, detail: React.ReactNode) => <li className={ok ? "good" : "bad"}><b>{ok ? "✓" : "✗"} {title}</b><span>{detail}</span></li>;
+  const saveKey = async (e: React.FormEvent) => {
+    e.preventDefault(); setKeyBusy(true); setKeyErr("");
+    const r = await api("mail/service", { key }); setKeyBusy(false);
+    if (r.ok) { setKey(""); toast(r.status === "verified" ? "Saved. Sending goes through Resend now." : "Saved. Finish verifying the domain in Resend."); load(); } else setKeyErr(r.error);
+  };
+  const dropKey = async () => { if (!confirm("Stop sending through Resend? Mail would go straight from Agape's server again, which Gmail and Outlook refuse until the server has reverse DNS.")) return; await api("mail/service", { clear: true }); toast("Resend removed."); load(); };
   return <>
-    <Head title="Email setup" sub={`Email for @${d.domain}, run by Agape's own server: no mail provider. Receiving is free through Cloudflare. Sending goes straight from Agape's server.`}><button className="ox-btn" onClick={load}>Check again</button></Head>
-    <Alerts toast={toast} />
+    <Head title="Email setup" sub={<>Everyone at Agape has their own @{d.domain} address. Mail comes in through Cloudflare and lands in Messages here. Mail goes out through Resend, from that same address. The account behind Resend is never shown to anyone.</>}><button className="ox-btn" onClick={load}>Check again</button></Head>
     <section className="ox-card">
-      <h2>Live check</h2>
+      <h2>Right now</h2>
       <ul className="ox-checklist">
-        {row(c.port25.ok, "Agape's server can reach other mail servers", c.port25.ok ? "Port 25 is open." : <>{c.port25.detail}. Ask HostRush to allow outgoing mail (port 25) for 207.231.111.60.</>)}
-        {row(c.mail_host.ok, `${d.host} points at the server`, c.mail_host.ok ? c.mail_host.ips.join(", ") : "Add the A record below.")}
-        {row(c.reverse_dns.ok, "Reverse DNS names the server", c.reverse_dns.ok ? c.reverse_dns.names.join(", ") : <>Gmail and Outlook refuse mail from servers without this. Ask HostRush (the server's host) to set the reverse DNS (PTR) for 207.231.111.60 to <b>{d.host}</b>. Only they can.{c.reverse_dns.names.length ? ` It's now ${c.reverse_dns.names.join(", ")}.` : ""}</>)}
-        {row(c.spf.ok, "SPF lets the server send for the domain", c.spf.value || "Not set.")}
-        {row(c.dkim.ok, "DKIM key published", c.dkim.ok ? "Matches the server's key." : "Add the DKIM record below.")}
-        {row(c.dmarc.ok, "DMARC policy published", c.dmarc.value || "Not set.")}
-        {row(c.mx.ok, "Incoming mail goes through Cloudflare", c.mx.value.length ? c.mx.value.join(", ") : "No MX records.")}
+        {row(!!d.last_inbound, "Receiving", d.last_inbound ? <>Working. Last message came in {when(d.last_inbound)}.</> : c.mx.ok ? <>Cloudflare is set to receive, but nothing has arrived yet. Send any email to an @{d.domain} address; if it never shows up in Messages, redo “Receiving” at the bottom.</> : <>Not set up. See “Receiving” at the bottom.</>)}
+        {row(verified, "Sending", !sv.set ? <>Not set up yet. Step 1 below, about ten minutes.</> : verified ? <>Through Resend{sv.status === "verified" ? ", domain verified" : ""}. Send a test below to be sure.</> : <>Resend has the key, but says the domain is <b>{sv.status}</b>. Finish step 1.2 in Resend; it usually verifies within minutes of the records going in.</>)}
       </ul>
     </section>
     <section className="ox-card">
-      <h2>1 · DNS records in Cloudflare</h2>
-      <p className="ox-sub">Cloudflare → agapetoyourseat.com → DNS → Records. Add each one exactly.</p>
-      <div className="ox-table-wrap"><table className="ox-table"><thead><tr><th>Type</th><th>Name</th><th>Value</th><th></th></tr></thead>
-        <tbody>{d.records.map((r: any) => <tr key={r.name + r.type}><td className="mono">{r.type}</td><td className="mono">{r.name}</td><td><code className="ox-wrap">{r.value}</code><small>{r.note}</small></td><td><button className="ox-btn sm" onClick={() => copy(r.value)}>Copy</button></td></tr>)}</tbody></table></div>
+      <h2>1 · Sending through Resend (free)</h2>
+      <p className="ox-sub">Resend sends Agape's mail, signed for {d.domain}, so it lands in inboxes. Free up to 3,000 emails a month (100 a day).</p>
+      <ol className="ox-steps">
+        <li>Go to <a href="https://resend.com/signup" target="_blank" rel="noreferrer">resend.com</a> and sign up. Any email can be the login, a Gmail is fine: it's never shown to anyone you email.</li>
+        <li><b>Domains → Add domain → {d.domain}.</b> Resend lists a few DNS records (on <code>send</code> and <code>resend._domainkey</code>). If it offers to add them to Cloudflare for you, let it. Otherwise add each in Cloudflare → {d.domain} → DNS → Records, with the proxy off (grey cloud). They don't touch receiving. Wait until Resend says <b>Verified</b>.</li>
+        <li><b>API Keys → Create API key.</b> “Sending access” is enough. Copy it (it starts with <code>re_</code>) and paste it here. It's kept only on Agape's server.</li>
+      </ol>
+      {sv.set && <p className="ox-ok">Resend is set{sv.since ? ` since ${when(sv.since)}` : ""}. Paste a new key below only to replace it.</p>}
+      <form className="ox-row" onSubmit={saveKey}>
+        <input className="ox-search" type="password" required autoComplete="off" placeholder="re_…" value={key} onChange={e => setKey(e.target.value)} aria-label="Resend API key" />
+        <button className="ox-btn primary" disabled={keyBusy}>{keyBusy ? "Checking with Resend…" : sv.set ? "Replace key" : "Save key"}</button>
+        {sv.set && <button type="button" className="ox-btn ghost" onClick={dropKey}>Remove</button>}
+      </form>
+      {keyErr && <p className="ox-err" role="alert">{keyErr}</p>}
     </section>
     <section className="ox-card">
-      <h2>2 · Receiving: Cloudflare Email Routing</h2>
+      <h2>2 · Test both ways</h2>
+      <p className="ox-sub">Send a test to an address you can check, like your own Gmail. It comes from your @{d.domain} address. Then reply to it: the reply should show up here under Messages within a minute.</p>
+      <form className="ox-row" onSubmit={async e => { e.preventDefault(); setBusy(true); const r = await api("mail/test", { to: testTo }); setBusy(false); setTest(r.ok ? r : { delivered: false, detail: r.error }); }}>
+        <input className="ox-search" type="email" required placeholder="you@gmail.com" value={testTo} onChange={e => setTestTo(e.target.value)} /><button className="ox-btn primary" disabled={busy}>{busy ? "Sending…" : "Send a test"}</button>
+      </form>
+      {test && <p className={test.delivered ? "ox-ok" : "ox-err"}>{test.delivered ? "Sent. Check that it's in the inbox (not spam), then reply to it. " : "Not sent. "}{test.detail}</p>}
+    </section>
+    <Alerts toast={toast} service={!!sv.set} />
+    <details className="ox-card ox-fold">
+      <summary><h2>Receiving: Cloudflare Email Routing</h2><small>{d.last_inbound ? "Working" : c.mx.ok ? "Set to Cloudflare; nothing received yet" : "Not set up"}</small></summary>
       <ol className="ox-steps">
-        <li>Mail for the domain goes to Namecheap's forwarding today. If anything is forwarded there (for example to a personal Gmail), write it down first; each person can then have their own address here.</li>
         <li>Cloudflare → Workers & Pages → Create → Worker. Name it <b>agape-mail</b>, replace its code with the code below, and Deploy.</li>
-        <li>Cloudflare → agapetoyourseat.com → Email → Email Routing → Get started. Let it replace the old MX records.</li>
+        <li>Cloudflare → {d.domain} → Email → Email Routing → Get started. Let it replace any old MX records.</li>
         <li>Email Routing → Routing rules → Catch-all address → Action: <b>Send to a Worker</b> → agape-mail → Save, and turn it on.</li>
       </ol>
       <div className="ox-code"><button className="ox-btn sm" onClick={() => copy(d.worker)}>Copy code</button><pre>{d.worker}</pre></div>
       <p className="ox-fine">The code holds a secret only this server knows, so nobody else can drop mail into Agape. Don't share it.</p>
-    </section>
-    <section className="ox-card">
-      <h2>3 · Test sending</h2>
-      <p className="ox-sub">Send a test to a Gmail or Outlook address you can check. If it arrives in the inbox, no provider is needed. If it goes to spam or never arrives, Agape adds a sending service.</p>
-      <form className="ox-row" onSubmit={async e => { e.preventDefault(); setBusy(true); const r = await api("mail/test", { to: testTo }); setBusy(false); setTest(r.ok ? r : { delivered: false, detail: r.error }); }}>
-        <input className="ox-search" type="email" required placeholder="you@gmail.com" value={testTo} onChange={e => setTestTo(e.target.value)} /><button className="ox-btn primary" disabled={busy}>{busy ? "Sending…" : "Send a test"}</button>
-      </form>
-      {test && <p className={test.delivered ? "ox-ok" : "ox-err"}>{test.delivered ? "Accepted. Now check whether it's in the inbox or in spam. " : "Not delivered. "}{test.detail}</p>}
-    </section>
+    </details>
+    <details className="ox-card ox-fold">
+      <summary><h2>Later: sending from Agape's own server</h2><small>Not needed while Resend sends</small></summary>
+      <p className="ox-sub">Agape can also send straight from its server, without Resend. That needs reverse DNS, which only the server's host can set.</p>
+      <ul className="ox-checklist">
+        {row(c.port25.ok, "Agape's server can reach other mail servers", c.port25.ok ? "Port 25 is open." : <>{c.port25.detail}. Ask the server's host to allow outgoing mail (port 25) for 207.231.111.60.</>)}
+        {row(c.mail_host.ok, `${d.host} points at the server`, c.mail_host.ok ? c.mail_host.ips.join(", ") : "Add the A record below.")}
+        {row(c.reverse_dns.ok, "Reverse DNS names the server", c.reverse_dns.ok ? c.reverse_dns.names.join(", ") : <>Gmail and Outlook refuse mail from servers without this. Ask the server's host to set the reverse DNS (PTR) for 207.231.111.60 to <b>{d.host}</b>.{c.reverse_dns.names.length ? ` It's now ${c.reverse_dns.names.join(", ")}.` : ""}</>)}
+        {row(c.spf.ok, "SPF lets the server send for the domain", c.spf.value || "Not set.")}
+        {row(c.dkim.ok, "DKIM key published", c.dkim.ok ? "Matches the server's key." : "Add the DKIM record below.")}
+        {row(c.dmarc.ok, "DMARC policy published", c.dmarc.value || "Not set.")}
+      </ul>
+      <div className="ox-table-wrap"><table className="ox-table"><thead><tr><th>Type</th><th>Name</th><th>Value</th><th></th></tr></thead>
+        <tbody>{d.records.map((r: any) => <tr key={r.name + r.type}><td className="mono">{r.type}</td><td className="mono">{r.name}</td><td><code className="ox-wrap">{r.value}</code><small>{r.note}</small></td><td><button className="ox-btn sm" onClick={() => copy(r.value)}>Copy</button></td></tr>)}</tbody></table></div>
+    </details>
   </>;
 }
 

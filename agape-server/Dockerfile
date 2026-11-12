@@ -15,12 +15,14 @@ RUN --mount=type=cache,target=/usr/local/cargo/registry \
 FROM debian:trixie-slim
 RUN useradd -m agape && mkdir -p /data && chown agape /data
 COPY --from=build /agape-server /usr/local/bin/agape-server
+# the list of trusted certificate authorities, so Agape can talk HTTPS to outside services (email sending)
+COPY --from=build /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY agape-app/dist/server /app
 # brand materials for signed-in team members only; never part of the public site
 COPY agape-app/brand/partner /partner
 USER agape
 # AGAPE_SPEED: clock ticks per second (0.1 is real time). AGAPE_ADMIN_TOKEN: the operator secret for staff accounts.
-ENV AGAPE_DATA=/data AGAPE_STATIC=/app PORT=8080 AGAPE_SPEED=0.1
+ENV AGAPE_DATA=/data AGAPE_STATIC=/app PORT=8080 AGAPE_SPEED=0.1 SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 VOLUME /data
 EXPOSE 8080
 CMD ["agape-server"]

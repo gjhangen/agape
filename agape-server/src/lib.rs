@@ -273,14 +273,39 @@ async fn office_relay_set(State(app): State<S>, h: HeaderMap, Json(b): Json<Valu
     let alert_to: Vec<String> = b["alert_to"].as_array().map(|a| a.iter().filter_map(|x| x.as_str()).map(|x| x.trim().to_string()).filter(|x| !x.is_empty()).take(10).collect()).unwrap_or_default();
     if alert_to.is_empty() { return err(StatusCode::BAD_REQUEST, "Add at least one address to send alerts to"); }
     if alert_to.iter().any(|a| a.parse::<lettre::message::Mailbox>().is_err()) { return err(StatusCode::BAD_REQUEST, "One of the alert addresses isn't an email address"); }
+    let service = mail::Service::load(&app.data).is_some();
     let address = { let a = s(&b, "address"); if a.is_empty() { old.as_ref().map(|r| r.address.clone()).unwrap_or_default() } else { a } };
     let password = { let p = s(&b, "password"); if p.is_empty() { old.as_ref().map(|r| r.password.clone()).unwrap_or_default() } else { p } };
-    if address.is_empty() || password.is_empty() { return err(StatusCode::BAD_REQUEST, "Add the sending address and its app password"); }
-    let r = mail::Relay { address, password, host: s(&b, "host"), alert_to };
-    if let Err(e) = r.send(&r.alert_to, "Agape alerts are on", "This address will get an email whenever someone writes in through agapetoyourseat.com.", None).await { return err(StatusCode::BAD_REQUEST, &e); }
+    if !service && (address.is_empty() || password.is_empty()) { return err(StatusCode::BAD_REQUEST, "Add the sending address and its app password"); }
+    let r = mail::Relay { address: if service { String::new() } else { address }, password: if service { String::new() } else { password }, host: s(&b, "host"), alert_to };
+    if let Err(e) = alert(&app, &r, "Agape alerts are on", "This address will get an email whenever someone writes in through agapetoyourseat.com.", None).await { return err(StatusCode::BAD_REQUEST, &e); }
     r.save(&app.data);
-    app.office.lock().unwrap().logged(&u, format!("set alerts to send from {} to {}", r.address, r.alert_to.join(", ")));
+    app.office.lock().unwrap().logged(&u, format!("set alerts to go to {}", r.alert_to.join(", ")));
     Json(json!({ "ok": true })).into_response()
+}
+
+/// An alert to the people listed: from alerts@ the domain through the sending service when there is one, or from the
+/// temporary sending account when there isn't.
+async fn alert(app: &App, r: &mail::Relay, subject: &str, body: &str, reply_to: Option<&str>) -> Result<(), String> {
+    if mail::Service::load(&app.data).is_some() {
+        let bad: Vec<String> = app.mail.send("Agape alerts", "alerts", &r.alert_to, subject, body, reply_to).await.into_iter().filter_map(|(t, x)| x.err().map(|e| format!("{t}: {e}"))).collect();
+        return if bad.is_empty() { Ok(()) } else { Err(bad.join(" · ")) };
+    }
+    r.send(&r.alert_to, subject, body, reply_to).await
+}
+
+/// The sending service (Resend): the host pastes its API key; it's checked with Resend before it's kept.
+async fn office_service_set(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
+    if u.role != admin::HOST { return err(StatusCode::FORBIDDEN, "Only the host sets up email"); }
+    if b["clear"] == true { mail::Service::clear(&app.data); app.office.lock().unwrap().logged(&u, "removed the email sending service".into()); return Json(json!({ "ok": true })).into_response(); }
+    let key = s(&b, "key").trim().to_string();
+    if !key.starts_with("re_") { return err(StatusCode::BAD_REQUEST, "That isn't a Resend API key. It starts with re_."); }
+    let svc = mail::Service { key, since: admin::now() };
+    match svc.check(&app.mail.domain).await {
+        Ok(status) => { svc.save(&app.data); app.office.lock().unwrap().logged(&u, "set Resend as the email sending service".into()); Json(json!({ "ok": true, "status": status })).into_response() }
+        Err(e) => err(StatusCode::BAD_REQUEST, &e),
+    }
 }
 
 /// Someone who wants Agape at their venue, or wants to talk. Kept for the team; never shown publicly.
@@ -305,7 +330,8 @@ async fn lead(State(app): State<S>, Json(b): Json<Value>) -> Response {
             // and to the founders' phones, if a sending account is set up: a reply goes straight to them
             if let Some(r) = mail::Relay::load(&app.data).filter(|r| !r.alert_to.is_empty()) {
                 let reply = if email { Some(contact.clone()) } else { None };
-                tokio::spawn(async move { if let Err(e) = r.send(&r.alert_to, &subject, &format!("{body}\n\nReply to this email to answer them directly.\n\nAll leads: https://agapetoyourseat.com/admin/"), reply.as_deref()).await { eprintln!("lead alert: {e}"); } });
+                let app2 = app.clone();
+                tokio::spawn(async move { if let Err(e) = alert(&app2, &r, &subject, &format!("{body}\n\nReply to this email to answer them directly.\n\nAll leads: https://agapetoyourseat.com/admin/"), reply.as_deref()).await { eprintln!("lead alert: {e}"); } });
             }
             Json(json!({ "ok": true })).into_response()
         }
@@ -455,6 +481,7 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/mail/setup", get(office_mail_setup))
         .route("/api/office/mail/test", post(office_mail_test))
         .route("/api/office/mail/relay", get(office_relay_get).post(office_relay_set))
+        .route("/api/office/mail/service", post(office_service_set))
         .route("/api/mail/health", get(mail_health))
         .route("/api/mail/inbound", post(mail_inbound).layer(axum::extract::DefaultBodyLimit::max(30_000_000)))
         .route("/api/office/role", post(office_role))
@@ -789,7 +816,10 @@ async fn office_mail_setup(State(app): State<S>, h: HeaderMap) -> Response {
     let m = &app.mail;
     let check = m.diagnose().await;
     let ip = check["mail_host"]["ips"][0].as_str().unwrap_or("").to_string();
-    Json(json!({ "ok": true, "domain": m.domain, "host": m.host, "check": check,
+    let svc = mail::Service::load(&app.data);
+    let service = match &svc { Some(x) => json!({ "set": true, "since": x.since, "status": x.check(&m.domain).await.unwrap_or_else(|e| e) }), None => json!({ "set": false }) };
+    let last_in: Option<u64> = std::fs::read_to_string(app.data.join("mail-last-inbound")).ok().and_then(|t| t.trim().parse().ok());
+    Json(json!({ "ok": true, "domain": m.domain, "host": m.host, "check": check, "service": service, "last_inbound": last_in,
         "records": [
             { "type": "A", "name": "mail", "value": if ip.is_empty() { "207.231.111.60".to_string() } else { ip.clone() }, "note": "Proxy status: DNS only (grey cloud). This is the name Agape's server uses when it sends." },
             { "type": "TXT", "name": "@", "value": format!("v=spf1 a:{} include:_spf.mx.cloudflare.net ~all", m.host), "note": "Replaces the SPF record that's there now. Says Agape's server may send for the domain." },
@@ -804,7 +834,7 @@ async fn office_mail_test(State(app): State<S>, h: HeaderMap, Json(b): Json<Valu
     let u = match staffer(&app, &h) { Ok(u) => u, Err(r) => return r };
     if u.role != admin::HOST { return err(StatusCode::FORBIDDEN, "Only the host sets up email"); }
     let to = s(&b, "to");
-    let r = app.mail.send("Agape", if u.mailbox.is_empty() { "team" } else { &u.mailbox }, &[to.clone()], "Agape mail test", "This is a test from Agape's own mail server.\n\nIf it landed in your inbox (not spam), sending works without a mail provider.", None).await;
+    let r = app.mail.send("Agape", if u.mailbox.is_empty() { "team" } else { &u.mailbox }, &[to.clone()], "Agape mail test", &format!("This is a test from Agape's email.\n\nIf it landed in your inbox (not spam), sending from @{} works. Reply to it to check that receiving works too: the reply shows up in Agape Admin under Messages.", app.mail.domain), None).await;
     let (ok, detail) = match &r[0].1 { Ok(m) => (true, m.clone()), Err(e) => (false, e.clone()) };
     Json(json!({ "ok": true, "delivered": ok, "detail": detail })).into_response()
 }
@@ -817,6 +847,7 @@ async fn mail_inbound(State(app): State<S>, h: HeaderMap, body: axum::body::Byte
     if !ok { return err(StatusCode::FORBIDDEN, "Not from Agape's mail worker"); }
     let hv = |k: &str| h.get(k).and_then(|v| v.to_str().ok()).unwrap_or("").to_string();
     let m = mail::parse(&body, &hv("x-envelope-to"), &hv("x-envelope-from"));
+    let _ = std::fs::write(app.data.join("mail-last-inbound"), admin::now().to_string());
     let (n, note) = app.office.lock().unwrap().receive(&m.from, &m.from_name, &m.to, &m.subject, &m.body, m.attachments, &app.mail.domain);
     // attachments are kept on disk beside the mail, readable only by people who can see the message
     if !m.files.is_empty() {

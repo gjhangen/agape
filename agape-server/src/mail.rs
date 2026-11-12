@@ -22,7 +22,7 @@ pub const SELECTOR: &str = "agape1";
 /// The receiver said no for good (a 5xx answer, or no such address); anything else is tried again.
 pub fn permanent(e: &str) -> bool { e.contains("refused it for good") || e.contains("isn't an email address") }
 
-pub struct Mail { pub domain: String, pub host: String, key_pem: String, pub public_b64: String, pub secret: String }
+pub struct Mail { pub domain: String, pub host: String, key_pem: String, pub public_b64: String, pub secret: String, dir: PathBuf }
 
 fn private_file(path: &Path, contents: &str) {
     let _ = std::fs::write(path, contents);
@@ -54,7 +54,7 @@ impl Mail {
             let s: String = b.iter().map(|x| format!("{x:02x}")).collect();
             private_file(&sp, &s); s
         } };
-        Mail { domain: domain.into(), host: format!("mail.{domain}"), key_pem, public_b64, secret }
+        Mail { domain: domain.into(), host: format!("mail.{domain}"), key_pem, public_b64, secret, dir: dir.to_path_buf() }
     }
 
     pub fn dkim_record(&self) -> String { format!("v=DKIM1; k=rsa; p={}", self.public_b64) }
@@ -62,6 +62,13 @@ impl Mail {
     /// Send one message to people outside Agape, straight to each recipient's mail server.
     /// Returns, for each address, "delivered" or why not, in words.
     pub async fn send(&self, from_name: &str, from_local: &str, to: &[String], subject: &str, body: &str, reply_to: Option<&str>) -> Vec<(String, Result<String, String>)> {
+        // with a sending service set up, everything goes through it, still from @domain and signed for it
+        if let Some(svc) = Service::load(&self.dir) {
+            let from = format!("{} <{}@{}>", from_name.replace(['<', '>', '"', ','], ""), from_local, self.domain);
+            let mut out = vec![];
+            for rcpt in to { out.push((rcpt.clone(), svc.send(&from, rcpt, subject, body, reply_to).await)); }
+            return out;
+        }
         let mut out = vec![];
         let resolver = match TokioResolver::builder_tokio() { Ok(b) => b.build(), Err(e) => { return to.iter().map(|t| (t.clone(), Err(format!("Couldn't look up mail servers: {e}")))).collect(); } };
         let from: Mailbox = match format!("{} <{}@{}>", from_name.replace(['<', '>', '"'], ""), from_local, self.domain).parse() { Ok(m) => m, Err(e) => return to.iter().map(|t| (t.clone(), Err(format!("Bad sender: {e}")))).collect() };
@@ -186,6 +193,58 @@ export default {{
   }},
 }};
 "#)
+}
+
+/// The sending service (Resend): mail from @domain goes out through it, signed for the domain with its own key, so
+/// it lands in inboxes even though Agape's server isn't a known mail sender. The API key is kept only on the server.
+/// Receiving doesn't change: Cloudflare still hands every message to Agape.
+#[derive(Clone, serde::Serialize, serde::Deserialize, Default)]
+pub struct Service { pub key: String, #[serde(default)] pub since: u64 }
+
+fn http() -> reqwest::Client { reqwest::Client::builder().timeout(Duration::from_secs(20)).build().unwrap_or_default() }
+
+impl Service {
+    pub fn load(dir: &Path) -> Option<Service> { std::fs::read(dir.join("mail-service.json")).ok().and_then(|b| serde_json::from_slice::<Service>(&b).ok()).filter(|s| !s.key.is_empty()) }
+    pub fn save(&self, dir: &Path) { private_file(&dir.join("mail-service.json"), &serde_json::to_string(self).unwrap_or_default()); }
+    pub fn clear(dir: &Path) { let _ = std::fs::remove_file(dir.join("mail-service.json")); }
+
+    /// Is the key real, and is the domain verified at Resend? A key limited to sending can't list domains;
+    /// that's fine, it's still a real key (the test email then shows whether the domain is ready).
+    pub async fn check(&self, domain: &str) -> Result<String, String> {
+        let r = http().get("https://api.resend.com/domains").bearer_auth(self.key.trim()).send().await.map_err(|e| format!("Couldn't reach Resend: {e}"))?;
+        let code = r.status().as_u16();
+        let j: Value = r.json().await.unwrap_or(Value::Null);
+        if code == 200 {
+            let d = j["data"].as_array().and_then(|a| a.iter().find(|d| d["name"].as_str() == Some(domain)).cloned());
+            return match d {
+                Some(d) if d["status"] == "verified" => Ok("verified".into()),
+                Some(d) => Ok(d["status"].as_str().unwrap_or("pending").to_string()),
+                None => Err(format!("This Resend account doesn't have {domain} yet. In Resend, add it under Domains first.")),
+            };
+        }
+        if j["name"] == "restricted_api_key" { return Ok("unknown".into()); }
+        Err(match code { 400 | 401 | 403 if code != 400 || j["message"].as_str().unwrap_or("").contains("API key") => "Resend didn't accept that API key. Copy it again from Resend → API Keys (it starts with re_).".into(), _ => format!("Resend answered {code}: {}", j["message"].as_str().unwrap_or("")) })
+    }
+
+    /// One message to one person. A refusal that won't change by trying again says "refused it for good".
+    pub async fn send(&self, from: &str, to: &str, subject: &str, body: &str, reply_to: Option<&str>) -> Result<String, String> {
+        if to.parse::<Mailbox>().is_err() { return Err(format!("{to} isn't an email address")); }
+        let mut m = json!({ "from": from, "to": [to], "subject": subject, "text": body });
+        if let Some(r) = reply_to.filter(|r| r.parse::<Mailbox>().is_ok()) { m["reply_to"] = json!(r); }
+        let r = http().post("https://api.resend.com/emails").bearer_auth(self.key.trim()).json(&m).send().await.map_err(|e| format!("Couldn't reach Resend yet: {e}"))?;
+        let code = r.status().as_u16();
+        let j: Value = r.json().await.unwrap_or(Value::Null);
+        let why = j["message"].as_str().unwrap_or("").to_string();
+        match code {
+            200 | 201 | 202 => Ok(format!("Sent through Resend ({})", j["id"].as_str().unwrap_or("accepted"))),
+            // a setup problem (the key, the domain) is fixed in Admin, then the mail goes: keep trying
+            400 | 422 if why.contains("API key") || why.contains("domain") => Err(format!("Resend won't send yet: {why}")),
+            400 | 422 => Err(format!("Resend refused it for good: {why}")),
+            429 => Err(format!("Over Resend's sending limit for now; it will go when the limit resets. {why}")),
+            401 | 403 => Err(format!("Resend won't send yet: {why}")),
+            _ => Err(format!("Resend couldn't take it yet ({code}): {why}")),
+        }
+    }
 }
 
 /// A temporary way for Agape's alerts to reach people's phones and inboxes while its own mail can't send yet: a
