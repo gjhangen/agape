@@ -633,6 +633,17 @@ impl Admin {
             "chain": self.chain(&viewer.id).iter().map(|id| json!({ "id": id, "name": self.node_name(id), "group": id.starts_with('g') })).collect::<Vec<_>>(),
             "invites": self.s.invites.iter().filter(|i| i.until > now() && (host || i.by == viewer.id || mine.contains(&i.by))).map(|i| json!({ "email": i.email, "name": i.name, "role": i.role, "role_name": self.role_name(&i.role), "until": i.until, "boss": i.boss })).collect::<Vec<_>>(),
             "contacts": self.s.users.iter().filter(|u| !u.off && !u.deleted && u.id != viewer.id).map(|u| json!({ "id": u.id, "name": u.name, "title": u.title })).collect::<Vec<_>>(),
+            // everyone at Agape, as a work directory: name, title, Agape address, who they report to, their groups and
+            // shared addresses. The address they sign in with (their own) only for themselves and the people above them.
+            "directory": self.s.users.iter().filter(|u| !u.deleted).map(|u| json!({
+                "id": u.id, "name": u.name, "title": u.title, "role_name": self.role_name(&u.role), "mailbox": u.mailbox, "off": u.off, "at": u.at,
+                "boss": u.boss, "boss_name": u.boss.as_deref().map(|b| self.node_name(b)).unwrap_or_default(),
+                "groups": self.s.groups.iter().filter(|g| g.members.contains(&u.id)).map(|g| g.name.clone()).collect::<Vec<_>>(),
+                "shared": self.s.shared.iter().filter(|x| x.members.contains(&u.id)).map(|x| x.local.clone()).collect::<Vec<_>>(),
+                "email": if host || u.id == viewer.id || mine.contains(&u.id) { json!(u.email) } else { Value::Null },
+                "yours": host || mine.contains(&u.id),
+            })).collect::<Vec<_>>(),
+            "shared": self.s.shared.iter().map(|x| json!({ "local": x.local, "name": x.name, "members": x.members })).collect::<Vec<_>>(),
             "roles": self.s.roles.iter().map(|r| json!({ "id": r.id, "name": r.name, "about": r.about, "perms": r.perms, "template": r.template, "holders": self.s.users.iter().filter(|u| u.role == r.id).count(), "grantable": self.covers(viewer, &r.perms), "editable": self.can(viewer, "structure") && self.covers(viewer, &r.perms) && self.holders_below(viewer, &r.id) })).collect::<Vec<_>>(),
             "templates": self.s.templates.iter().map(|t| json!({ "id": t.id, "name": t.name, "about": t.about, "perms": t.perms, "editable": self.can(viewer, "structure") && self.covers(viewer, &t.perms) })).collect::<Vec<_>>(),
             "perms": PERMS.iter().map(|(k, d)| json!({ "id": k, "about": d, "mine": self.can(viewer, k) })).collect::<Vec<_>>(),

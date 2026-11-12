@@ -242,6 +242,7 @@ function Shell({ me, out }: { me: Me; out: () => void }) {
   const [tab, setTab] = useState<Tab>(() => (location.hash.slice(1) as Tab) || "merchants");
   const [toast, setToast] = useState("");
   useEffect(() => { history.replaceState(null, "", "#" + tab); }, [tab]);
+  useEffect(() => { const go = (e: Event) => setTab((e as CustomEvent).detail as Tab); addEventListener("ox-go", go); return () => removeEventListener("ox-go", go); }, []);
   useEffect(() => { if (!toast) return; const t = setTimeout(() => setToast(""), 3200); return () => clearTimeout(t); }, [toast]);
   const [unread, setUnread] = useState(0);
   const [pings, setPings] = useState(0);
@@ -561,7 +562,8 @@ type Person = { mailbox?: string; id: string; email: string; name: string; role:
 type GroupV = { id: string; name: string; about: string; members: string[]; member_names: string[]; boss?: string | null; mine: boolean };
 type RoleV = { id: string; name: string; about: string; perms: string[]; template: string; holders: number; grantable: boolean; editable: boolean };
 type TemplateV = { id: string; name: string; about: string; perms: string[]; editable: boolean };
-type TeamView = { users: Person[]; groups: GroupV[]; chain: { id: string; name: string; group: boolean }[]; invites: { email: string; name: string; role: string; role_name: string; until: number; boss: string }[];
+type DirPerson = { id: string; name: string; title: string; role_name: string; mailbox: string; off: boolean; at: number; boss?: string | null; boss_name: string; groups: string[]; shared: string[]; email: string | null; yours: boolean };
+type TeamView = { directory?: DirPerson[]; shared?: { local: string; name: string; members: string[] }[]; users: Person[]; groups: GroupV[]; chain: { id: string; name: string; group: boolean }[]; invites: { email: string; name: string; role: string; role_name: string; until: number; boss: string }[];
   contacts: { id: string; name: string; title?: string }[]; roles: RoleV[]; templates: TemplateV[]; perms: { id: string; about: string; mine: boolean }[] };
 
 function useTeam() {
@@ -571,21 +573,66 @@ function useTeam() {
   return { t, load };
 }
 
-type Sub = "chart" | "people" | "groups" | "roles";
+type Sub = "directory" | "chart" | "people" | "groups" | "roles";
+
+/** Someone asked to write to a person from elsewhere in Admin: Messages opens a new email to them. */
+let pendingDraft: Draft | null = null;
+const goWrite = (to: string[]) => { pendingDraft = { to, subject: "", body: "" }; window.dispatchEvent(new CustomEvent("ox-go", { detail: "inbox" })); };
 function Team({ me, toast }: { me: Me; toast: (s: string) => void }) {
   const { t, load } = useTeam();
-  const [sub, setSub] = useState<Sub>("chart");
+  const [sub, setSub] = useState<Sub>("directory");
   const has = (p: string) => me.perms.includes(p);
-  const subs: [Sub, string][] = [["chart", "Chart"], ["people", "People"], ["groups", "Groups"], ...(has("structure") ? [["roles", "Roles and templates"]] as [Sub, string][] : [])];
+  const subs: [Sub, string][] = [["directory", "Directory"], ["chart", "Chart"], ["people", "People"], ["groups", "Groups"], ...(has("structure") ? [["roles", "Roles and templates"]] as [Sub, string][] : [])];
   return <>
-    <Head title="Team" sub="Who reports to whom. You see everything from the people and groups below you, and nothing from anyone above or beside you." />
+    <Head title="Team" sub="Everyone at Agape and their addresses, and who reports to whom. Messages and activity: you see what's below you, never what's above or beside you." />
     <div className="ox-seg" role="tablist">{subs.map(([k, l]) => <button key={k} role="tab" aria-selected={sub === k} className={sub === k ? "on" : ""} onClick={() => setSub(k)}>{l}</button>)}</div>
     {!t ? <p className="ox-empty">Loading…</p> : <>
+      {sub === "directory" && <Directory me={me} t={t} />}
       {sub === "chart" && <Chart me={me} t={t} />}
       {sub === "people" && <People me={me} t={t} load={load} toast={toast} />}
       {sub === "groups" && <Groups me={me} t={t} load={load} toast={toast} />}
       {sub === "roles" && <Roles t={t} load={load} toast={toast} />}
     </>}
+  </>;
+}
+
+/** Everyone at Agape: their address here, what they do, who they report to. Click someone for their profile. */
+function Directory({ me, t }: { me: Me; t: TeamView }) {
+  const [q, setQ] = useState(""); const [open, setOpen] = useState<string | null>(null);
+  const all = (t.directory ?? []).filter(p => !p.off).sort((a, b) => (a.id === me.id ? -1 : b.id === me.id ? 1 : a.name.localeCompare(b.name)));
+  const shown = all.filter(p => !q.trim() || [p.name, p.title, p.role_name, p.mailbox].join(" ").toLowerCase().includes(q.trim().toLowerCase()));
+  const byId = (id: string) => all.find(p => p.id === id);
+  const initials = (n: string) => n.split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase();
+  const p = open ? byId(open) : null;
+  const addr = (l: string) => `${l}@${me.domain}`;
+  const copy = (x: string) => navigator.clipboard?.writeText(x);
+  useEffect(() => { if (!open) return; const k = (e: KeyboardEvent) => e.key === "Escape" && setOpen(null); addEventListener("keydown", k); return () => removeEventListener("keydown", k); }, [open]);
+  return <>
+    <section className="ox-card">
+      <div className="ox-row between"><h2>Everyone at Agape</h2><input className="ox-search" type="search" placeholder="Search names, titles, addresses" aria-label="Search the directory" value={q} onChange={e => setQ(e.target.value)} /></div>
+      <div className="dir-grid">{shown.map(x => <button key={x.id} className={"dir-card" + (x.id === me.id ? " you" : "")} onClick={() => setOpen(x.id)}>
+        <i className="dir-av" aria-hidden="true">{initials(x.name)}</i>
+        <span className="dir-who"><b>{x.name}{x.id === me.id && <small> (you)</small>}</b><small>{x.title || x.role_name}</small><span className="dir-addr">{x.mailbox ? addr(x.mailbox) : "No address yet"}</span></span>
+      </button>)}</div>
+      {!shown.length && <p className="ox-empty">Nobody matches.</p>}
+    </section>
+    {(t.shared ?? []).length > 0 && <section className="ox-card">
+      <h2>Shared addresses</h2>
+      <ul className="ox-shared">{(t.shared ?? []).map(x => <li key={x.local}><div><b>{addr(x.local)}</b>{x.name !== x.local && <small>{x.name}</small>}<span>{x.members.map(m => byId(m)?.name).filter(Boolean).join(", ")}</span></div>
+        <div className="ox-row"><button className="ox-btn sm" onClick={() => copy(addr(x.local))}>Copy</button></div></li>)}</ul>
+    </section>}
+    {p && <div className="dir-view" role="dialog" aria-label={p.name} onClick={() => setOpen(null)}><div className="dir-prof" onClick={e => e.stopPropagation()}>
+      <div className="dir-top"><i className="dir-av big" aria-hidden="true">{initials(p.name)}</i><div><h2>{p.name}</h2><span>{[p.title, p.role_name].filter(Boolean).join(" · ")}</span></div><button className="ox-btn sm ghost" onClick={() => setOpen(null)}>Close</button></div>
+      {p.mailbox && <div className="dir-mail"><b>{addr(p.mailbox)}</b><div className="ox-row">{p.id !== me.id && <button className="ox-btn primary sm" onClick={() => goWrite([p.id])}>Email {p.name.split(" ")[0]}</button>}<button className="ox-btn sm" onClick={() => copy(addr(p.mailbox))}>Copy</button></div></div>}
+      <dl className="dir-facts">
+        <dt>Reports to</dt><dd>{p.boss ? (byId(p.boss) ? <button className="ox-link" onClick={() => setOpen(p.boss!)}>{p.boss_name}</button> : p.boss_name) : "Nobody: the top"}</dd>
+        {(() => { const kids = all.filter(x => x.boss === p.id); return kids.length > 0 && <><dt>Reporting to them</dt><dd>{kids.map((k, i) => <React.Fragment key={k.id}>{i > 0 && ", "}<button className="ox-link" onClick={() => setOpen(k.id)}>{k.name}</button></React.Fragment>)}</dd></>; })()}
+        {p.groups.length > 0 && <><dt>Groups</dt><dd>{p.groups.join(", ")}</dd></>}
+        {p.shared.length > 0 && <><dt>Shared addresses</dt><dd>{p.shared.map(addr).join(", ")}</dd></>}
+        <dt>At Agape since</dt><dd>{new Date(p.at * 1000).toLocaleDateString(undefined, { month: "long", day: "numeric", year: "numeric" })}</dd>
+        {p.email && <><dt>Signs in with</dt><dd>{p.email}<small>{p.id === me.id ? "Only you and the people above you see this." : "Only they and the people above them see this."}</small></dd></>}
+      </dl>
+    </div></div>}
   </>;
 }
 
@@ -802,7 +849,7 @@ function MsgList({ notes, setNotes, seen, reply, empty, showWho }: { notes: Msg[
 /** Your own mailbox: email to your address, messages from your team, and notices for you. */
 function Inbox({ me, toast, seen }: { me: Me; toast: (s: string) => void; seen: () => void }) {
   const { notes, setNotes, load } = useNotes();
-  const [draft, setDraft] = useState<Draft | null>(null);
+  const [draft, setDraft] = useState<Draft | null>(() => { const d = pendingDraft; pendingDraft = null; return d; });
   const [contacts, setContacts] = useState<{ id: string; name: string; title?: string }[]>([]);
   useEffect(() => { api("team").then(r => r.ok && setContacts([...r.contacts, ...r.groups.map((g: any) => ({ id: g.id, name: g.name, title: "everyone in the group" }))])); }, []);
   const cameTo = (n: Msg) => (n.ext_to ?? []).map(t => t.toLowerCase().replace(/.*</, "").replace(/>.*/, "")).filter(t => t.endsWith("@" + me.domain)).map(t => t.split("@")[0].split("+")[0]).find(l => (me.send_as ?? []).includes(l));

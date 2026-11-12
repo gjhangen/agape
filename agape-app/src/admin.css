@@ -412,3 +412,25 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
 fieldset.ox-f { border: 0; padding: 0; margin: 0; min-width: 0; }
 .ox-check { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
 .ox-check input { width: 18px; height: 18px; accent-color: var(--brand); }
+/* Directory: everyone at Agape, and a profile for each */
+.dir-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 10px; margin-top: 14px; }
+.dir-card { display: flex; gap: 12px; align-items: center; text-align: left; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--card); color: inherit; font: inherit; cursor: pointer; }
+.dir-card:hover { border-color: var(--brand); } .dir-card.you { background: var(--brand-soft); }
+.dir-av { display: grid; place-items: center; flex: none; width: 42px; height: 42px; border-radius: 50%; background: var(--brand); color: var(--brand-ink); font-style: normal; font-weight: 800; font-size: 15px; }
+.dir-av.big { width: 64px; height: 64px; font-size: 22px; }
+.dir-who { display: grid; gap: 1px; min-width: 0; } .dir-who small { color: var(--muted); }
+.dir-addr { color: var(--brand); font-weight: 600; font-size: 13.5px; overflow-wrap: anywhere; }
+.dir-view { position: fixed; inset: 0; z-index: 200; background: rgb(8 9 12 / .6); display: grid; place-items: center; padding: 16px; }
+.dir-prof { width: min(560px, 100%); max-height: 100%; overflow: auto; background: var(--card); border-radius: 18px; padding: 20px; display: grid; gap: 16px; }
+.dir-top { display: flex; gap: 14px; align-items: center; } .dir-top h2 { margin: 0; } .dir-top span { color: var(--muted); } .dir-top > button { margin-left: auto; align-self: flex-start; }
+.dir-mail { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 12px 14px; border-radius: 12px; background: var(--sunk); }
+.dir-facts { display: grid; grid-template-columns: max-content 1fr; gap: 8px 16px; margin: 0; }
+.dir-facts dt { color: var(--muted); font-weight: 600; } .dir-facts dd { margin: 0; display: grid; } .dir-facts dd small { color: var(--muted); }
+.dir-facts dd:has(> .ox-link) { display: block; }
+@media (max-width: 560px) { .dir-facts { grid-template-columns: 1fr; gap: 2px; } .dir-facts dd { margin-bottom: 8px; } }
+.dir-view { grid-template-columns: minmax(0, 560px); justify-content: center; }
+.dir-prof { width: 100%; min-width: 0; box-sizing: border-box; }
+.dir-mail b, .dir-facts dd { overflow-wrap: anywhere; min-width: 0; }
+.dir-top > div { min-width: 0; }
+.ox-seg { max-width: 100%; overflow-x: auto; scrollbar-width: none; } .ox-seg::-webkit-scrollbar { display: none; }
+.ox-seg button { white-space: nowrap; flex: none; }
