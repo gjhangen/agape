@@ -79,7 +79,7 @@ function Invest() {
       <div className="iv-market">
         <div><b>159M</b><span>fans at Live Nation events alone in 2025</span><a href={SRC.ln}>Live Nation, 2025 results</a></div>
         <div><b>71.75M</b><span>fans at Major League Baseball games in 2026, one league of many</span><a href={SRC.mlb}>Front Office Sports</a></div>
-        <p>Games, concerts, college sports, festivals, minor leagues and arenas of every size. Every one of those fans buys something during the event, or wanted to. Agape is built for any live event, not one sport or one venue type.</p>
+        <p>Games, concerts, college sports, festivals, minor leagues and arenas of every size. Every one of those fans buys something during the event, or wanted to. Agape is built for any live event, not one sport or one venue type, and our first venues are likely to be in Kentucky.</p>
       </div>
     </section>
 

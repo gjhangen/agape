@@ -15,7 +15,7 @@ const store = {
   get: (k: string) => { try { return localStorage.getItem(k); } catch { return null; } },
   set: (k: string, v: string | null) => { try { v == null ? localStorage.removeItem(k) : localStorage.setItem(k, v); } catch { /* private mode: sign in each visit */ } },
 };
-/** Which venue: a link or QR code at the venue says (?v=rupp), staff work at their own, and the
+/** Which venue: a link or QR code at the venue says (?v=riverside), staff work at their own, and the
  *  public demo is Harbor Arena. Remembered, so reopening the app returns to the same venue. */
 const urlVenue = (() => { const q = new URLSearchParams(location.search).get("v"); return q && /^[a-z0-9_]{3,24}$/.test(q) ? q : null; })();
 let VENUE = urlVenue ?? store.get("agape.venue") ?? "harbor";

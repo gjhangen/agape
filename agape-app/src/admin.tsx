@@ -1082,7 +1082,7 @@ function VenueEditor({ v, starter, optional, toast, done }: { v: VenueRow | null
       <div className="ox-sections">
         <section className="ox-card"><h2>The venue</h2><p className="ox-sub">How fans know it. The id is used in its link and can't change once saved.</p>
           <div className="ox-grid">
-            <label className="ox-f"><span>Name</span><input value={f.name} placeholder="Rupp Arena" onChange={e => { set(["name"], e.target.value); if (!v) set(["id"], slug(e.target.value)); }} /></label>
+            <label className="ox-f"><span>Name</span><input value={f.name} placeholder="Riverside Arena" onChange={e => { set(["name"], e.target.value); if (!v) set(["id"], slug(e.target.value)); }} /></label>
             <label className="ox-f"><span>Id</span><input className="mono" value={f.id} disabled={!!v} onChange={e => set(["id"], slug(e.target.value))} /><small>Fans open /app/?v={f.id || "id"}</small></label>
             <label className="ox-f wide"><span>Address</span><input value={f.address} onChange={e => set(["address"], e.target.value)} /></label>
             <label className="ox-f"><span>Capacity</span><input inputMode="numeric" value={num(f.capacity)} onChange={e => set(["capacity"], parseInt(e.target.value) || 0)} /></label>
@@ -1090,9 +1090,9 @@ function VenueEditor({ v, starter, optional, toast, done }: { v: VenueRow | null
         </section>
         <section className="ox-card"><h2>Tonight's teams</h2><p className="ox-sub">As the venue shows them. Change these before each night.</p>
           {(["home", "away"] as const).map(side => <div key={side} className="ox-grid">
-            <label className="ox-f"><span>{side === "home" ? "Home team" : "Visitors"}</span><input value={f[side]?.name ?? ""} placeholder={side === "home" ? "Kentucky Wildcats" : "Louisville Cardinals"} onChange={e => set([side, "name"], e.target.value)} /></label>
-            <label className="ox-f"><span>Short name</span><input value={f[side]?.short ?? ""} placeholder={side === "home" ? "Wildcats" : "Cardinals"} onChange={e => set([side, "short"], e.target.value)} /></label>
-            <label className="ox-f"><span>Abbreviation</span><input value={f[side]?.abbr ?? ""} maxLength={4} placeholder={side === "home" ? "UK" : "UL"} onChange={e => set([side, "abbr"], e.target.value.toUpperCase())} /></label>
+            <label className="ox-f"><span>{side === "home" ? "Home team" : "Visitors"}</span><input value={f[side]?.name ?? ""} placeholder={side === "home" ? "Riverside Hawks" : "Northfield Foxes"} onChange={e => set([side, "name"], e.target.value)} /></label>
+            <label className="ox-f"><span>Short name</span><input value={f[side]?.short ?? ""} placeholder={side === "home" ? "Hawks" : "Foxes"} onChange={e => set([side, "short"], e.target.value)} /></label>
+            <label className="ox-f"><span>Abbreviation</span><input value={f[side]?.abbr ?? ""} maxLength={4} placeholder={side === "home" ? "RIV" : "NOR"} onChange={e => set([side, "abbr"], e.target.value.toUpperCase())} /></label>
             <label className="ox-f"><span>Color</span><input type="color" value={f[side]?.color || "#888888"} onChange={e => set([side, "color"], e.target.value)} /></label>
           </div>)}
         </section>
@@ -1119,7 +1119,7 @@ function VenueEditor({ v, starter, optional, toast, done }: { v: VenueRow | null
         </section>
         <section className="ox-card"><h2>Who gets paid</h2><p className="ox-sub">Fans pay Agape. After each night Agape keeps its share and pays each business for its stands, so nobody ever has to be collected from. Usually one business runs every stand: the venue or its concessions company.</p>
           {payees.map((p, i) => <div key={i} className="ox-grid">
-            <label className="ox-f wide"><span>Business name</span><input value={p.name} placeholder="Rupp Arena Concessions" onChange={e => { set(["payees", i, "name"], e.target.value); if (!p.id || (i > 0 && p.id === slug(p.name))) set(["payees", i, "id"], i === 0 && !p.id ? "concessions" : slug(e.target.value)); }} /><small>As the processor will know them</small></label>
+            <label className="ox-f wide"><span>Business name</span><input value={p.name} placeholder="Riverside Arena Concessions" onChange={e => { set(["payees", i, "name"], e.target.value); if (!p.id || (i > 0 && p.id === slug(p.name))) set(["payees", i, "id"], i === 0 && !p.id ? "concessions" : slug(e.target.value)); }} /><small>As the processor will know them</small></label>
             {payees.length > 1 && <button className="ox-link danger" onClick={() => { set(["payees"], payees.filter((_, j) => j !== i)); stands.forEach((st, j) => st.payee === p.id && set(["stands", j, "payee"], payees[0].id)); }}>Remove</button>}
           </div>)}
           <button className="ox-btn sm" onClick={() => set(["payees"], [...payees, { id: "", name: "" }])}>Add another business</button>
