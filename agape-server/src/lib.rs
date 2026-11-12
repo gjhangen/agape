@@ -484,6 +484,8 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/night/{venue}/act", post(office_night_act))
         .route("/api/office/night/{venue}/end", post(office_night_end))
         .route("/api/office/report/{file}", get(office_report))
+        .route("/api/office/brand", get(office_brand))
+        .route("/api/office/brand/{file}", get(office_brand_file))
         .layer(axum::extract::DefaultBodyLimit::max(3_500_000))
         .with_state(app);
     let r = match static_dir { Some(d) => api.fallback_service(tower_http::services::ServeDir::new(d)), None => api };
@@ -1155,6 +1157,22 @@ async fn office_report(State(app): State<S>, h: HeaderMap, Path(file): Path<Stri
     match std::fs::read(nights_dir(&app).join(&file)) { Ok(b) => ([("content-type", "application/json")], b).into_response(), Err(_) => err(StatusCode::NOT_FOUND, "No such report") }
 }
 
+/// The brand materials (logo boards, app looks, the brand kit, every exploration round), for anyone signed in to
+/// Agape Admin. They're kept outside the public site, in AGAPE_PARTNER (packed into the image at /partner).
+fn partner_dir() -> std::path::PathBuf { std::path::PathBuf::from(std::env::var("AGAPE_PARTNER").unwrap_or_else(|_| "/partner".into())) }
+async fn office_brand(State(app): State<S>, h: HeaderMap) -> Response {
+    if let Err(r) = staffer(&app, &h) { return r; }
+    match std::fs::read(partner_dir().join("manifest.json")) { Ok(b) => ([("content-type", "application/json")], b).into_response(), Err(_) => err(StatusCode::NOT_FOUND, "The brand materials aren't on this server yet") }
+}
+async fn office_brand_file(State(app): State<S>, h: HeaderMap, Path(file): Path<String>) -> Response {
+    if let Err(r) = staffer(&app, &h) { return r; }
+    if file.contains('/') || file.contains("..") || file.starts_with('.') { return err(StatusCode::NOT_FOUND, "No such file"); }
+    let kind = match file.rsplit('.').next().unwrap_or("") { "webp" => "image/webp", "png" => "image/png", "zip" => "application/zip", "pdf" => "application/pdf", "json" => "application/json", _ => return err(StatusCode::NOT_FOUND, "No such file") };
+    match std::fs::read(partner_dir().join(&file)) {
+        Ok(b) => ([("content-type", kind), ("cache-control", "private, max-age=86400")], b).into_response(),
+        Err(_) => err(StatusCode::NOT_FOUND, "No such file"),
+    }
+}
 
 // ---------------- staying up ----------------
 

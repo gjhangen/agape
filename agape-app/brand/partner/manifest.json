@@ -1,0 +1,1176 @@
+{
+ "final": [
+  {
+   "file": "final-world.webp",
+   "caption": "Out in the world: website, App Store, social, browser tabs, lock screen"
+  },
+  {
+   "file": "final-phone.webp",
+   "caption": "On the phone: home screens and notifications in the live apps"
+  }
+ ],
+ "rounds": [
+  {
+   "id": "r01",
+   "n": 1,
+   "date": "Nov 4",
+   "title": "First logo directions",
+   "intro": "The first spread of wordmarks and symbols, before any were chosen.",
+   "kind": "logo",
+   "groups": [
+    {
+     "title": "",
+     "intro": "",
+     "images": [
+      {
+       "file": "r01-sheet.webp",
+       "caption": "52 options"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r02",
+   "n": 2,
+   "date": "Nov 4",
+   "title": "Rows and stacks",
+   "intro": "Ways of stacking \u201cto your seat\u201d with the wordmark.",
+   "kind": "logo",
+   "groups": [
+    {
+     "title": "",
+     "intro": "",
+     "images": [
+      {
+       "file": "r02-sheet.webp",
+       "caption": "38 options"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r03",
+   "n": 3,
+   "date": "Nov 4",
+   "title": "Lettering, symbol, icon",
+   "intro": "Lettering. Symbol and tagline. Icon. Whole system.",
+   "kind": "logo",
+   "groups": [
+    {
+     "title": "Cut",
+     "intro": "",
+     "images": [
+      {
+       "file": "r03-cut-narrow.webp",
+       "caption": "Narrow"
+      },
+      {
+       "file": "r03-cut-wide.webp",
+       "caption": "Wide"
+      }
+     ]
+    },
+    {
+     "title": "Icon",
+     "intro": "New icons that start from the wordmark itself. Same home screen, same profile, same browser tab, same cap; only the icon changes.",
+     "images": [
+      {
+       "file": "r03-icon-a-accent.webp",
+       "caption": "A accent"
+      },
+      {
+       "file": "r03-icon-a-heart.webp",
+       "caption": "A heart"
+      },
+      {
+       "file": "r03-icon-a.webp",
+       "caption": "A"
+      },
+      {
+       "file": "r03-icon-arc.webp",
+       "caption": "Arc"
+      },
+      {
+       "file": "r03-icon-seat-crop.webp",
+       "caption": "Seat crop"
+      },
+      {
+       "file": "r03-icon-word.webp",
+       "caption": "Word"
+      }
+     ]
+    },
+    {
+     "title": "Symbol and tagline",
+     "intro": "Same lettering (wider cut, 900) at the same size in every option. Only one thing changes per comparison.",
+     "images": [
+      {
+       "file": "r03-symbol-accent.webp",
+       "caption": "Accent"
+      },
+      {
+       "file": "r03-symbol-arc.webp",
+       "caption": "Arc"
+      },
+      {
+       "file": "r03-symbol-none.webp",
+       "caption": "None"
+      },
+      {
+       "file": "r03-symbol-raised.webp",
+       "caption": "Raised"
+      },
+      {
+       "file": "r03-symbol-row.webp",
+       "caption": "Row"
+      }
+     ]
+    },
+    {
+     "title": "Whole system",
+     "intro": "Wordmark and icon together, across eleven situations. This is the one to decide on.",
+     "images": [
+      {
+       "file": "r03-system-accent.webp",
+       "caption": "Accent"
+      },
+      {
+       "file": "r03-system-arc.webp",
+       "caption": "Arc"
+      },
+      {
+       "file": "r03-system-pure.webp",
+       "caption": "Pure"
+      },
+      {
+       "file": "r03-system-row.webp",
+       "caption": "Row"
+      }
+     ]
+    },
+    {
+     "title": "Tagline",
+     "intro": "",
+     "images": [
+      {
+       "file": "r03-tagline-beside.webp",
+       "caption": "Beside"
+      },
+      {
+       "file": "r03-tagline-none.webp",
+       "caption": "None"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r04",
+   "n": 4,
+   "date": "Nov 4",
+   "title": "Icon shortlist",
+   "intro": "Shortlist. Top three. Background.",
+   "kind": "logo",
+   "groups": [
+    {
+     "title": "Shortlist",
+     "intro": "Eight icons drawn from the settled wordmark, each shown beside it in the website header, on a light and a dark home screen, and in lock-screen notifications.",
+     "images": [
+      {
+       "file": "r04-shortlist-ap.webp",
+       "caption": "Ap"
+      },
+      {
+       "file": "r04-shortlist-bleed.webp",
+       "caption": "Bleed"
+      },
+      {
+       "file": "r04-shortlist-crop.webp",
+       "caption": "Crop"
+      },
+      {
+       "file": "r04-shortlist-cut.webp",
+       "caption": "Cut"
+      },
+      {
+       "file": "r04-shortlist-led.webp",
+       "caption": "Led"
+      },
+      {
+       "file": "r04-shortlist-mini.webp",
+       "caption": "Mini"
+      },
+      {
+       "file": "r04-shortlist-split.webp",
+       "caption": "Split"
+      },
+      {
+       "file": "r04-shortlist-word.webp",
+       "caption": "Word"
+      }
+     ]
+    },
+    {
+     "title": "Top three",
+     "intro": "The three strongest, across every situation, next to the wordmark.",
+     "images": [
+      {
+       "file": "r04-top3-ap.webp",
+       "caption": "Ap"
+      },
+      {
+       "file": "r04-top3-mini.webp",
+       "caption": "Mini"
+      },
+      {
+       "file": "r04-top3-word.webp",
+       "caption": "Word"
+      }
+     ]
+    },
+    {
+     "title": "Background",
+     "intro": "The winning family (Full word, edge to edge) on four backgrounds. Same icon drawing, same situations.",
+     "images": [
+      {
+       "file": "r04-treatment-black.webp",
+       "caption": "Black"
+      },
+      {
+       "file": "r04-treatment-crimson.webp",
+       "caption": "Crimson"
+      },
+      {
+       "file": "r04-treatment-ink.webp",
+       "caption": "Ink"
+      },
+      {
+       "file": "r04-treatment-white.webp",
+       "caption": "White"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r05",
+   "n": 5,
+   "date": "Nov 4",
+   "title": "The icon, decided",
+   "intro": "The mini lockup (the a with the stacked tagline beside it) won here.",
+   "kind": "logo",
+   "groups": [
+    {
+     "title": "ap, reworked",
+     "intro": "Separate letters with the wordmark\u2019s own spacing, so the a reads first and nothing reads as a P.",
+     "images": [
+      {
+       "file": "r05-ap-ap-lead.webp",
+       "caption": "Ap lead"
+      },
+      {
+       "file": "r05-ap-ap-low.webp",
+       "caption": "Ap low"
+      },
+      {
+       "file": "r05-ap-ap-spaced.webp",
+       "caption": "Ap spaced"
+      },
+      {
+       "file": "r05-ap-ap-tight.webp",
+       "caption": "Ap tight"
+      }
+     ]
+    },
+    {
+     "title": "Cut behind the a",
+     "intro": "The a stays whole; the wordmark\u2019s slanted descender cut becomes a band or field behind it.",
+     "images": [
+      {
+       "file": "r05-cut-cut-band.webp",
+       "caption": "Cut band"
+      },
+      {
+       "file": "r05-cut-cut-edge.webp",
+       "caption": "Cut edge"
+      },
+      {
+       "file": "r05-cut-cut-field.webp",
+       "caption": "Cut field"
+      },
+      {
+       "file": "r05-cut-cut-onink.webp",
+       "caption": "Cut onink"
+      },
+      {
+       "file": "r05-cut-cut-tint.webp",
+       "caption": "Cut tint"
+      }
+     ]
+    },
+    {
+     "title": "Head to head",
+     "intro": "The best of each family, next to the settled wordmark. Two boards: out in the world, and on the phone.",
+     "images": [
+      {
+       "file": "r05-final-phone-ap-spaced.webp",
+       "caption": "Phone ap spaced"
+      },
+      {
+       "file": "r05-final-phone-cut-band.webp",
+       "caption": "Phone cut band"
+      },
+      {
+       "file": "r05-final-phone-mini-right.webp",
+       "caption": "Phone mini right"
+      },
+      {
+       "file": "r05-final-phone-new-tag.webp",
+       "caption": "Phone new tag"
+      },
+      {
+       "file": "r05-final-world-ap-spaced.webp",
+       "caption": "World ap spaced"
+      },
+      {
+       "file": "r05-final-world-cut-band.webp",
+       "caption": "World cut band"
+      },
+      {
+       "file": "r05-final-world-mini-right.webp",
+       "caption": "World mini right"
+      },
+      {
+       "file": "r05-final-world-new-tag.webp",
+       "caption": "World new tag"
+      }
+     ]
+    },
+    {
+     "title": "Mini lockup",
+     "intro": "The a, rule and stacked TO / YOUR / SEAT, now centred as one unit.",
+     "images": [
+      {
+       "file": "r05-mini-mini-below.webp",
+       "caption": "Mini below"
+      },
+      {
+       "file": "r05-mini-mini-hair.webp",
+       "caption": "Mini hair"
+      },
+      {
+       "file": "r05-mini-mini-heavy.webp",
+       "caption": "Mini heavy"
+      },
+      {
+       "file": "r05-mini-mini-right.webp",
+       "caption": "Mini right"
+      }
+     ]
+    },
+    {
+     "title": "New glyphs",
+     "intro": "Ownable shapes taken from the wordmark\u2019s features, that don\u2019t need to spell anything.",
+     "images": [
+      {
+       "file": "r05-new-new-bars.webp",
+       "caption": "New bars"
+      },
+      {
+       "file": "r05-new-new-g.webp",
+       "caption": "New g"
+      },
+      {
+       "file": "r05-new-new-stem.webp",
+       "caption": "New stem"
+      },
+      {
+       "file": "r05-new-new-tag.webp",
+       "caption": "New tag"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r06",
+   "n": 6,
+   "date": "Nov 8",
+   "title": "Sixteen identity concepts",
+   "intro": "A wider look at the whole identity, each concept with its own wordmark and icon.",
+   "kind": "look",
+   "groups": [
+    {
+     "title": "",
+     "intro": "",
+     "images": [
+      {
+       "file": "r06-01-rows.webp",
+       "caption": "Rows"
+      },
+      {
+       "file": "r06-02-here.webp",
+       "caption": "Here"
+      },
+      {
+       "file": "r06-03-atoa.webp",
+       "caption": "Atoa"
+      },
+      {
+       "file": "r06-04-open.webp",
+       "caption": "Open"
+      },
+      {
+       "file": "r06-05-address.webp",
+       "caption": "Address"
+      },
+      {
+       "file": "r06-06-section.webp",
+       "caption": "Section"
+      },
+      {
+       "file": "r06-07-agape.webp",
+       "caption": "Agape"
+      },
+      {
+       "file": "r06-08-home.webp",
+       "caption": "Home"
+      },
+      {
+       "file": "r06-09-route.webp",
+       "caption": "Route"
+      },
+      {
+       "file": "r06-10-marked.webp",
+       "caption": "Marked"
+      },
+      {
+       "file": "r06-11-seatmap.webp",
+       "caption": "Seatmap"
+      },
+      {
+       "file": "r06-12-concourse.webp",
+       "caption": "Concourse"
+      },
+      {
+       "file": "r06-13-halftime.webp",
+       "caption": "Halftime"
+      },
+      {
+       "file": "r06-14-lights.webp",
+       "caption": "Lights"
+      },
+      {
+       "file": "r06-15-gift.webp",
+       "caption": "Gift"
+      },
+      {
+       "file": "r06-16-club.webp",
+       "caption": "Club"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r07",
+   "n": 7,
+   "date": "Nov 8",
+   "title": "Colour, lettering, rows",
+   "intro": "Colour worlds. Lettering. The rows themselves. Experiments.",
+   "kind": "look",
+   "groups": [
+    {
+     "title": "Colour worlds",
+     "intro": "Twelve palettes on the identical Rows mark and scenes. Rate each.",
+     "images": [
+      {
+       "file": "r07-colour-01-night-lime.webp",
+       "caption": "Night lime"
+      },
+      {
+       "file": "r07-colour-02-black-gold.webp",
+       "caption": "Black gold"
+      },
+      {
+       "file": "r07-colour-03-navy-ice.webp",
+       "caption": "Navy ice"
+      },
+      {
+       "file": "r07-colour-04-royal-volt.webp",
+       "caption": "Royal volt"
+      },
+      {
+       "file": "r07-colour-05-orange.webp",
+       "caption": "Orange"
+      },
+      {
+       "file": "r07-colour-06-cream-tomato.webp",
+       "caption": "Cream tomato"
+      },
+      {
+       "file": "r07-colour-07-ice-teal.webp",
+       "caption": "Ice teal"
+      },
+      {
+       "file": "r07-colour-08-mono-orange.webp",
+       "caption": "Mono orange"
+      },
+      {
+       "file": "r07-colour-09-mono-dark.webp",
+       "caption": "Mono dark"
+      },
+      {
+       "file": "r07-colour-10-crimson.webp",
+       "caption": "Crimson"
+      },
+      {
+       "file": "r07-colour-11-violet-mint.webp",
+       "caption": "Violet mint"
+      },
+      {
+       "file": "r07-colour-12-ember.webp",
+       "caption": "Ember"
+      }
+     ]
+    },
+    {
+     "title": "Experiments",
+     "intro": "One element added at a time to the same base, with a control.",
+     "images": [
+      {
+       "file": "r07-experiments-01-control.webp",
+       "caption": "Control"
+      },
+      {
+       "file": "r07-experiments-02-lit-your.webp",
+       "caption": "Lit your"
+      },
+      {
+       "file": "r07-experiments-03-lit-seat.webp",
+       "caption": "Lit seat"
+      },
+      {
+       "file": "r07-experiments-04-acc-stress.webp",
+       "caption": "Acc stress"
+      },
+      {
+       "file": "r07-experiments-05-acc-marker.webp",
+       "caption": "Acc marker"
+      },
+      {
+       "file": "r07-experiments-06-acc-rule.webp",
+       "caption": "Acc rule"
+      },
+      {
+       "file": "r07-experiments-07-lean-all.webp",
+       "caption": "Lean all"
+      }
+     ]
+    },
+    {
+     "title": "Lettering",
+     "intro": "Ten letter styles in the same Rows structure, black on white. Rate each.",
+     "images": [
+      {
+       "file": "r07-lettering-01-barlow-800.webp",
+       "caption": "Barlow 800"
+      },
+      {
+       "file": "r07-lettering-02-barlow-600.webp",
+       "caption": "Barlow 600"
+      },
+      {
+       "file": "r07-lettering-03-shoulders.webp",
+       "caption": "Shoulders"
+      },
+      {
+       "file": "r07-lettering-04-archivo.webp",
+       "caption": "Archivo"
+      },
+      {
+       "file": "r07-lettering-05-intertight.webp",
+       "caption": "Intertight"
+      },
+      {
+       "file": "r07-lettering-06-spacegrotesk.webp",
+       "caption": "Spacegrotesk"
+      },
+      {
+       "file": "r07-lettering-07-outfit.webp",
+       "caption": "Outfit"
+      },
+      {
+       "file": "r07-lettering-08-unbounded.webp",
+       "caption": "Unbounded"
+      },
+      {
+       "file": "r07-lettering-09-custom.webp",
+       "caption": "Custom"
+      },
+      {
+       "file": "r07-lettering-10-lean.webp",
+       "caption": "Lean"
+      }
+     ]
+    },
+    {
+     "title": "The rows themselves",
+     "intro": "How the tagline rows and icon bars are drawn. Everything else stays the neutral base.",
+     "images": [
+      {
+       "file": "r07-rows-01-base.webp",
+       "caption": "Base"
+      },
+      {
+       "file": "r07-rows-02-cap.webp",
+       "caption": "Cap"
+      },
+      {
+       "file": "r07-rows-03-full.webp",
+       "caption": "Full"
+      },
+      {
+       "file": "r07-rows-04-no-rule.webp",
+       "caption": "No rule"
+      },
+      {
+       "file": "r07-rows-05-hair.webp",
+       "caption": "Hair"
+      },
+      {
+       "file": "r07-rows-06-heavy.webp",
+       "caption": "Heavy"
+      },
+      {
+       "file": "r07-rows-07-bars-all.webp",
+       "caption": "Bars all"
+      },
+      {
+       "file": "r07-rows-08-words-icon.webp",
+       "caption": "Words icon"
+      },
+      {
+       "file": "r07-rows-09-flush.webp",
+       "caption": "Flush"
+      },
+      {
+       "file": "r07-rows-10-thin-bars.webp",
+       "caption": "Thin bars"
+      },
+      {
+       "file": "r07-rows-11-thick-bars.webp",
+       "caption": "Thick bars"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r08",
+   "n": 8,
+   "date": "Nov 8",
+   "title": "Accent colours",
+   "intro": "Accent lanes. Inside the stadium. Food appetite check.",
+   "kind": "look",
+   "groups": [
+    {
+     "title": "Accent lanes",
+     "intro": "Black and white plus one accent, on the Rows lockup with the words in the icon. Twelve accents across the open colour lanes, with signal orange and lime as references. Each board shows the measured crowding and contrast. Rate each.",
+     "images": [
+      {
+       "file": "r08-accent-01-fuchsia.webp",
+       "caption": "Fuchsia"
+      },
+      {
+       "file": "r08-accent-02-hotpink.webp",
+       "caption": "Hotpink"
+      },
+      {
+       "file": "r08-accent-03-berry.webp",
+       "caption": "Berry"
+      },
+      {
+       "file": "r08-accent-04-orchid.webp",
+       "caption": "Orchid"
+      },
+      {
+       "file": "r08-accent-05-plum.webp",
+       "caption": "Plum"
+      },
+      {
+       "file": "r08-accent-06-violet.webp",
+       "caption": "Violet"
+      },
+      {
+       "file": "r08-accent-07-purple.webp",
+       "caption": "Purple"
+      },
+      {
+       "file": "r08-accent-08-indigo.webp",
+       "caption": "Indigo"
+      },
+      {
+       "file": "r08-accent-09-sea.webp",
+       "caption": "Sea"
+      },
+      {
+       "file": "r08-accent-10-mint.webp",
+       "caption": "Mint"
+      },
+      {
+       "file": "r08-accent-11-lime.webp",
+       "caption": "Lime"
+      },
+      {
+       "file": "r08-accent-12-orange.webp",
+       "caption": "Orange"
+      }
+     ]
+    },
+    {
+     "title": "Food appetite check",
+     "intro": "The same five accents on food-ordering screens with drawn food.",
+     "images": [
+      {
+       "file": "r08-food-01-fuchsia.webp",
+       "caption": "Fuchsia"
+      },
+      {
+       "file": "r08-food-02-berry.webp",
+       "caption": "Berry"
+      },
+      {
+       "file": "r08-food-03-orchid.webp",
+       "caption": "Orchid"
+      },
+      {
+       "file": "r08-food-04-violet.webp",
+       "caption": "Violet"
+      },
+      {
+       "file": "r08-food-05-orange.webp",
+       "caption": "Orange"
+      }
+     ]
+    },
+    {
+     "title": "Inside the stadium",
+     "intro": "The top five accents next to Ohio\u2019s teams and the Seahawks: in the app with the team\u2019s game card, on a concourse sign beside team signage, and on a runner in the stands.",
+     "images": [
+      {
+       "file": "r08-stadium-01-fuchsia.webp",
+       "caption": "Fuchsia"
+      },
+      {
+       "file": "r08-stadium-02-berry.webp",
+       "caption": "Berry"
+      },
+      {
+       "file": "r08-stadium-03-orchid.webp",
+       "caption": "Orchid"
+      },
+      {
+       "file": "r08-stadium-04-violet.webp",
+       "caption": "Violet"
+      },
+      {
+       "file": "r08-stadium-05-orange.webp",
+       "caption": "Orange"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r09",
+   "n": 9,
+   "date": "Nov 8",
+   "title": "Pink refinement",
+   "intro": "Pink refinement. Pairing with orange. Stadium, made easy.",
+   "kind": "look",
+   "groups": [
+    {
+     "title": "Pairing with orange",
+     "intro": "Electric pink as the brand, with four ways of handling food: pink only, orange reserved for food moments, warm food art instead of a second colour, or pink and orange as equals.",
+     "images": [
+      {
+       "file": "r09-pairing-01-pink.webp",
+       "caption": "Pink"
+      },
+      {
+       "file": "r09-pairing-02-food-orange.webp",
+       "caption": "Food orange"
+      },
+      {
+       "file": "r09-pairing-03-food-art.webp",
+       "caption": "Food art"
+      },
+      {
+       "file": "r09-pairing-04-duo.webp",
+       "caption": "Duo"
+      }
+     ]
+    },
+    {
+     "title": "Pink refinement",
+     "intro": "Eight pinks around fuchsia and hot pink, in the black-and-white system. Each board prints the distance to Barbie, T-Mobile, Lyft, Tinder and the Cosmopolitan, the team counts, and what the colour risks being associated with. Rate each.",
+     "images": [
+      {
+       "file": "r09-pink-01-electric.webp",
+       "caption": "Electric"
+      },
+      {
+       "file": "r09-pink-02-electric-neon.webp",
+       "caption": "Electric neon"
+      },
+      {
+       "file": "r09-pink-03-electric-deep.webp",
+       "caption": "Electric deep"
+      },
+      {
+       "file": "r09-pink-04-hotpink.webp",
+       "caption": "Hotpink"
+      },
+      {
+       "file": "r09-pink-05-hotpink-neon.webp",
+       "caption": "Hotpink neon"
+      },
+      {
+       "file": "r09-pink-06-hotpink-deep.webp",
+       "caption": "Hotpink deep"
+      },
+      {
+       "file": "r09-pink-07-fuchsia.webp",
+       "caption": "Fuchsia"
+      },
+      {
+       "file": "r09-pink-08-magenta-pink.webp",
+       "caption": "Magenta pink"
+      }
+     ]
+    },
+    {
+     "title": "Stadium, made easy",
+     "intro": "One row per accent: the Agape pickup sign beside six team store signs.",
+     "images": [
+      {
+       "file": "r09-stadium-01-electric.webp",
+       "caption": "Electric"
+      },
+      {
+       "file": "r09-stadium-02-hotpink.webp",
+       "caption": "Hotpink"
+      },
+      {
+       "file": "r09-stadium-03-fuchsia.webp",
+       "caption": "Fuchsia"
+      },
+      {
+       "file": "r09-stadium-04-orange.webp",
+       "caption": "Orange"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r10",
+   "n": 10,
+   "date": "Nov 8",
+   "title": "Text on pink",
+   "intro": "Text on pink. Pinks with white text. Food in harmony.",
+   "kind": "look",
+   "groups": [
+    {
+     "title": "Food in harmony",
+     "intro": "No orange. Four ways to make food feel appetising while staying in the pink family.",
+     "images": [
+      {
+       "file": "r10-food-01-art.webp",
+       "caption": "Art"
+      },
+      {
+       "file": "r10-food-02-peach.webp",
+       "caption": "Peach"
+      },
+      {
+       "file": "r10-food-03-blush.webp",
+       "caption": "Blush"
+      },
+      {
+       "file": "r10-food-04-gradient.webp",
+       "caption": "Gradient"
+      }
+     ]
+    },
+    {
+     "title": "Pinks with white text",
+     "intro": "Text held constant as white bold; only the pink changes, from the neons to fuchsia. Rate each.",
+     "images": [
+      {
+       "file": "r10-pink-01-ff3e9e.webp",
+       "caption": "Ff3e9e"
+      },
+      {
+       "file": "r10-pink-02-ff46a6.webp",
+       "caption": "Ff46a6"
+      },
+      {
+       "file": "r10-pink-03-ff2d95.webp",
+       "caption": "Ff2d95"
+      },
+      {
+       "file": "r10-pink-04-f32d9b.webp",
+       "caption": "F32d9b"
+      },
+      {
+       "file": "r10-pink-05-e71c98.webp",
+       "caption": "E71c98"
+      },
+      {
+       "file": "r10-pink-06-f91f8c.webp",
+       "caption": "F91f8c"
+      },
+      {
+       "file": "r10-pink-07-da0b95.webp",
+       "caption": "Da0b95"
+      }
+     ]
+    },
+    {
+     "title": "Text on pink",
+     "intro": "The same pink, #FF3E9E, with only the text colour changing. All text on pink is large or bold so every option passes.",
+     "images": [
+      {
+       "file": "r10-text-01-white.webp",
+       "caption": "White"
+      },
+      {
+       "file": "r10-text-02-black.webp",
+       "caption": "Black"
+      },
+      {
+       "file": "r10-text-03-plum.webp",
+       "caption": "Plum"
+      },
+      {
+       "file": "r10-text-04-warmink.webp",
+       "caption": "Warmink"
+      },
+      {
+       "file": "r10-text-05-white-deeper.webp",
+       "caption": "White deeper"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r11",
+   "n": 11,
+   "date": "Nov 8",
+   "title": "How dark, food, lettering",
+   "intro": "How dark. Food on black. Lettering in the real colours.",
+   "kind": "look",
+   "groups": [
+    {
+     "title": "How dark",
+     "intro": "Black, white and electric pink #FF2D95 with white text on pink. Only the balance of light and dark surfaces changes.",
+     "images": [
+      {
+       "file": "r11-dark-01-light.webp",
+       "caption": "Light"
+      },
+      {
+       "file": "r11-dark-02-dark.webp",
+       "caption": "Dark"
+      },
+      {
+       "file": "r11-dark-03-mixed.webp",
+       "caption": "Mixed"
+      },
+      {
+       "file": "r11-dark-04-mixed-rev.webp",
+       "caption": "Mixed rev"
+      }
+     ]
+    },
+    {
+     "title": "Lettering in the real colours",
+     "intro": "Twelve OFL faces in the Rows lockup at the same x-height, on pink, black and white, with a headline and body pairing in the app, website and sign. Rate each.",
+     "images": [
+      {
+       "file": "r11-face-01-barlow.webp",
+       "caption": "Barlow"
+      },
+      {
+       "file": "r11-face-02-anton.webp",
+       "caption": "Anton"
+      },
+      {
+       "file": "r11-face-03-bebas.webp",
+       "caption": "Bebas"
+      },
+      {
+       "file": "r11-face-04-oswald.webp",
+       "caption": "Oswald"
+      },
+      {
+       "file": "r11-face-05-archivoblack.webp",
+       "caption": "Archivoblack"
+      },
+      {
+       "file": "r11-face-06-familjen.webp",
+       "caption": "Familjen"
+      },
+      {
+       "file": "r11-face-07-schibsted.webp",
+       "caption": "Schibsted"
+      },
+      {
+       "file": "r11-face-08-hanken.webp",
+       "caption": "Hanken"
+      },
+      {
+       "file": "r11-face-09-bricolage.webp",
+       "caption": "Bricolage"
+      },
+      {
+       "file": "r11-face-10-instrument.webp",
+       "caption": "Instrument"
+      },
+      {
+       "file": "r11-face-11-sora.webp",
+       "caption": "Sora"
+      },
+      {
+       "file": "r11-face-12-rubik.webp",
+       "caption": "Rubik"
+      }
+     ]
+    },
+    {
+     "title": "Food on black",
+     "intro": "Food cards and promos on black with warm food art. Pink stays for actions only.",
+     "images": [
+      {
+       "file": "r11-food-01-plain.webp",
+       "caption": "Plain"
+      },
+      {
+       "file": "r11-food-02-glow.webp",
+       "caption": "Glow"
+      },
+      {
+       "file": "r11-food-03-edge.webp",
+       "caption": "Edge"
+      },
+      {
+       "file": "r11-food-04-brown.webp",
+       "caption": "Brown"
+      }
+     ]
+    }
+   ]
+  },
+  {
+   "id": "r12",
+   "n": 12,
+   "date": "Nov 8",
+   "title": "Lettering finalists",
+   "intro": "Lettering finalists. Wordmark face vs product face. Gradient restraint.",
+   "kind": "look",
+   "groups": [
+    {
+     "title": "Lettering finalists",
+     "intro": "The five faces he liked, each tuned to look its best, in the dark-first system on every surface.",
+     "images": [
+      {
+       "file": "r12-face-01-barlow.webp",
+       "caption": "Barlow"
+      },
+      {
+       "file": "r12-face-02-bricolage.webp",
+       "caption": "Bricolage"
+      },
+      {
+       "file": "r12-face-03-instrument.webp",
+       "caption": "Instrument"
+      },
+      {
+       "file": "r12-face-04-rubik.webp",
+       "caption": "Rubik"
+      },
+      {
+       "file": "r12-face-05-sora.webp",
+       "caption": "Sora"
+      }
+     ]
+    },
+    {
+     "title": "Gradient restraint",
+     "intro": "How often, if ever, the warm accent appears on food, across a whole flow.",
+     "images": [
+      {
+       "file": "r12-gradient-01-none.webp",
+       "caption": "None"
+      },
+      {
+       "file": "r12-gradient-02-promo.webp",
+       "caption": "Promo"
+      },
+      {
+       "file": "r12-gradient-03-hot.webp",
+       "caption": "Hot"
+      },
+      {
+       "file": "r12-gradient-04-glow.webp",
+       "caption": "Glow"
+      }
+     ]
+    },
+    {
+     "title": "Wordmark face vs product face",
+     "intro": "Should the logo and the product share one face, or use two?",
+     "images": [
+      {
+       "file": "r12-pair-01-barlow-instrument.webp",
+       "caption": "Barlow instrument"
+      },
+      {
+       "file": "r12-pair-02-barlow-sora.webp",
+       "caption": "Barlow sora"
+      },
+      {
+       "file": "r12-pair-03-barlow-bricolage.webp",
+       "caption": "Barlow bricolage"
+      },
+      {
+       "file": "r12-pair-04-sora.webp",
+       "caption": "Sora"
+      },
+      {
+       "file": "r12-pair-05-bricolage.webp",
+       "caption": "Bricolage"
+      },
+      {
+       "file": "r12-pair-06-instrument.webp",
+       "caption": "Instrument"
+      }
+     ]
+    }
+   ]
+  }
+ ],
+ "themes": {
+  "file": "app-themes.webp",
+  "caption": "24 app looks, light and dark. Agape Rose is the base look; at a venue the app can take the home team's colours."
+ },
+ "kit": {
+  "file": "Agape-brand-kit.zip",
+  "size": 708742
+ }
+}

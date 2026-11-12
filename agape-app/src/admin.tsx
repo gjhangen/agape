@@ -1,7 +1,7 @@
 // Agape Admin, at /admin/: the company's own accounts, every merchant's payment-processing
 // details, and the VAR sheet printed from them for processors, venues and investors.
 // Everything here comes from the server and needs an Agape Admin account; nothing is simulated.
-import { React, ReactDOM, useEffect, useMemo, useState } from "./r";
+import { React, ReactDOM, useEffect, useMemo, useRef, useState } from "./r";
 import { Wordmark } from "./logo";
 import qrcode from "qrcode-generator";
 
@@ -236,7 +236,7 @@ function Accept({ code, enter, toSignin }: { code: string; enter: (t: string, m:
 
 // ---------------- signed in ----------------
 
-type Tab = "mail" | "channels" | "inbox" | "merchants" | "venues" | "team" | "leads" | "accounts" | "activity" | "account";
+type Tab = "brand" | "mail" | "channels" | "inbox" | "merchants" | "venues" | "team" | "leads" | "accounts" | "activity" | "account";
 
 function Shell({ me, out }: { me: Me; out: () => void }) {
   const [tab, setTab] = useState<Tab>(() => (location.hash.slice(1) as Tab) || "merchants");
@@ -255,7 +255,7 @@ function Shell({ me, out }: { me: Me; out: () => void }) {
     document.title = total ? `(${total}) Agape Admin` : "Agape Admin";
   });
   useEffect(() => { refresh(); const t = setInterval(refresh, 20000); return () => clearInterval(t); }, []);
-  const tabs: [Tab, string][] = [["inbox", "Messages"], ...(me.oversees ? [["channels", "Channels"]] as [Tab, string][] : []), ...(me.perms.includes("venues") ? [["venues", "Venues"]] as [Tab, string][] : []), ...(me.perms.includes("merchants_view") ? [["merchants", "Processing"]] as [Tab, string][] : []), ["team", "Team"], ...(me.perms.includes("leads") ? [["leads", "Leads"]] as [Tab, string][] : []), ...(me.perms.includes("accounts") ? [["accounts", "App accounts"]] as [Tab, string][] : []), ["activity", "Activity"], ...(me.role === "host" ? [["mail", "Email setup"]] as [Tab, string][] : []), ["account", "Your account"]];
+  const tabs: [Tab, string][] = [["inbox", "Messages"], ...(me.oversees ? [["channels", "Channels"]] as [Tab, string][] : []), ...(me.perms.includes("venues") ? [["venues", "Venues"]] as [Tab, string][] : []), ...(me.perms.includes("merchants_view") ? [["merchants", "Processing"]] as [Tab, string][] : []), ["team", "Team"], ...(me.perms.includes("leads") ? [["leads", "Leads"]] as [Tab, string][] : []), ...(me.perms.includes("accounts") ? [["accounts", "App accounts"]] as [Tab, string][] : []), ["activity", "Activity"], ["brand", "Brand"], ...(me.role === "host" ? [["mail", "Email setup"]] as [Tab, string][] : []), ["account", "Your account"]];
   return <div className="ox-app">
     <header className="ox-top">
       <Mark />
@@ -271,11 +271,77 @@ function Shell({ me, out }: { me: Me; out: () => void }) {
       {tab === "leads" && <Leads />}
       {tab === "activity" && <Activity me={me} />}
       {tab === "accounts" && <Accounts />}
+      {tab === "brand" && <Brand />}
       {tab === "mail" && <MailSetup toast={setToast} />}
       {tab === "account" && <Account me={me} toast={setToast} out={out} />}
     </main>
     {toast && <div className="ox-toast" role="status">{toast}</div>}
   </div>;
+}
+
+// ---------------- brand ----------------
+
+type BrandImg = { file: string; caption: string };
+type BrandRound = { id: string; n: number; date: string; title: string; intro: string; kind: "logo" | "look"; groups: { title: string; intro: string; images: BrandImg[] }[] };
+type BrandMan = { final: BrandImg[]; themes: BrandImg; kit: { file: string; size: number }; rounds: BrandRound[] };
+
+/** A brand file needs the signed-in session, so it's fetched and shown from memory; and only once it scrolls near. */
+const brandCache = new Map<string, Promise<string>>();
+function brandUrl(file: string) {
+  if (!brandCache.has(file)) brandCache.set(file, fetch(`/api/office/brand/${file}`, { headers: { authorization: "Bearer " + token } })
+    .then(r => { if (!r.ok) throw new Error(); return r.blob(); }).then(b => URL.createObjectURL(b)).catch(e => { brandCache.delete(file); throw e; }));
+  return brandCache.get(file)!;
+}
+function BrandPic({ img, onOpen, eager }: { img: BrandImg; onOpen?: () => void; eager?: boolean }) {
+  const [src, setSrc] = useState(""); const [bad, setBad] = useState(false); const ref = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const go = () => brandUrl(img.file).then(setSrc).catch(() => setBad(true));
+    if (eager || !("IntersectionObserver" in window)) { go(); return; }
+    const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { io.disconnect(); go(); } }, { rootMargin: "600px" });
+    if (ref.current) io.observe(ref.current); return () => io.disconnect();
+  }, [img.file]);
+  return <button ref={ref} className="bx-pic" onClick={onOpen} aria-label={`Open ${img.caption}`}>
+    {src ? <img src={src} alt="" /> : <span className="bx-wait">{bad ? "Couldn't load this one" : ""}</span>}
+    <small>{img.caption}</small>
+  </button>;
+}
+function Brand() {
+  const [m, setM] = useState<BrandMan | null>(null); const [error, setError] = useState("");
+  const [view, setView] = useState<{ list: BrandImg[]; i: number } | null>(null);
+  useEffect(() => { api("brand").then(j => j.ok === false ? setError(j.error) : setM(j)); }, []);
+  useEffect(() => {
+    if (!view) return;
+    const k = (e: KeyboardEvent) => { if (e.key === "Escape") setView(null); if (e.key === "ArrowRight") setView(v => v && { ...v, i: (v.i + 1) % v.list.length }); if (e.key === "ArrowLeft") setView(v => v && { ...v, i: (v.i + v.list.length - 1) % v.list.length }); };
+    addEventListener("keydown", k); return () => removeEventListener("keydown", k);
+  }, [!!view]);
+  const kit = async () => { try { const url = await brandUrl(m!.kit.file); const a = document.createElement("a"); a.href = url; a.download = "Agape-brand-kit.zip"; document.body.append(a); a.click(); a.remove(); } catch { alert("Couldn't download the kit. Try again in a moment."); } };
+  if (error) return <><Head title="Brand" /><p className="ox-sub">{error}</p></>;
+  if (!m) return <><Head title="Brand" /><p className="ox-sub">Loading…</p></>;
+  const round = (r: BrandRound) => { const all = r.groups.flatMap(g => g.images); return <details key={r.id} className="bx-round">
+    <summary><span className="bx-n">{r.n}</span><b>{r.title}</b><small>{r.date} · {all.length} {all.length === 1 ? "board" : "boards"}</small></summary>
+    {r.intro && <p className="ox-sub">{r.intro}</p>}
+    {r.groups.map((g, gi) => <div key={gi} className="bx-group">{g.title && <h3>{g.title}</h3>}{g.intro && <p className="ox-sub">{g.intro}</p>}
+      <div className="bx-grid">{g.images.map(img => <BrandPic key={img.file} img={img} onOpen={() => setView({ list: all, i: all.indexOf(img) })} />)}</div></div>)}
+  </details>; };
+  const cur = view && view.list[view.i];
+  return <>
+    <Head title="Brand" sub="Everything designed so far for how Agape looks: what's decided, the app's looks, and every round of exploration in the order it happened. Only people signed in to Agape Admin can see this page.">
+      <button className="btn" onClick={kit}>Download the brand kit ({Math.round(m.kit.size / 1024)} KB)</button>
+    </Head>
+    <section className="bx-sec"><div className="bx-tag ok">Decided</div><h2>The logo and app icon</h2>
+      <p className="ox-sub">The Evolved Classic wordmark (condensed, narrow cut, no symbol) with a quiet stacked "to your seat" beside it. The app icon is the "a" with the stacked tagline, which becomes three bars at small sizes. Agape crimson #B8174F.</p>
+      <div className="bx-final">{m.final.map(img => <BrandPic key={img.file} img={img} eager onOpen={() => setView({ list: m.final, i: m.final.indexOf(img) })} />)}</div></section>
+    <section className="bx-sec"><div className="bx-tag ok">Built into the app</div><h2>App looks</h2><p className="ox-sub">{m.themes.caption}</p>
+      <div className="bx-wide"><BrandPic img={m.themes} onOpen={() => setView({ list: [m.themes], i: 0 })} /></div></section>
+    <section className="bx-sec"><div className="bx-tag ok">Decided</div><h2>Logo rounds</h2><p className="ox-sub">How the logo and icon were chosen.</p>{m.rounds.filter(r => r.kind === "logo").map(round)}</section>
+    <section className="bx-sec"><div className="bx-tag">Exploring · on hold</div><h2>Brand look rounds</h2><p className="ox-sub">A later, wider exploration of colour, lettering and the overall look. Nothing here is decided yet.</p>{m.rounds.filter(r => r.kind === "look").map(round)}</section>
+    {cur && <div className="bx-view" role="dialog" aria-label={cur.caption} onClick={() => setView(null)}>
+      <div className="bx-view-in" onClick={e => e.stopPropagation()}>
+        <div className="bx-view-top"><b>{cur.caption}</b><span>{view!.list.length > 1 ? `${view!.i + 1} of ${view!.list.length}` : ""}</span><button className="btn sm" onClick={() => setView(null)}>Close</button></div>
+        <div className="bx-view-img"><BrandPic key={cur.file} img={cur} eager /></div>
+        {view!.list.length > 1 && <div className="bx-view-nav"><button className="btn" onClick={() => setView({ ...view!, i: (view!.i + view!.list.length - 1) % view!.list.length })}>← Previous</button><button className="btn" onClick={() => setView({ ...view!, i: (view!.i + 1) % view!.list.length })}>Next →</button></div>}
+      </div></div>}
+  </>;
 }
 
 function Head({ title, sub, children }: { title: string; sub?: React.ReactNode; children?: React.ReactNode }) {

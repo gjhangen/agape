@@ -16,6 +16,8 @@ FROM debian:trixie-slim
 RUN useradd -m agape && mkdir -p /data && chown agape /data
 COPY --from=build /agape-server /usr/local/bin/agape-server
 COPY agape-app/dist/server /app
+# brand materials for signed-in team members only; never part of the public site
+COPY agape-app/brand/partner /partner
 USER agape
 # AGAPE_SPEED: clock ticks per second (0.1 is real time). AGAPE_ADMIN_TOKEN: the operator secret for staff accounts.
 ENV AGAPE_DATA=/data AGAPE_STATIC=/app PORT=8080 AGAPE_SPEED=0.1
