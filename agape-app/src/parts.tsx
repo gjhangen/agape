@@ -429,8 +429,8 @@ export const LEVELS: { n: number; name: string; line: string; on: string[]; stat
     gaps: "Calls, the section battle and cards work. Not yet built: prizes being handed out, and challenges and badges beyond a first set." },
   { n: 4, name: "Beyond the night", line: "Tickets and resale, rides, parking and places nearby", on: ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards", "tickets", "around"], status: "Preview",
     gaps: "Tickets, resale, rides, parking and partner perks work inside the demo. Not yet built: a real ticketing or rideshare partner behind them, and the app's home when there's no event." },
-  { n: 5, name: "Community", line: "Your section, the crowd, profiles and the people you follow", on: ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards", "tickets", "around", "chat", "players"], status: "Early preview",
-    gaps: "Section chat, following and requests to players work. Not yet built: posts and comments, profiles you edit, and the marketplace as its own place." },
+  { n: 5, name: "Community", line: "Posts, profiles, the crowd and the market, with the people you follow", on: ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards", "tickets", "around", "chat", "players"], status: "Preview",
+    gaps: "Posts with likes and comments from fans, players and teams, profiles you write yourself, section chat, following, requests to players, and one market for cards and resale tickets all work in the demo. Not yet built: photos in posts, and reporting a post to a moderator." },
 ];
 export const ALL_FEATURES = ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards", "tickets", "around", "chat", "players"];
 export function levelFeatures(n: number): Record<string, boolean> {

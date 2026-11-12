@@ -198,6 +198,8 @@ fn phase_of(s: &[(i64, &'static str, i64)], minute: i64) -> (&'static str, f64) 
     else { ("break", 0.004) }
 }
 
+#[path = "community.rs"] mod community;
+
 /// One line of what happened, for the feed.
 #[derive(Clone, Debug)]
 pub struct FeedItem { pub t: i64, pub kind: String, pub team: String, pub text: String, /** who it's about: a member or group id */ pub party: String, /** a card minted from it */ pub edition: Option<String> }
@@ -801,6 +803,7 @@ impl Night {
         // a real night starts with nothing made up: no sponsor offers or player deals until real ones are made
         if self.on("offers") && !self.cfg.real { self.seed_offers(); }
         if self.on("players") && !self.cfg.real { self.seed_deals(); }
+        self.seed_posts();
         self
     }
 
@@ -1038,6 +1041,7 @@ impl Night {
             outs.extend(self.engine.ingest(&mut self.log, "score", fields!{"team" => team, "points" => pts, "player" => m.id.as_str(), "star" => m.star}, "keeper", t).unwrap());
             self.note_about("score", team, format!("+{pts}"), &m.id, None);
         }
+        if sim { self.crowd_posts(t); }
         // the crowd talks, more when something happens
         if sim && t <= self.end_min * 60_000 && ph != "postgame" && self.on("chat") {
             let last_moment = self.feed.iter().rev().find(|f| f.kind == "moment" && t - f.t < 60_000).map(|f| (f.text.clone(), f.team.clone()));

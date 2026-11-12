@@ -6,6 +6,7 @@
 
 import { React, useEffect, useRef, useState } from "./r";
 import { actWith, Deal, DealCard } from "./deals";
+import { Community, Feed, Market, PostCard } from "./community";
 import { Card, LevelBadge, LevelPanel, MomentCard, Page } from "./pages";
 import { kernel, world, sectionIds } from "./kernel";
 import { wearColor } from "./themes";
@@ -37,6 +38,7 @@ export type FanView = {
       service: { kind: string; price: number; left: number; yours: boolean; drivers: number; busy: number } | null;
       perk: { title: string; cost: number; supply: number; left: number; yours: boolean; affordable: boolean } | null }[] };
   items: Item[];
+  community?: Community | null;
   live: {
     event: LiveItem[]; league: { id: string; home: string; away: string; home_name: string; away_name: string; home_score: number; away_score: number; status: string }[]; chat: ChatLine[]; chat_section: ChatLine[];
     prediction: { question: string; options: { id: string; share: number }[]; locks: number; open: boolean; result: string | null; picks: number; yours: string | null; won: boolean; points: number } | null;
@@ -89,6 +91,9 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
   const setTucked = (_: boolean) => {};
   const [liveOpen, setLiveOpen] = useState(false);
   const [setting, setSetting] = useState<string | null>(null);
+  // between events: the app's home is what's next, not tonight's menu
+  const [away, setAway] = useState<boolean>(() => feature("tickets") && pref("away", false));
+  const arrive = () => { setPref("away", false); setAway(false); setSpace("get"); };
   // the phone's back button closes what's open (a sheet, a page) instead of leaving the app
   const overlay = (sheet ? 1 : 0) + pages.length + (liveOpen ? 1 : 0) + (setting ? 1 : 0);
   const depth = useRef(0), fromBack = useRef(false), skipPop = useRef(0);
@@ -109,7 +114,7 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
   const go = (s: Space) => { if (s === "live") { setLiveOpen(true); return; } setLiveOpen(false); setSpace(s); setQ(""); setPages([]); setTucked(false); body.current?.scrollTo({ top: 0 }); };
   const open = (id: string) => { setLiveOpen(false); setPages(p => [...p, id]); };
   const ctx: Ctx = { v, refresh, setSheet, toast, go, open, settings, setting: setSetting };
-  const tabs = SPACES.filter(t => t.when());
+  const tabs = SPACES.filter(t => t.when() && (!away || ["get", "people", "me"].includes(t.id))).map(t => away && t.id === "get" ? { ...t, label: "Home" } : t);
   const labels = useFirstWeek();
   const worn = v.colors?.teams.find(t => t.id === v.colors?.wearing)?.color ?? null;
   useEffect(() => { wearColor(worn); }, [worn]);
@@ -135,19 +140,19 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
   return (
     <SheetCtx.Provider value={setSheet}>
     <div className="phone">
-      {lead && space !== "me" && (
+      {lead && space !== "me" && !away && (
         <button className="order-pill" onClick={() => go("me")}>
           <ItemArt name={lead.items[0]?.name ?? ""} size={26} />
           <span className="grow pill-txt"><b>{lead.items[0]?.name}{v.orders.length > 1 ? ` +${v.orders.length - 1} more` : ""}</b><small>{stageWord(lead.stage)} · {lead.delivery ? "here by" : "ready by"} <span className="num">{venueTime(lead.eta)}</span></small></span>
         </button>
       )}
       <div className="scope-body" ref={body}>
-        {space === "get" && !q && <EventAnchor {...ctx} />}
-        {space === "get" && <div className="finder">
+        {space === "get" && !q && !away && <EventAnchor {...ctx} />}
+        {space === "get" && !away && <div className="finder">
           <input id="find" type="search" placeholder="Search food, drinks, gear…" value={q} onChange={e => setQ(e.target.value)} aria-label="Find anything" />
         </div>}
         {v.halt && <div className="halt-banner" role="alert"><b>Service is paused</b><p>{v.halt.reason}</p><small>Nothing new can be ordered right now. Anything not yet being made was cancelled, and you weren't charged for it.</small></div>}
-        {q.trim() ? <Search q={q.trim()} {...ctx} /> : space === "get" ? <Get {...ctx} /> : space === "deals" ? <Deals {...ctx} /> : space === "play" ? <Play {...ctx} /> : space === "people" ? <People {...ctx} /> : <Me {...ctx} />}
+        {q.trim() ? <Search q={q.trim()} {...ctx} /> : space === "get" && away ? <AwayHome {...ctx} arrive={arrive} /> : space === "get" ? <Get {...ctx} /> : space === "deals" ? <Deals {...ctx} /> : space === "play" ? <Play {...ctx} /> : space === "people" ? <People {...ctx} /> : <Me {...ctx} />}
       </div>
       {tabs.length > 1 && <nav className={"space-bar icons" + (labels ? " labelled" : "")} aria-label="Spaces">
         {tabs.map(t => (
@@ -293,6 +298,43 @@ function Get(ctx: Ctx) {
         {ALL_CATS.map(([id, label]) => <button key={id} className={cat === id ? "on" : ""} onClick={() => { setCat(id); requestAnimationFrame(() => document.querySelector(".cats-bar")?.scrollIntoView({ block: "start", behavior: "smooth" })); }}>{label}</button>)}
       </div></div>
       {stands.map(standBlock)}
+    </>
+  );
+}
+
+/** Home between events: what's next, your tickets, your points, and what people are saying. */
+function AwayHome(ctx: Ctx & { arrive: () => void }) {
+  const { v, open, go, arrive } = ctx;
+  const m = v.me;
+  const next = v.get.events[0];
+  const posts = v.community ? (v.community.following.length ? v.community.following : v.community.everyone).slice(0, 3) : [];
+  return (
+    <>
+      <section className="block away-hero">
+        <span className="eyebrow">Next at {BRAND.venue}</span>
+        {next ? <><h2>{next.title}</h2><small>{next.date} · {next.time}{next.yours ? ` · you have ${next.yours} ticket${next.yours === 1 ? "" : "s"}` : ` · from ${next.from ? money(next.from) : "sold out"}`}</small></>
+          : <h2>Nothing on the calendar yet</h2>}
+        <div className="away-acts">
+          {next && <button className="btn primary sm" onClick={() => open(next.id)}>{next.yours ? "See your seats" : "Get tickets"}</button>}
+          <button className="btn ghost sm" onClick={arrive}>I'm at a game now</button>
+        </div>
+      </section>
+      {feature("points") && <section className="block away-pts">
+        <div className="block-head"><h2>Your level</h2><LevelBadge tier={m.tier} small /></div>
+        <div className="pair"><div><b className="num">{m.balance.toLocaleString()}</b><small>points to spend</small></div>
+          <div><b className="num">{m.next_tier ? Math.max(0, m.next_tier.at - m.level).toLocaleString() : "Top"}</b><small>{m.next_tier ? `to ${m.next_tier.name}` : "tier reached"}</small></div></div>
+        <small className="sub">Points carry to every Agape venue. Spend them on perks and upgrades the next time you're at a game.</small>
+      </section>}
+      {m.tickets.length > 0 && <section className="block">
+        <h2>Your tickets</h2>
+        {m.tickets.map(t => <button key={t.event + t.section} className="ticket" onClick={() => open(t.event)}><div className="grow"><b>{t.title}</b><small>{t.date} · {t.time} · {t.section === "sFL" ? "Courtside" : `Section ${t.section.slice(1)}`}, row {t.seats[0][0]}</small></div><span className="tq num">{t.qty}×</span></button>)}
+      </section>}
+      {feature("tickets") && <Events {...ctx} />}
+      {posts.length > 0 && <section className="block">
+        <div className="block-head"><h2>{v.community!.following.length ? "From people you follow" : "What people are saying"}</h2><button className="link-inline small" onClick={() => go("people")}>See all</button></div>
+        <div className="cm-feed flush">{posts.map(p => <PostCard key={p.id} p={p} open={open} toast={ctx.toast} refresh={ctx.refresh} />)}</div>
+      </section>}
+      {feature("cards") && m.cards.length > 0 && <button className="link-row" onClick={() => go("people")}><span className="grow">Your collection: {m.cards.length} card{m.cards.length === 1 ? "" : "s"}, and the market</span><Icon name="chev" size={18} /></button>}
     </>
   );
 }
@@ -594,11 +636,20 @@ function People(ctx: Ctx) {
   const { v, refresh, toast, open } = ctx;
   const [scope, setScope] = useState<"all" | "section">("section");
   const [text, setText] = useState("");
+  const c = v.community;
+  const hasMarket = (feature("cards") && v.get.market.length > 0) || (feature("tickets") && !!c?.resale.length);
+  const [place, setPlace] = useState<"feed" | "chat" | "market">(c ? "feed" : "chat");
   const chat = scope === "all" ? v.live.chat : v.live.chat_section;
   const send = (e: React.FormEvent) => { e.preventDefault(); const r = kernel.act({ do: "chat", text }); if (!r.ok) { toast(r.error); return; } setText(""); refresh(); };
   const m = v.me;
+  const places: [typeof place, string][] = [["feed", "Feed"], ["chat", "Chat"], ...(hasMarket ? [["market", "Market"] as [typeof place, string]] : [])];
   return (
     <>
+      {c && <div className="seg fill cm-places" role="tablist" aria-label="People">{places.map(([id, label]) =>
+        <button key={id} role="tab" aria-selected={place === id} className={place === id ? "on" : ""} onClick={() => setPlace(id)}>{label}</button>)}</div>}
+      {c && place === "feed" && <Feed c={c} open={open} toast={toast} refresh={refresh} />}
+      {c && place === "market" && <Market c={c} cards={v.get.market} open={open} toast={toast} refresh={refresh} balance={m.balance} showCards={feature("cards")} showTickets={feature("tickets")} />}
+      {(!c || place === "chat") && <>
       {feature("chat") && <section className="block">
         <div className="block-head"><h2>{scope === "section" ? `Section ${sec(v.you.seat)}` : "Everyone here"}</h2>
           <div className="seg" role="group" aria-label="Whose chat"><button className={scope === "section" ? "on" : ""} onClick={() => setScope("section")}>Your section</button><button className={scope === "all" ? "on" : ""} onClick={() => setScope("all")}>Everyone</button></div></div>
@@ -625,6 +676,7 @@ function People(ctx: Ctx) {
           <div className="deal-list">{m.deals.slice(0, 6).map(d => <DealCard key={d.id} d={d} as="you" act={actWith(toast, refresh)} open={open} now={v.clock.t} />)}</div>
         </section>
       )}
+      </>}
     </>
   );
 }
@@ -661,7 +713,7 @@ function Me({ v, refresh, toast, open, settings, setting }: Ctx) {
     <>
       <header className="me-head">
         <span className="me-av big">{name.slice(0, 1)}</span>
-        <div className="grow"><h2>{name}</h2><small>Section {sec(v.you.seat)}{spot ? `, ${spot}` : ""} · {BRAND.venue}</small>{guest && <button className="link-inline small" onClick={() => setting("account")}>Create an account to keep your receipts</button>}</div>
+        <div className="grow"><h2>{name}</h2><small>Section {sec(v.you.seat)}{spot ? `, ${spot}` : ""} · {BRAND.venue}</small>{guest && <button className="link-inline small" onClick={() => setting("account")}>Create an account to keep your receipts</button>}{v.community && <button className="link-inline small me-prof" onClick={() => open(v.you.id)}>Your profile</button>}</div>
         {feature("points") && <LevelBadge tier={m.tier} small />}
       </header>
       {fresh.length > 0 && (

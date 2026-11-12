@@ -38,11 +38,22 @@ pub enum SocialError { Closed, AlreadyCollected, NotHeld, Unknown, CantAfford, O
 
 impl From<LedgerError> for SocialError { fn from(e: LedgerError) -> Self { SocialError::Ledger(format!("{e:?}")) } }
 
+/// Something posted for everyone here: by a fan, a player or a team.
+#[derive(Clone, Debug)]
+pub struct Post { pub id: String, pub t: i64, pub author: PartyId, /** fan, player, team, or removed */ pub kind: String, pub text: String,
+    pub likes: BTreeSet<PartyId>, pub comments: Vec<(i64, PartyId, String)> }
+
+/// What a person writes about themselves.
+#[derive(Clone, Debug, Default)]
+pub struct Profile { pub bio: String, /** a league team id, or empty */ pub team: String }
+
 #[derive(Default)]
 pub struct Social {
     pub editions: BTreeMap<String, Edition>,
     pub follows: BTreeMap<PartyId, BTreeSet<String>>,
     pub messages: Vec<(i64, PartyId, PartyId, String)>,
+    pub posts: Vec<Post>,
+    pub profiles: BTreeMap<PartyId, Profile>,
 }
 
 impl Social {

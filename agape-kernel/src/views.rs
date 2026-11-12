@@ -211,6 +211,7 @@ impl Night {
             "moved": self.trade.of_kind(crate::exchange::Kind::Upgrade).find(|a| a.buyer == fan).map(|a| json!({ "section": self.trade.offer(&a.offer).map(|o| o.subject.clone()), "at": a.made })),
             "get": { "offers": offers, "fastest": fastest, "stands": stands, "later": later, "market": self.market_json(fan, 12), "events": self.events_json(fan), "around": self.around_json(fan) },
             "items": items,
+            "community": if self.on("chat") { self.community_json(fan) } else { Value::Null },
             "live": { "event": event, "league": self.league_tonight(), "chat": chat_all, "chat_section": chat_section, "prediction": prediction,
                       "battle": { "orders_5m": mine_n, "rank": pos.map(|p| p + 1), "of": rank.len(), "ahead": ahead.map(|(s, n)| json!({ "section": s, "orders": n })) } },
             "me": self.me_json(fan, &active, receipts, spent, holdings),
@@ -714,7 +715,8 @@ impl Night {
     /// Any node, as a page: who or what it is, how it's connected, its stats, its stream, and what you can do.
     pub fn view_page(&self, id: &str, viewer: &str) -> Value {
         let follows = self.social.follows.get(viewer).map_or(false, |s| s.contains(id));
-        let base = json!({ "id": id, "node": self.node_kind(id), "kind": self.node_kind(id), "followers": self.social.followers(id), "you_follow": follows });
+        let base = json!({ "id": id, "node": self.node_kind(id), "kind": self.node_kind(id), "followers": self.social.followers(id), "you_follow": follows,
+            "posts": if self.on("chat") { self.posts_by(id, viewer, 5) } else { vec![] } });
         let mut v = match self.node_kind(id) {
             "member" => {
                 let (g, m) = self.league.member(id).unwrap();
@@ -811,7 +813,10 @@ impl Night {
                 let chat: Vec<Value> = self.chat.iter().rev().filter(|c| c.1 == id).take(8).map(|c| json!({ "t": c.0, "text": c.3 })).collect();
                 let thread: Vec<Value> = self.social.messages.iter().filter(|m| (m.1 == viewer && m.2 == id) || (m.1 == id && m.2 == viewer))
                     .map(|m| json!({ "t": m.0, "mine": m.1 == viewer, "text": m.3 })).collect();
-                json!({ "name": self.party_name(id), "level": level, "tier": crate::social::tier(level).0, "badges": self.badges(id),
+                let prof = self.profile_of(id);
+                let team = self.league.team(&prof.team).map(|g| json!({ "id": g.id, "name": g.name, "color": g.color }));
+                json!({ "name": if id == viewer { self.names.get(id).cloned().or(self.party_name(id)) } else { self.party_name(id) }, "level": level, "tier": crate::social::tier(level).0, "badges": self.badges(id),
+                        "bio": prof.bio, "team": team, "posts": self.posts_by(id, viewer, 6),
                         "cards": self.cards_of(id), "said": chat, "following": self.social.follows.get(id).map_or(0, |s| s.len()), "thread": thread, "is_you": id == viewer })
             }
         };

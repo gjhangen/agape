@@ -5,7 +5,7 @@ import { React, ReactDOM, useEffect, useRef, useState } from "./r";
 import { Wordmark } from "./logo";
 import { boot, kernel, setWorldOverride } from "./kernel";
 import { FanApp, FanView, Sheet, profileName } from "./fan";
-import { BRAND, Icon, LEVELS, levelFeatures, momentText, runnerName, venueTime } from "./parts";
+import { BRAND, feature, Icon, LEVELS, levelFeatures, momentText, runnerName, venueTime } from "./parts";
 import { applyLook, applyMode, savedLook, savedMode, setVenueColor } from "./themes";
 import { TalkToUs } from "./talk";
 import { ExplainCard, ExplainLayer, FAN_NOTES, Note } from "./explain";
@@ -23,7 +23,7 @@ function useWorld(level: number) { setWorldOverride(demoWorld(levelFeatures(leve
 
 // ---------- inside the phone: opening Agape for the first time ----------
 
-function Onboarding({ stage, next, seatChosen, onLocated }: { stage: Stage; next: (s: Stage) => void; seatChosen: (section: string, row: string, seat: string) => void; onLocated: (on: boolean) => void }) {
+function Onboarding({ stage, next, seatChosen, onLocated, awayChosen }: { stage: Stage; next: (s: Stage) => void; seatChosen: (section: string, row: string, seat: string) => void; onLocated: (on: boolean) => void; awayChosen: () => void }) {
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [sec, setSec] = useState(""); const [row, setRow] = useState(""); const [seat, setSeat] = useState("");
@@ -90,7 +90,8 @@ function Onboarding({ stage, next, seatChosen, onLocated }: { stage: Stage; next
       <h2>{BRAND.venue}</h2>
       {EVENT === "concert" ? <div className="ob-event"><div className="ob-teams"><i style={{ background: BRAND.home.color }} />Lumen Rivers: The Tidelines Tour</div><small>Tonight · with Northbound and Paper Kites Club · doors 6:45 PM</small></div>
         : <div className="ob-event"><div className="ob-teams"><i style={{ background: BRAND.home.color }} />{BRAND.home.name}<span>vs</span><i style={{ background: BRAND.away.color }} />{BRAND.away.name}</div><small>Tonight · tip-off 7:30 PM</small></div>}
-      <div className="ob-acts"><button className="btn ob-primary" onClick={() => next("seat")}>{located ? "Yes, I'm here" : "I'm at this one"}</button></div>
+      <div className="ob-acts"><button className="btn ob-primary" onClick={() => next("seat")}>{located ? "Yes, I'm here" : "I'm at this one"}</button>
+        {feature("tickets") && <button className="link-inline ob-away" onClick={awayChosen}>Not at a game right now</button>}</div>
     </div>
   );
   // seat
@@ -273,7 +274,10 @@ function Story() {
                 : <Onboarding stage={stage} next={setStage} onLocated={setLocated} seatChosen={async (sec, row, place) => {
                   if (`s${sec}` !== "s104") { await start(level, `s${sec}`); }
                   kernel.act({ do: "spot", row: `Row ${row}`, place: `seat ${place}` });
-                  try { const o = JSON.parse(localStorage.getItem("agape.prefs") || "{}"); o.spot = `Row ${row}, seat ${place}`; localStorage.setItem("agape.prefs", JSON.stringify(o)); } catch { /* fine */ }
+                  try { const o = JSON.parse(localStorage.getItem("agape.prefs") || "{}"); o.spot = `Row ${row}, seat ${place}`; o.away = false; localStorage.setItem("agape.prefs", JSON.stringify(o)); } catch { /* fine */ }
+                  refresh(); setStage("app");
+                }} awayChosen={() => {
+                  try { const o = JSON.parse(localStorage.getItem("agape.prefs") || "{}"); o.away = true; localStorage.setItem("agape.prefs", JSON.stringify(o)); } catch { /* fine */ }
                   refresh(); setStage("app");
                 }} />}
               <ExplainLayer on={explain && stage === "app"} root={() => document.querySelector(".device-screen")} notes={FAN_NOTES} pick={setNote} picked={note} />

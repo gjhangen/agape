@@ -129,6 +129,11 @@ pub fn act(n: &mut Night, who: &str, v: &Value) -> Value {
         }
         Some("wear") => n.wear(who, &s("team")).map(|_| String::new()),
         Some("chat") => n.chat_as(who, &s("text")).map(|_| String::new()),
+        Some("post") => n.post_as(who, &s("text")),
+        Some("like") => n.like(who, &s("post")).map(|on| on.to_string()),
+        Some("comment") => n.comment(who, &s("post"), &s("text")).map(|_| String::new()),
+        Some("unpost") => n.delete_post(who, &s("post")).map(|_| String::new()),
+        Some("profile") => n.set_profile(who, &s("name"), &s("bio"), &s("team")).map(|_| String::new()),
         Some("cancel") => n.cancel_as(who, v["order"].as_u64().unwrap_or(u64::MAX) as usize).map(|_| String::new()),
         _ => Err("unknown action".into()),
     };

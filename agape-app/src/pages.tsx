@@ -5,6 +5,7 @@
 import { React, useEffect, useState } from "./r";
 import { actWith, Deal, DealCard, Rates, Say, Thread } from "./deals";
 import { kernel } from "./kernel";
+import { PostCard, PostView, ProfileEditor } from "./community";
 import { payReady, concourse, feature, Opt, W, countdown, money, venueTime, SignalRow, momentText, LedgerLine } from "./parts";
 import { R, SECS, wedge } from "./geo";
 import { CardArt } from "./cardart";
@@ -74,7 +75,7 @@ export function Page({ id, close, back, open, toast, now, depth, acts }: { id: s
       </div>
       <div className="page-body">
         {p.node === "member" && <MemberPage p={p} open={open} now={now} toast={toast} refresh={refresh} />}
-        {p.node === "group" && <GroupPage p={p} open={open} />}
+        {p.node === "group" && <GroupPage p={p} open={open} toast={toast} refresh={refresh} />}
         {p.node === "card" && <CardPage p={p} open={open} toast={toast} refresh={refresh} now={now} />}
         {p.node === "fan" && <FanPage p={p} open={open} toast={toast} refresh={refresh} />}
         {p.node === "game" && <GamePage p={p} open={open} />}
@@ -125,12 +126,17 @@ function MemberPage({ p, open, now, toast, refresh }: { p: any; open: OpenPage; 
         <Say name={first} send={text => act({ do: "message", to: p.id, text }, "Sent.")} />
       </section>}
       {p.cards.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Their cards</h3><div className="card-row">{p.cards.map((c: Card) => <MomentCard key={c.id} c={c} size="sm" onClick={() => open(c.id)} />)}</div></section>}
+      <Posts p={p} open={open} toast={toast} refresh={refresh} />
       {p.stream.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Tonight</h3><ol className="signals">{p.stream.map((f: any, i: number) => <SignalRow key={i} f={f} />)}</ol></section>}
     </>
   );
 }
 
-function GroupPage({ p, open }: { p: any; open: OpenPage }) {
+function Posts({ p, open, toast, refresh }: { p: any; open: OpenPage; toast: (s: string) => void; refresh: () => void }) {
+  return p.posts?.length > 0 ? <section className="pg-sec"><h3 className="eyebrow">Posts</h3><div className="cm-feed">{p.posts.map((x: PostView) => <PostCard key={x.id} p={x} open={open} toast={toast} refresh={refresh} />)}</div></section> : null;
+}
+
+function GroupPage({ p, open, toast, refresh }: { p: any; open: OpenPage; toast: (s: string) => void; refresh: () => void }) {
   return (
     <>
       <header className="ph" style={{ ["--team" as any]: p.color }}>
@@ -138,6 +144,7 @@ function GroupPage({ p, open }: { p: any; open: OpenPage }) {
         <div><h2>{p.name}</h2>{p.record} this season<br /><Followers n={p.followers} /></div>
       </header>
       {p.tonight && <p className="note">Playing tonight. {p.short} {p.tonight.score} right now.</p>}
+      <Posts p={p} open={open} toast={toast} refresh={refresh} />
       <section className="pg-sec"><h3 className="eyebrow">Roster</h3>
         <ul className="roster">{p.roster.map((m: any) => <li key={m.id}><button className="roster-row" onClick={() => open(m.id)}><span className="num rn">{m.number}</span><span className="grow"><b>{m.name}</b><small>{m.pos} · {m.ppg} a game</small></span>{p.tonight && <span className="num">{m.tonight} tonight</span>}</button></li>)}</ul>
       </section>
@@ -189,12 +196,19 @@ function FanPage({ p, open, toast, refresh }: { p: any; open: OpenPage; toast: (
   const [text, setText] = useState("");
   const send = (e: React.FormEvent) => { e.preventDefault(); const r = kernel.act({ do: "message", to: p.id, text }); if (!r.ok) toast(r.error); else setText(""); refresh(); };
   const earned = p.badges.filter((b: any) => b.earned);
+  const [editing, setEditing] = useState(false);
+  const c = p.is_you && feature("chat") ? kernel.view("fan")?.community : null;
   return (
     <>
       <header className="ph fan">
-        <span className="ph-num">{p.name.slice(0, 1)}</span>
+        <span className="ph-num" style={p.team ? { background: p.team.color, color: "#fff" } : undefined}>{(p.name ?? "?").slice(0, 1)}</span>
         <div><h2>{p.name}</h2><LevelBadge tier={p.tier} small /> <span className="num">{p.level.toLocaleString()}</span> · {p.cards.length} card{p.cards.length === 1 ? "" : "s"}<br /><Followers n={p.followers} /></div>
       </header>
+      {editing && c ? <ProfileEditor c={c} done={() => setEditing(false)} toast={toast} refresh={refresh} /> : <>
+        {(p.bio || p.team) && <p className="cm-bio">{p.team && <button className="cm-team" onClick={() => open(p.team.id)}><i style={{ background: p.team.color }} />{p.team.name}</button>}{p.bio}</p>}
+        {c && <button className="btn ghost sm cm-edit-btn" onClick={() => setEditing(true)}>{p.bio || p.team ? "Edit profile" : "Add a line about you and your team"}</button>}
+      </>}
+      <Posts p={p} open={open} toast={toast} refresh={refresh} />
       {earned.length > 0 && <div className="badges small">{earned.map((b: any) => <span key={b.id} className="badge-chip on">{b.name}</span>)}</div>}
       {p.cards.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Collection</h3><div className="card-row">{p.cards.map((x: any) => <MomentCard key={x.card.id} c={x.card} size="sm" onClick={() => open(x.card.id)} />)}</div></section>}
       {p.said.length > 0 && <section className="pg-sec"><h3 className="eyebrow">Said tonight</h3><ul className="said">{p.said.map((c: any, i: number) => <li key={i}>{c.text}<time className="num">{venueTime(c.t)}</time></li>)}</ul></section>}
