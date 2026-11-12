@@ -441,6 +441,7 @@ pub fn router(app: S, static_dir: Option<String>) -> Router {
         .route("/api/office/venue/check", post(office_venue_check))
         .route("/api/office/venue/delete", post(office_venue_delete))
         .route("/api/office/venue/open", post(office_venue_open))
+        .route("/api/office/venue/payee", post(office_venue_payee))
         .route("/api/office/venue/staff", post(office_venue_staff))
         .route("/api/office/venue/staff/reset", post(office_venue_staff_reset))
         .route("/api/office/night/{venue}", get(office_night))
@@ -841,12 +842,27 @@ fn nights_dir(app: &App) -> std::path::PathBuf { let d = app.data.join("nights")
 
 /// A finished real night: its full report is kept, its journal is kept under a new name, and the
 /// venue waits for its next night to be opened from Admin.
+/// What each business and runner is owed from a night, by the venue's form and its payout approvals.
+fn payouts_for(app: &App, venue: &str, night: &Value) -> Value {
+    let Some(d) = app.office.lock().unwrap().venue_draft(venue) else { return Value::Null };
+    pilot::payouts(&d.form, night, &|pid| d.payouts.get(pid).map(|p| p.status == "approved").unwrap_or(false))
+}
+
+async fn office_venue_payee(State(app): State<S>, h: HeaderMap, Json(b): Json<Value>) -> Response {
+    let u = match venue_lead(&app, &h) { Ok(u) => u, Err(r) => return r };
+    match app.office.lock().unwrap().set_payee(&u, &s(&b, "venue"), &s(&b, "payee"), &s(&b, "do"), &s(&b, "account")) {
+        Ok(st) => Json(json!({ "ok": true, "payee": st })).into_response(),
+        Err(e) => err(StatusCode::BAD_REQUEST, &e),
+    }
+}
+
 pub async fn archive_real(app: &App, v: &venue::Handle) -> Option<String> {
     // every card settled before the books are written down
     let due = v.view("agape", json!({ "lens": "payments" })).await;
     app.pay.lock().unwrap().reconcile(&v.id, v.init.opened, due["due"].as_array().map(|a| a.as_slice()).unwrap_or(&[]));
     let mut night = v.view("agape", json!({ "lens": "night" })).await;
     night["cards"] = app.pay.lock().unwrap().summary(&v.id, v.init.opened);
+    night["payouts"] = payouts_for(app, &v.id, &night);
     let staff: Vec<Value> = app.auth.lock().unwrap().at_venue(&v.id).iter().map(|a| json!({ "handle": a.handle, "role": a.role, "party": a.party })).collect();
     let closed = now_s();
     let file = format!("{}-{}.json", v.id, closed);
@@ -895,7 +911,7 @@ async fn office_venues(State(app): State<S>, h: HeaderMap) -> Response {
             "orders": n["orders"].as_array().map(|a| a.len()).unwrap_or(0), "people": n["people"], "stands_open": n["stands"].as_array().map(|a| a.iter().filter(|s| s["open"] == true).count()).unwrap_or(0),
             "runners_on": n["runners"].as_array().map(|a| a.iter().filter(|s| s["on_shift"] == true).count()).unwrap_or(0) })) } None => None };
         let staff: Vec<Value> = app.auth.lock().unwrap().at_venue(&d.id).iter().map(|a| json!({ "id": a.id, "handle": a.handle, "role": a.role, "party": a.party })).collect();
-        out.push(json!({ "id": d.id, "form": d.form, "at": d.at, "night": night, "staff": staff }));
+        out.push(json!({ "id": d.id, "form": d.form, "at": d.at, "night": night, "staff": staff, "payouts": d.payouts }));
     }
     Json(json!({ "ok": true, "venues": out, "reports": reports(&app), "starter": pilot::starter_form(), "optional": pilot::OPTIONAL })).into_response()
 }
@@ -929,6 +945,10 @@ async fn office_venue_open(State(app): State<S>, h: HeaderMap, Json(b): Json<Val
     if app.venue(&id).is_some() { return err(StatusCode::BAD_REQUEST, "A night is already open there"); }
     let (world, issues) = pilot::check(&d.form);
     if issues.iter().any(|i| i.blocking) { return (StatusCode::BAD_REQUEST, Json(json!({ "ok": false, "error": "Fix what's flagged in the venue first", "issues": issues }))).into_response(); }
+    if mode == "live" {
+        let waiting: Vec<String> = pilot::payees(&d.form).into_iter().filter(|(pid, _)| d.payouts.get(pid).map(|p| p.status.as_str()) != Some("approved")).map(|(_, n)| n).collect();
+        if !waiting.is_empty() { return err(StatusCode::BAD_REQUEST, &format!("Before a live night, the processor has to approve payouts for {}. A rehearsal can open now.", waiting.join(" and "))); }
+    }
     let name = d.form["name"].as_str().unwrap_or(&id).to_string();
     let mut seed = [0u8; 8];
     rand::RngCore::fill_bytes(&mut rand::rng(), &mut seed);
@@ -1003,6 +1023,7 @@ async fn office_night(State(app): State<S>, h: HeaderMap, Path(vid): Path<String
     n["staff"] = json!(staff);
     n["mode"] = json!(v.init.mode); n["opened"] = json!(v.init.opened); n["ok"] = json!(true);
     n["cards"] = app.pay.lock().unwrap().summary(&v.id, v.init.opened);
+    n["payouts"] = payouts_for(&app, &vid, &n);
     Json(n).into_response()
 }
 

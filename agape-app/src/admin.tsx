@@ -946,7 +946,7 @@ ReactDOM.createRoot(document.getElementById("root")!).render(<Guard><App /></Gua
 // ---------------- venues: set up, staffed, and run for real ----------------
 
 type VForm = any;
-type VenueRow = { id: string; form: VForm; at: number; night: any | null; staff: { id: string; handle: string; role: string; party: string }[] };
+type VenueRow = { id: string; form: VForm; at: number; night: any | null; payouts?: Record<string, { status: string; account: string; at: number; by: string }>; staff: { id: string; handle: string; role: string; party: string }[] };
 const money = (c: number | null | undefined) => c == null ? "—" : (c < 0 ? "−$" : "$") + (Math.abs(c) / 100).toFixed(2);
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 24);
 const FEATURE_NAMES: Record<string, string> = { chat: "Crowd chat", predictions: "Call the quarter", cards: "Moment cards", tickets: "Tickets and resale", around: "Rides, parking and partner offers", offers: "Sponsor offers", players: "Player deals" };
@@ -1000,6 +1000,7 @@ function Venues({ me, toast }: { me: Me; toast: (s: string) => void }) {
           <button className="ox-btn ghost" onClick={() => setView({ k: "signs", v })}>Seat signs</button>
           <button className="ox-btn ghost" onClick={() => setView({ k: "edit", v })} disabled={!!n} title={n ? "End the night to change the venue" : undefined}>Edit venue</button>
         </div>
+        <Payouts v={v} toast={toast} reload={load} />
         <p className="ox-fine">Fans open <a href={fanLink(v.id)} target="_blank" rel="noopener">{fanLink(v.id).replace(/^https?:\/\//, "")}</a> <button className="ox-link" onClick={() => { navigator.clipboard?.writeText(fanLink(v.id)); toast("Link copied"); }}>Copy</button></p>
       </section>;
     })}</div>}
@@ -1028,6 +1029,7 @@ function VenueEditor({ v, starter, optional, toast, done }: { v: VenueRow | null
   const num = (x: any) => x === "" || x == null ? "" : String(x);
   const blocking = issues.filter(i => i.blocking), warns = issues.filter(i => !i.blocking);
   const stands: any[] = f.stands ?? [], menu: any[] = f.menu ?? [];
+  const payees: any[] = f.payees?.length ? f.payees : [{ id: "concessions", name: "" }];
   const leave = () => { if (changed && !confirm("Leave without saving your changes?")) return; done(); };
   return <>
     <Head title={v ? f.name || v.id : "Add a venue"} sub="Everything a night at this venue needs. Save as you go; a night can only open once nothing is flagged.">
@@ -1070,7 +1072,16 @@ function VenueEditor({ v, starter, optional, toast, done }: { v: VenueRow | null
               <td><input aria-label="Stations" inputMode="numeric" value={num(s.stations)} onChange={e => set(["stands", i, "stations"], parseInt(e.target.value) || 0)} /></td>
               <td><button className="ox-link danger" onClick={() => set(["stands"], stands.filter((_, j) => j !== i))}>Remove</button></td>
             </tr>)}</tbody></table></div>
-          <button className="ox-btn sm" onClick={() => set(["stands"], [...stands, { id: "", name: "", level: 1, near: 1, stations: 2 }])}>Add a stand</button>
+          <button className="ox-btn sm" onClick={() => set(["stands"], [...stands, { id: "", name: "", level: 1, near: 1, stations: 2, payee: payees[0]?.id ?? "concessions" }])}>Add a stand</button>
+        </section>
+        <section className="ox-card"><h2>Who gets paid</h2><p className="ox-sub">Fans pay Agape. After each night Agape keeps its share and pays each business for its stands, so nobody ever has to be collected from. Usually one business runs every stand: the venue or its concessions company.</p>
+          {payees.map((p, i) => <div key={i} className="ox-grid">
+            <label className="ox-f wide"><span>Business name</span><input value={p.name} placeholder="Rupp Arena Concessions" onChange={e => { set(["payees", i, "name"], e.target.value); if (!p.id || (i > 0 && p.id === slug(p.name))) set(["payees", i, "id"], i === 0 && !p.id ? "concessions" : slug(e.target.value)); }} /><small>As the processor will know them</small></label>
+            {payees.length > 1 && <button className="ox-link danger" onClick={() => { set(["payees"], payees.filter((_, j) => j !== i)); stands.forEach((st, j) => st.payee === p.id && set(["stands", j, "payee"], payees[0].id)); }}>Remove</button>}
+          </div>)}
+          <button className="ox-btn sm" onClick={() => set(["payees"], [...payees, { id: "", name: "" }])}>Add another business</button>
+          {payees.length > 1 && <div className="ox-table-wrap"><table className="ox-table ox-formtable"><thead><tr><th>Stand</th><th>Paid to</th></tr></thead>
+            <tbody>{stands.map((st, i) => <tr key={i}><td>{st.name || st.id}</td><td><select aria-label="Paid to" value={st.payee ?? payees[0]?.id} onChange={e => set(["stands", i, "payee"], e.target.value)}>{payees.map(p => <option key={p.id} value={p.id}>{p.name || p.id}</option>)}</select></td></tr>)}</tbody></table></div>}
         </section>
         <section className="ox-card"><h2>Menu</h2><p className="ox-sub">What each stand sells, at the venue's prices. Make time is the usual minutes from starting the order to handing it over. Leave stock empty for no limit.</p>
           <div className="ox-table-wrap"><table className="ox-table ox-formtable"><thead><tr><th>Item</th><th>Stand</th><th>Price</th><th>Make time (min)</th><th>Kind</th><th>21+</th><th>Stock</th><th></th></tr></thead>
@@ -1249,7 +1260,57 @@ function Console({ id, toast, back, ended }: { id: string; toast: (s: string) =>
       </table></div>}
     </section>
     <Books b={b} cards={n.cards} />
+    <PayoutsOwed p={n.payouts} staff={staff} />
   </>;
+}
+
+
+/** Each business Agape pays at this venue, and where its payout sign-up stands with the processor. */
+function Payouts({ v, toast, reload }: { v: VenueRow; toast: (s: string) => void; reload: () => void }) {
+  const list: { id: string; name: string }[] = v.form.payees?.length ? v.form.payees : [{ id: "concessions", name: `${v.form.name} concessions` }];
+  const [approving, setApproving] = useState<string | null>(null);
+  const [acct, setAcct] = useState("");
+  const go = async (payee: string, d: string, account = "") => {
+    const r = await api("venue/payee", { venue: v.id, payee, do: d, account });
+    if (r.ok) { toast(d === "approve" ? "Approved for payouts." : d === "send" ? "Marked as sent." : "Reset."); setApproving(null); setAcct(""); reload(); } else toast(r.error);
+  };
+  return <div className="ox-payouts">
+    <h3>Payouts</h3>
+    {list.map(p => { const st = v.payouts?.[p.id]; const status = st?.status || "";
+      return <div key={p.id} className="ox-payee">
+        <div><b>{p.name || "Unnamed business"}</b><small>{status === "approved" ? `Approved · ${st!.account} · by ${st!.by}` : status === "sent" ? `Sign-up sent ${when(st!.at)} · waiting on the processor` : "Not set up yet: needed before a live night"}</small></div>
+        <span className={"ox-tag " + (status === "approved" ? "live" : status === "sent" ? "requested" : "draft")}>{status === "approved" ? "Approved" : status === "sent" ? "Waiting" : "Not set up"}</span>
+        <div className="ox-row wrap">
+          {status !== "approved" && approving !== p.id && <>
+            <button className="ox-btn sm" onClick={() => go(p.id, "send")} title="The processor's own sign-up form collects the owner's and bank details; Agape never stores them">{status === "sent" ? "Send again" : "Send payout sign-up"}</button>
+            <button className="ox-btn sm ghost" onClick={() => setApproving(p.id)}>Processor approved them</button>
+          </>}
+          {approving === p.id && <form className="ox-row wrap" onSubmit={e => { e.preventDefault(); go(p.id, "approve", acct); }}>
+            <input className="mono" autoFocus value={acct} onChange={e => setAcct(e.target.value)} placeholder="Account reference from the processor" aria-label="Account reference from the processor" />
+            <button className="ox-btn sm primary" disabled={acct.trim().length < 4}>Approve</button><button type="button" className="ox-btn sm ghost" onClick={() => setApproving(null)}>Cancel</button></form>}
+          {status && <button className="ox-link" onClick={() => confirm(`Start ${p.name}'s payout set-up again?`) && go(p.id, "reset")}>Start over</button>}
+        </div>
+      </div>; })}
+    <p className="ox-fine">The processor's sign-up form collects owner and bank details; Agape never stores them. Until a processor is connected, send them its form yourself and record the account reference here once they're approved.</p>
+  </div>;
+}
+
+/** After a night: what each business and runner is owed. Agape's share was kept before any of it. */
+function PayoutsOwed({ p, staff }: { p: any; staff?: Record<string, string> }) {
+  if (!p) return null;
+  return <section className="ox-card ox-owed">
+    <h3>Owed from tonight</h3>
+    <div className="ox-table-wrap"><table className="ox-table">
+      <thead><tr><th>Who</th><th>For</th><th className="num">Owed</th><th></th></tr></thead>
+      <tbody>
+        {p.payees.map((x: any) => <tr key={x.id}><td><b>{x.name}</b></td><td><small>{x.stands.map((s: any) => s.name || s.id).join(", ")}</small></td><td className="mono num">{money(x.owed)}</td>
+          <td>{x.approved ? <span className="ox-tag live">Approved</span> : <span className="ox-tag bad">Not approved</span>}</td></tr>)}
+        {p.runners.map((r: any) => <tr key={r.id}><td>{staff?.[r.id] ?? r.id}</td><td><small>Runner · {money(r.pay)} pay{r.tips ? ` + ${money(r.tips)} tips` : ""}</small></td><td className="mono num">{money(r.owed)}</td><td /></tr>)}
+        <tr><td>Sales tax</td><td><small>Held to remit</small></td><td className="mono num">{money(p.tax)}</td><td /></tr>
+        <tr className="ox-total"><td><b>Agape keeps</b></td><td><small>Its share, kept before anything is paid out</small></td><td className="mono num"><b>{money(p.agape)}</b></td><td /></tr>
+      </tbody>
+    </table></div>
+  </section>;
 }
 
 function Books({ b, cards }: { b: any; cards?: any }) {
@@ -1296,6 +1357,7 @@ function Report({ file, back }: { file: string; back: () => void }) {
       <div><small>Fans paid</small><b className="mono">{money(n.books.fans_paid)}</b></div>
     </section>
     <Books b={n.books} cards={n.cards} />
+    <PayoutsOwed p={n.payouts} staff={staff} />
     <section className="ox-card"><h2>By stand</h2><table className="ox-table tight"><thead><tr><th>Stand</th><th>Orders</th><th>Sales</th><th>Stand receives</th></tr></thead>
       <tbody>{n.stands.map((s: any) => <tr key={s.id}><td>{s.name}</td><td className="mono">{s.settled}</td><td className="mono">{money(s.sales)}</td><td className="mono">{money(s.revenue)}</td></tr>)}</tbody></table></section>
     <section className="ox-card"><h2>By runner</h2><table className="ox-table tight"><thead><tr><th>Runner</th><th>Delivered</th><th>Pay</th><th>Tips</th><th>Total</th></tr></thead>

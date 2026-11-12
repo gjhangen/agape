@@ -346,3 +346,11 @@ small { display: block; color: var(--muted); font-size: 12.5px; }
   .ox-signs { grid-template-columns: 1fr 1fr; gap: 0; }
   .ox-sign { height: 4.9in; border-radius: 0; justify-content: center; }
 }
+/* payouts: each business Agape pays, and what each is owed after a night */
+.ox-payouts { display: grid; gap: 8px; padding-top: 10px; border-top: 1px solid var(--line); }
+.ox-payouts h3 { margin: 0; font-size: 14px; }
+.ox-payee { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; align-items: center; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.ox-payee > div:first-child { display: grid; gap: 2px; } .ox-payee small { color: var(--muted); }
+.ox-payee > .ox-row { grid-column: 1 / -1; }
+.ox-payee input { min-width: 240px; }
+.ox-owed .num { text-align: right; } .ox-owed .ox-total td { border-top: 2px solid var(--line); }

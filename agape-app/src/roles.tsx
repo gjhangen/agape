@@ -1,5 +1,5 @@
 import { React } from "./r";
-import { kernel } from "./kernel";
+import { kernel, world } from "./kernel";
 import { ItemArt } from "./Art";
 import {
   BRAND, CommitmentCard, LedgerLine, MapView, MeasureTile, Offer, OFFER_COPY, Order, PlaceView,
@@ -28,7 +28,13 @@ function staffAct(as: string, x: StaffActs | undefined, a: Record<string, unknow
 }
 
 function Shift({ on, human, as, x, who }: { on?: boolean; human?: boolean; as: string; x?: StaffActs; who: string }) {
-  if (human && !on) return null; // acting as them from the simulation: no shift to start
+  // a real night: nobody covers for an empty stand or an absent runner, so the shift is always theirs to start
+  const real = ["live", "rehearsal"].includes(world()?.mode);
+  const stand = who === "this kitchen";
+  if (!real && human && !on) return null; // acting as them from the simulation: no shift to start
+  if (real) return on
+    ? <div className="shift on"><span className="grow">On shift. {stand ? "Fans can order from this stand." : "Trips come to you here."}</span><button className="btn ghost sm" onClick={() => staffAct(as, x, { do: "clock_out" }, stand ? "Shift ended. Fans can't order from this stand until it starts again." : "Shift ended.")}>End shift</button></div>
+    : <div className="shift"><span className="grow">{stand ? "You're off shift, so fans can't order from this stand yet." : "You're off shift, so no trips come to you yet."}</span><button className="btn primary" onClick={() => staffAct(as, x, { do: "clock_in" }, stand ? "You're on. New orders will show up here." : "You're on. Your next trip will show up here.")}>Start my shift</button></div>;
   return on
     ? <div className="shift on"><span className="grow">On shift. {who} is yours to run.</span><button className="btn ghost sm" onClick={() => staffAct(as, x, { do: "clock_out" }, "Shift ended. The simulation covers for you.")}>End shift</button></div>
     : <div className="shift"><span className="grow">You're off shift, so the simulation is covering {who}.</span><button className="btn primary" onClick={() => staffAct(as, x, { do: "clock_in" }, "You're on. Your next trip will show up here.")}>Start my shift</button></div>;

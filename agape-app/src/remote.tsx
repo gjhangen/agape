@@ -1,6 +1,6 @@
 // The app as people use it: signed in, talking to the venue's server. One account, one role,
 // one screen. The simulation harness (main.tsx) is not part of this build.
-import { React, ReactDOM, useEffect, useState } from "./r";
+import { React, ReactDOM, useEffect, useRef, useState } from "./r";
 import { kernel, server, setRemoteWorld, world } from "./kernel";
 import { FanApp, FanView, Sheet } from "./fan";
 import { OpsLens, RunnerLens, StandLens } from "./roles";
@@ -245,6 +245,7 @@ function Signed({ a, signOut }: { a: Account; signOut: () => void }) {
       <main className={"stage " + a.role}>
         {v.clock && <p className="staff-clock"><b className="num">{venueTime(v.clock.t)}</b></p>}
         {a.role === "runner" && <RunnerLens r={v} map={v.map} pick={noop} runners={[a.party]} x={{ toast, refresh }} />}
+        {a.role === "stand" && <StandAlerts s={v} />}
         {a.role === "stand" && <StandLens s={v} pick={noop} stands={[{ id: v.stand, name: v.name } as any]} x={{ toast, refresh }} />}
         {a.role === "business" && <BusinessLens b={v} businesses={[{ id: v.id, name: v.name }]} pick={noop} toast={toast} refresh={refresh} />}
         {a.role === "player" && <PlayerLens p={v} players={[{ id: v.id, name: v.name, team: v.group?.name ?? "", claimed: v.claimed }]} pick={noop} toast={toast} refresh={refresh} />}
@@ -254,6 +255,57 @@ function Signed({ a, signOut }: { a: Account; signOut: () => void }) {
       <div className="toasts" aria-live="polite">{toasts.map(t => <p key={t.id} className="toast">{t.text}</p>)}</div>
     </>
   );
+}
+
+/** The stand's tablet, made hard to miss: a loud chime and a flash for every new order, the screen kept awake all
+ * night, and a nudge to put Agape on the home screen so it opens like an app and stays signed in. Browsers only let a
+ * page make sound after a tap, so until someone taps "Turn on order alerts", a banner says alerts are off. */
+function StandAlerts({ s }: { s: any }) {
+  const ids = [...(s.queue ?? []), ...(s.stations ?? []).map((x: any) => x.order).filter(Boolean)].map((o: any) => o.id as number);
+  const seen = useRef<Set<number> | null>(null);
+  const audio = useRef<AudioContext | null>(null);
+  const [on, setOn] = useState(false);
+  const [fresh, setFresh] = useState(0);
+  const [installable, setInstallable] = useState<any>(null);
+  const standalone = typeof matchMedia !== "undefined" && (matchMedia("(display-mode: standalone)").matches || (navigator as any).standalone === true);
+  const chime = () => {
+    const a = audio.current; if (!a) return;
+    const t0 = a.currentTime;
+    [0, 0.22, 0.44, 0.9, 1.12, 1.34].forEach((d, i) => {
+      const o = a.createOscillator(), g = a.createGain();
+      o.type = "square"; o.frequency.value = i % 3 === 2 ? 1320 : 990;
+      g.gain.setValueAtTime(0.0001, t0 + d); g.gain.exponentialRampToValueAtTime(0.5, t0 + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.18);
+      o.connect(g).connect(a.destination); o.start(t0 + d); o.stop(t0 + d + 0.2);
+    });
+  };
+  // a new order: chime, buzz, flash
+  useEffect(() => {
+    if (seen.current == null) { seen.current = new Set(ids); return; }
+    const added = ids.filter(id => !seen.current!.has(id));
+    ids.forEach(id => seen.current!.add(id));
+    if (added.length) { setFresh(n => n + added.length); if (on) chime(); try { navigator.vibrate?.([300, 120, 300]); } catch { /* not on this device */ } }
+  });
+  // the screen stays on while the stand screen is open
+  useEffect(() => {
+    let lock: any = null;
+    const get = async () => { try { lock = await (navigator as any).wakeLock?.request("screen"); } catch { /* not allowed here */ } };
+    const back = () => { if (document.visibilityState === "visible") get(); };
+    get(); document.addEventListener("visibilitychange", back);
+    return () => { document.removeEventListener("visibilitychange", back); try { lock?.release(); } catch { /* already gone */ } };
+  }, []);
+  useEffect(() => { const f = (e: any) => { e.preventDefault(); setInstallable(e); }; addEventListener("beforeinstallprompt", f); return () => removeEventListener("beforeinstallprompt", f); }, []);
+  const turnOn = () => { try { audio.current ??= new AudioContext(); audio.current.resume(); setOn(true); chime(); } catch { setOn(false); } };
+  const ios = /iPad|iPhone|Macintosh/.test(navigator.userAgent) && "ontouchend" in document;
+  return <>
+    {fresh > 0 && <button className="stand-flash" onClick={() => setFresh(0)}><b>{fresh === 1 ? "New order" : `${fresh} new orders`}</b><span>Tap to clear</span></button>}
+    {!on && <div className="stand-alerts off"><div><b>Order alerts are off</b><span>Turn them on so every new order rings, even across the room.</span></div><button className="btn primary" onClick={turnOn}>Turn on order alerts</button></div>}
+    {on && <p className="stand-alerts on">Order alerts on · the screen stays awake <button className="link-inline" onClick={chime}>Test the sound</button></p>}
+    {!standalone && <div className="stand-install">
+      <b>Put Agape on this tablet's home screen</b>
+      <span>{installable ? "It opens full screen, like an app, and stays signed in all night." : ios ? "Tap Share, then Add to Home Screen. It opens full screen, like an app, and stays signed in all night." : "From the browser's menu, choose Install app or Add to Home screen. It opens full screen and stays signed in all night."}</span>
+      {installable && <button className="btn" onClick={() => { installable.prompt(); setInstallable(null); }}>Install</button>}
+    </div>}
+  </>;
 }
 
 function App() {

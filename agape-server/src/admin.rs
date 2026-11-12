@@ -104,7 +104,14 @@ struct State {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct VenueDraft { pub id: String, pub form: serde_json::Value, pub at: u64, pub by: String }
+pub struct VenueDraft { pub id: String, pub form: serde_json::Value, pub at: u64, pub by: String,
+    /// Each business that gets paid at this venue, and whether the processor has approved it for payouts.
+    #[serde(default)] pub payouts: BTreeMap<String, PayeeState> }
+
+/// A business Agape pays: "not set up" until the processor's sign-up is sent, "sent" until it approves them, then
+/// "approved" with the processor's account reference. Agape keeps no bank or identity details: the processor does.
+#[derive(Clone, Serialize, Deserialize, Default)]
+pub struct PayeeState { pub status: String, #[serde(default)] pub account: String, pub at: u64, pub by: String }
 
 fn starting_templates() -> Vec<Template> {
     let t = |id: &str, name: &str, about: &str, p: &[&str]| Template { id: id.into(), name: name.into(), about: about.into(), perms: p.iter().map(|x| x.to_string()).collect() };
@@ -231,7 +238,7 @@ impl Admin {
         let name = form["name"].as_str().unwrap_or(&id).to_string();
         match self.s.venues.iter_mut().find(|v| v.id == id) {
             Some(v) => { v.form = form; v.at = now(); v.by = by.id.clone(); }
-            None => self.s.venues.push(VenueDraft { id: id.clone(), form, at: now(), by: by.id.clone() }),
+            None => self.s.venues.push(VenueDraft { id: id.clone(), form, at: now(), by: by.id.clone(), payouts: BTreeMap::new() }),
         }
         self.note(by, format!("saved venue {name}"));
         self.save();
@@ -244,6 +251,27 @@ impl Admin {
         self.note(by, format!("deleted venue {id}"));
         self.save();
         Ok(())
+    }
+    /// Move a payee along: sign-up sent, approved by the processor (with its account reference), or back to the start.
+    pub fn set_payee(&mut self, by: &User, venue: &str, payee: &str, action: &str, account: &str) -> Result<PayeeState, String> {
+        let me = by.clone();
+        let v = self.s.venues.iter_mut().find(|v| v.id == venue).ok_or("No such venue")?;
+        let name = crate::pilot::payees(&v.form).into_iter().find(|(id, _)| id == payee).map(|(_, n)| n).ok_or("That business isn't on this venue")?;
+        let st = match action {
+            "send" => PayeeState { status: "sent".into(), account: String::new(), at: now(), by: me.name.clone() },
+            "approve" => {
+                let acct = account.trim();
+                if acct.len() < 4 || acct.len() > 80 { return Err("Enter the account reference the processor gave for this business".into()); }
+                PayeeState { status: "approved".into(), account: acct.into(), at: now(), by: me.name.clone() }
+            }
+            "reset" => PayeeState { status: String::new(), account: String::new(), at: now(), by: me.name.clone() },
+            _ => return Err("Not something payouts does".into()),
+        };
+        v.payouts.insert(payee.to_string(), st.clone());
+        let what = match action { "send" => "sent payout sign-up to", "approve" => "approved payouts for", _ => "reset payouts for" };
+        self.note(&me, format!("{what} {name} at {venue}"));
+        self.save();
+        Ok(st)
     }
     /// Write it down in the activity log and save.
     pub fn logged(&mut self, by: &User, what: String) { self.note(by, what); self.save(); }

@@ -53,7 +53,7 @@ async fn a_venue_is_set_up_staffed_run_for_real_and_closed_with_balanced_books()
     // the venue, from the starter form
     let (_, list) = s.get("/api/office/venues", Some(&boss)).await;
     let mut form = list["starter"].clone();
-    form["id"] = json!("rupp"); form["name"] = json!("Rupp Arena");
+    form["id"] = json!("rupp"); form["name"] = json!("Rupp Arena"); form["payees"][0]["name"] = json!("Rupp Arena Concessions");
     form["home"] = json!({ "name": "Kentucky Wildcats", "short": "Wildcats", "abbr": "UK", "color": "#0033A0" });
     form["away"] = json!({ "name": "Louisville Cardinals", "short": "Cardinals", "abbr": "UL", "color": "#C9001F" });
     let mut broken = form.clone();
@@ -73,6 +73,16 @@ async fn a_venue_is_set_up_staffed_run_for_real_and_closed_with_balanced_books()
         accounts.push((handle, v["password"].as_str().unwrap().to_string()));
     }
     assert_eq!(s.post("/api/office/venue/staff", Some(&boss), json!({ "venue": "rupp", "role": "stand", "handle": "rupp.x", "stand": "nope" })).await.0, StatusCode::BAD_REQUEST);
+
+    // every stand's money goes to a named business, and a live night waits for the processor to approve it
+    let mut unnamed = form.clone(); unnamed["payees"][0]["name"] = json!("");
+    let (_, chk) = s.post("/api/office/venue/check", Some(&boss), json!({ "form": unnamed })).await;
+    assert!(chk["issues"].as_array().unwrap().iter().any(|i| i["path"] == "payees.concessions"), "{chk}");
+    let (st, no) = s.post("/api/office/venue/open", Some(&boss), json!({ "id": "rupp", "mode": "live" })).await;
+    assert_eq!(st, StatusCode::BAD_REQUEST); assert!(no["error"].as_str().unwrap().contains("Rupp Arena Concessions"), "{no}");
+    let (_, sent) = s.post("/api/office/venue/payee", Some(&boss), json!({ "venue": "rupp", "payee": "concessions", "do": "send" })).await;
+    assert_eq!(sent["payee"]["status"], "sent");
+    assert_eq!(s.post("/api/office/venue/payee", Some(&boss), json!({ "venue": "rupp", "payee": "concessions", "do": "approve", "account": "" })).await.0, StatusCode::BAD_REQUEST, "approval needs the processor's reference");
 
     // a rehearsal night opens: nothing simulated
     let (st, v) = s.post("/api/office/venue/open", Some(&boss), json!({ "id": "rupp", "mode": "rehearsal" })).await;
@@ -135,6 +145,14 @@ async fn a_venue_is_set_up_staffed_run_for_real_and_closed_with_balanced_books()
     let (st, full) = s.get(&format!("/api/office/report/{}", r["file"].as_str().unwrap()), Some(&boss)).await;
     assert_eq!(st, StatusCode::OK);
     assert_eq!(full["night"]["books"]["conserved"], true);
+    // who is owed what: the stands' share to the business, the runner's pay and tip, Agape's share kept first
+    let po = &full["night"]["payouts"];
+    let owed: i64 = po["payees"].as_array().unwrap().iter().map(|p| p["owed"].as_i64().unwrap()).sum();
+    assert_eq!(owed, full["night"]["books"]["stands"].as_i64().unwrap(), "{po}");
+    assert!(owed > 0); assert_eq!(po["payees"][0]["name"], "Rupp Arena Concessions");
+    assert!(po["runners_total"].as_i64().unwrap() > 0, "the runner is owed pay and the tip: {po}");
+    assert_eq!(po["fans_paid"].as_i64().unwrap(), owed + po["runners_total"].as_i64().unwrap() + po["tax"].as_i64().unwrap() + po["agape"].as_i64().unwrap() + full["night"]["books"]["agape_processing"].as_i64().unwrap_or(0) + full["night"]["books"]["interchange"].as_i64().unwrap_or(0) - full["night"]["books"]["agape_credit"].as_i64().unwrap_or(0),
+        "every dollar a fan paid is someone's: {po} {}", full["night"]["books"]);
     assert_eq!(s.get("/api/office/report/..%2Fadmin.json", Some(&boss)).await.0, StatusCode::NOT_FOUND);
 
     // staff can be given a new password; the old one stops working
@@ -160,9 +178,10 @@ async fn a_live_night_survives_a_restart_mid_event() {
     let boss = owner(&s, dir.path()).await;
     let (_, list) = s.get("/api/office/venues", Some(&boss)).await;
     let mut form = list["starter"].clone();
-    form["id"] = json!("rupp"); form["name"] = json!("Rupp Arena");
+    form["id"] = json!("rupp"); form["name"] = json!("Rupp Arena"); form["payees"][0]["name"] = json!("Rupp Arena Concessions");
     s.post("/api/office/venue", Some(&boss), json!({ "form": form })).await;
     let (_, g) = s.post("/api/office/venue/staff", Some(&boss), json!({ "venue": "rupp", "role": "stand", "handle": "rupp.bar", "stand": "bar" })).await;
+    s.post("/api/office/venue/payee", Some(&boss), json!({ "venue": "rupp", "payee": "concessions", "do": "approve", "account": "acct_test_rupp" })).await;
     assert_eq!(s.post("/api/office/venue/open", Some(&boss), json!({ "id": "rupp", "mode": "live" })).await.0, StatusCode::OK);
     let bar = s.signin("rupp.bar", g["password"].as_str().unwrap()).await;
     s.act(&bar, json!({ "do": "clock_in" })).await;
@@ -199,9 +218,10 @@ async fn a_backup_restores_onto_a_new_machine_mid_night() {
     let boss = owner(&s, dir.path()).await;
     let (_, list) = s.get("/api/office/venues", Some(&boss)).await;
     let mut form = list["starter"].clone();
-    form["id"] = json!("rupp"); form["name"] = json!("Rupp Arena");
+    form["id"] = json!("rupp"); form["name"] = json!("Rupp Arena"); form["payees"][0]["name"] = json!("Rupp Arena Concessions");
     s.post("/api/office/venue", Some(&boss), json!({ "form": form })).await;
     let (_, g) = s.post("/api/office/venue/staff", Some(&boss), json!({ "venue": "rupp", "role": "stand", "handle": "rupp.bar", "stand": "bar" })).await;
+    s.post("/api/office/venue/payee", Some(&boss), json!({ "venue": "rupp", "payee": "concessions", "do": "approve", "account": "acct_test_rupp" })).await;
     s.post("/api/office/venue/open", Some(&boss), json!({ "id": "rupp", "mode": "live" })).await;
     let bar = s.signin("rupp.bar", g["password"].as_str().unwrap()).await;
     s.act(&bar, json!({ "do": "clock_in" })).await;
@@ -236,7 +256,7 @@ async fn cards_are_held_at_the_order_taken_when_final_and_match_the_books() {
     let boss = owner(&s, dir.path()).await;
     let (_, list) = s.get("/api/office/venues", Some(&boss)).await;
     let mut form = list["starter"].clone();
-    form["id"] = json!("rupp"); form["name"] = json!("Rupp Arena");
+    form["id"] = json!("rupp"); form["name"] = json!("Rupp Arena"); form["payees"][0]["name"] = json!("Rupp Arena Concessions");
     s.post("/api/office/venue", Some(&boss), json!({ "form": form })).await;
     let (_, g) = s.post("/api/office/venue/staff", Some(&boss), json!({ "venue": "rupp", "role": "stand", "handle": "rupp.grill", "stand": "grill" })).await;
     s.post("/api/office/venue/open", Some(&boss), json!({ "id": "rupp", "mode": "rehearsal" })).await;

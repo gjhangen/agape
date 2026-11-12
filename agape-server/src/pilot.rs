@@ -69,6 +69,13 @@ pub fn check(f: &Value) -> (Value, Vec<agape_kernel::setup::Issue>) {
         (Err(e), _) => issues.push(agape_kernel::setup::Issue { path: "form".into(), message: format!("Something in the form can't be read: {e}"), blocking: true }),
         (_, Err(e)) => issues.push(agape_kernel::setup::Issue { path: "template".into(), message: format!("The event rules can't be read: {e}"), blocking: true }),
     }
+    // every stand's money goes to a named business
+    let ps = payees(f);
+    for (pid, pname) in &ps { if pname.trim().is_empty() { issues.push(agape_kernel::setup::Issue { path: format!("payees.{pid}"), message: "Name the business that gets paid (usually the venue or its concessions company)".into(), blocking: true }); } }
+    for st in f["stands"].as_array().cloned().unwrap_or_default() {
+        let to = payee_of(f, st["id"].as_str().unwrap_or(""));
+        if !ps.iter().any(|(id, _)| *id == to) { issues.push(agape_kernel::setup::Issue { path: format!("stands.{}.payee", st["id"].as_str().unwrap_or("")), message: format!("{} is paid to a business that isn't listed", st["name"].as_str().unwrap_or("A stand")), blocking: true }); }
+    }
     // the dry run's measurements are about a simulated crowd: not useful here, and slow
     issues.retain(|i| !i.path.starts_with("dry_run"));
     (w, issues)
@@ -90,9 +97,10 @@ pub fn starter_form() -> Value {
         "home": { "name": "", "short": "", "abbr": "", "color": "#1F4FA8" }, "away": { "name": "", "short": "", "abbr": "", "color": "#B3261E" },
         "levels": 1, "sections_per_level": 20, "walk": { "ring_s": 14, "stairs_s": 75, "lift_s": 120, "aisle_s": 30 },
         "stands": [
-            { "id": "grill", "name": "Main Grill", "level": 1, "near": 3, "stations": 3 },
-            { "id": "bar", "name": "Bar", "level": 1, "near": 12, "stations": 2 }
+            { "id": "grill", "name": "Main Grill", "level": 1, "near": 3, "stations": 3, "payee": "concessions" },
+            { "id": "bar", "name": "Bar", "level": 1, "near": 12, "stations": 2, "payee": "concessions" }
         ],
+        "payees": [{ "id": "concessions", "name": "" }],
         "menu": [
             { "id": "hotdog", "name": "Hot dog", "stand": "grill", "price": 700, "prep_s": 90, "category": "food" },
             { "id": "nachos", "name": "Nachos", "stand": "grill", "price": 900, "prep_s": 120, "category": "food" },
@@ -103,4 +111,37 @@ pub fn starter_form() -> Value {
         "runners": 6,
         "features": {}
     })
+}
+
+/// The businesses Agape pays at a venue, as (id, name). A form from before payees existed has one: the venue's concessions.
+pub fn payees(f: &Value) -> Vec<(String, String)> {
+    match f["payees"].as_array() {
+        Some(a) if !a.is_empty() => a.iter().map(|x| (x["id"].as_str().unwrap_or("").trim().to_string(), x["name"].as_str().unwrap_or("").trim().to_string())).collect(),
+        _ => vec![("concessions".into(), format!("{} concessions", f["name"].as_str().unwrap_or("").trim()).trim().to_string())],
+    }
+}
+
+/// Which business a stand's money goes to.
+pub fn payee_of(f: &Value, stand: &str) -> String {
+    f["stands"].as_array().and_then(|a| a.iter().find(|s| s["id"].as_str().map(str::trim) == Some(stand)))
+        .and_then(|s| s["payee"].as_str()).map(|s| s.trim().to_string()).filter(|s| !s.is_empty())
+        .unwrap_or_else(|| payees(f).first().map(|(id, _)| id.clone()).unwrap_or_else(|| "concessions".into()))
+}
+
+/// Who is owed what once a night's orders are final: each business for its stands, the runners, the tax held to
+/// remit, and what Agape keeps. All of it comes from the night's books; fans paid Agape, so nobody has to be
+/// collected from: Agape's share is kept before anything is paid out.
+pub fn payouts(f: &Value, night: &Value, approved: &dyn Fn(&str) -> bool) -> Value {
+    let b = &night["books"];
+    let i = |v: &Value| v.as_i64().unwrap_or(0);
+    let stands = night["stands"].as_array().cloned().unwrap_or_default();
+    let list: Vec<Value> = payees(f).into_iter().map(|(id, name)| {
+        let mine: Vec<Value> = stands.iter().filter(|s| payee_of(f, s["id"].as_str().unwrap_or("")) == id)
+            .map(|s| json!({ "id": s["id"], "name": s["name"], "owed": i(&s["revenue"]) })).collect();
+        let owed: i64 = mine.iter().map(|s| i(&s["owed"])).sum();
+        json!({ "id": id, "name": name, "owed": owed, "stands": mine, "approved": approved(&id) })
+    }).collect();
+    let runners: Vec<Value> = night["runners"].as_array().cloned().unwrap_or_default().iter()
+        .map(|r| json!({ "id": r["id"], "pay": i(&r["pay"]), "tips": i(&r["tips"]), "owed": i(&r["pay"]) + i(&r["tips"]) })).filter(|r| r["owed"].as_i64().unwrap_or(0) != 0).collect();
+    json!({ "payees": list, "runners": runners, "runners_total": runners.iter().map(|r| i(&r["owed"])).sum::<i64>(), "tax": i(&b["tax"]), "agape": i(&b["agape"]), "fans_paid": i(&b["fans_paid"]) })
 }
