@@ -55,6 +55,10 @@ pub struct Social {
     pub messages: Vec<(i64, PartyId, PartyId, String)>,
     pub posts: Vec<Post>,
     pub profiles: BTreeMap<PartyId, Profile>,
+    /// Reports of posts: (post, who reported it, why, when). One per person per post.
+    pub reports: Vec<(String, PartyId, String, i64)>,
+    /// Posts Agape's team looked at and left up.
+    pub kept: BTreeSet<String>,
 }
 
 impl Social {

@@ -135,6 +135,8 @@ pub fn act(n: &mut Night, who: &str, v: &Value) -> Value {
         Some("wear") => n.wear(who, &s("team")).map(|_| String::new()),
         Some("chat") => n.chat_as(who, &s("text")).map(|_| String::new()),
         Some("post") => n.post_as(who, &s("text")),
+        Some("report_post") => n.report_post(who, &s("post"), &s("reason")).map(|_| String::new()),
+        Some("moderate") if who == "agape" || who == "hq" => n.moderate(&s("post"), v["remove"].as_bool().unwrap_or(false)).map(|_| String::new()),
         Some("sponsor_offer") => n.sponsor_offer(who, &s("moment"), &s("thing"), v["discount"].as_i64().unwrap_or(0), v["cap"].as_i64().unwrap_or(0)),
         Some("like") => n.like(who, &s("post")).map(|on| on.to_string()),
         Some("comment") => n.comment(who, &s("post"), &s("text")).map(|_| String::new()),

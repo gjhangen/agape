@@ -9,7 +9,7 @@ type Rule = { words: string; fault: string; covers: Cover[]; photo: boolean; aut
 export type Policy = { form: "credit" | "refund"; rules: Record<string, Rule>; auto_per_fan: number; auto_per_stand: number; handoff_radius_m: number; tip_bps: number; tip_min: number; proof_after_orders: number; photo_at_bps: number; pin_at_bps: number };
 type Rec = { id: string; name: string; orders: number; spent: number; claims: number; claim_bps: number; remedied: number; earned: number; cost: number; net: number; ratings_given: number; avg_given: number | null; proof: "none" | "photo" | "pin"; proof_set: boolean };
 export type Pay = { mode: "offers" | "fixed" | "hourly"; hourly_wage: number; runner_pay: number; offer_hourly: number; free_delivery_over: number; delivery_fee: number };
-export type CareView = { policy: Policy; pay: Pay; settled: number; claims: number; claim_bps: number; open: number; credit: number; refund: number; paid_by: Record<string, number>;
+export type CareView = { reported?: { post: string; text: string; author: string; who: string; kind: string; t: number; reports: number; why: Record<string, number>; hidden: boolean }[]; policy: Policy; pay: Pay; settled: number; claims: number; claim_bps: number; open: number; credit: number; refund: number; paid_by: Record<string, number>;
   problems: { id: string; order: number; fan: string; who: string; stand: string; reason: string; words: string; photo: boolean; held: string | null; state: { state: string; amount?: number; form?: string; why?: string }; t: number; fault: string; handoff_m: number | null; paid_by: { who: string; amount: number }[] }[];
   fans: Rec[] };
 
@@ -18,7 +18,7 @@ const FROM: [Cover["from"] | "", string][] = [["", "Not returned"], ["fault", "W
 const pct = (bps: number) => `${Math.round(bps / 100)}%`;
 
 export function CareDesk({ c, toast, refresh }: { c: CareView; toast: (t: string) => void; refresh: () => void }) {
-  const [tab, setTab] = useState<"queue" | "fans">("queue");
+  const [tab, setTab] = useState<"queue" | "fans" | "posts">("queue");
   const act = (a: Record<string, unknown>, ok: string) => { const r = kernel.act({ ...a, as: "hq" }); toast(r.ok ? ok : r.error); refresh(); };
   const agapePaid = c.paid_by["Agape"] ?? 0;
   return (
@@ -29,7 +29,8 @@ export function CareDesk({ c, toast, refresh }: { c: CareView; toast: (t: string
         <MeasureTile label="Made right" value={money(c.credit + c.refund)} sub={`${money(c.credit)} as credit · ${money(c.refund)} refunded`} />
         <MeasureTile label="Made right by Agape" value={money(agapePaid)} sub={Object.entries(c.paid_by).filter(([k]) => k !== "Agape").map(([k, v]) => `${k} ${money(v)}`).join(" · ") || "stands and runners paid the rest"} />
       </div>
-      <div className="seg" role="group" aria-label="Care">{([["queue", "Problems"], ["fans", "Fans to watch"]] as const).map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>)}</div>
+      <div className="seg" role="group" aria-label="Care">{([["queue", "Problems"], ["fans", "Fans to watch"], ["posts", `Reported posts${c.reported?.length ? ` (${c.reported.length})` : ""}`]] as const).map(([k, l]) => <button key={k} className={tab === k ? "on" : ""} onClick={() => setTab(k)}>{l}</button>)}</div>
+      {tab === "posts" && <Reported c={c} act={act} />}
       {tab === "queue" && <Queue c={c} act={act} />}
       {tab === "fans" && <Fans c={c} act={act} />}
     </div>
@@ -146,4 +147,20 @@ function PolicyEditor({ p, act }: { p: Policy; act: (a: Record<string, unknown>,
       <button className="btn ghost" disabled={!changed} onClick={() => setD(JSON.parse(JSON.stringify(p)))}>Undo</button>
       <button className="btn primary" disabled={!changed} onClick={() => act({ do: "set_policy", policy: d }, "Policy saved. It applies from the next claim.")}>{changed ? "Save policy" : "Saved"}</button></div>
   </section>;
+}
+
+const WHY: Record<string, string> = { spam: "spam or selling", abuse: "harassment or hate", unsafe: "dangerous or illegal", other: "something else" };
+
+/** Posts fans reported. Three reports hide a post from everyone until someone here decides. */
+function Reported({ c, act }: { c: CareView; act: (a: Record<string, unknown>, ok: string) => void }) {
+  const list = c.reported ?? [];
+  if (!list.length) return <p className="empty">No reported posts. When a fan reports one it shows up here; at three reports it's hidden until you decide.</p>;
+  return <ul className="rp-list">{list.map(r => <li key={r.post}>
+    <div className="grow">
+      <b>{r.who}</b> <small>{r.kind === "fan" ? "fan" : r.kind}</small>
+      <p>{r.text}</p>
+      <small>{r.reports} report{r.reports === 1 ? "" : "s"}: {Object.entries(r.why).map(([k, n]) => `${n} ${WHY[k] ?? k}`).join(", ")}{r.hidden ? " · hidden from everyone until you decide" : " · still visible"}</small>
+    </div>
+    <div className="rp-acts"><button className="btn sm" onClick={() => act({ do: "moderate", post: r.post, remove: false }, "Left up")}>Leave it up</button><button className="btn sm primary" onClick={() => act({ do: "moderate", post: r.post, remove: true }, "Taken down")}>Take it down</button></div>
+  </li>)}</ul>;
 }

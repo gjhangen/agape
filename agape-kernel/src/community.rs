@@ -79,6 +79,48 @@ impl Night {
         Ok(())
     }
 
+    /// Report a post. The reporter stops seeing it at once; three reports hide it from everyone
+    /// until Agape's team has looked. A post the team already kept is not hidden again.
+    pub fn report_post(&mut self, who: &str, post: &str, reason: &str) -> Result<(), String> {
+        if !matches!(reason, "spam" | "abuse" | "unsafe" | "other") { return Err("Pick what's wrong with it".into()); }
+        let p = self.social.posts.iter().find(|p| p.id == post && p.kind != "removed").ok_or("That post is gone")?;
+        if p.author == who { return Err("That's your own post. You can delete it.".into()); }
+        if self.social.reports.iter().any(|r| r.0 == post && r.1 == who) { return Ok(()); }
+        let t = self.t;
+        self.social.reports.push((post.into(), who.into(), reason.into(), t));
+        Ok(())
+    }
+
+    /// Agape's team decides a reported post: leave it up, or take it down.
+    pub fn moderate(&mut self, post: &str, remove: bool) -> Result<(), String> {
+        let i = self.social.posts.iter().position(|p| p.id == post).ok_or("That post is gone")?;
+        if remove { self.social.posts[i].text.clear(); self.social.posts[i].kind = "removed".into(); }
+        else { self.social.kept.insert(post.into()); }
+        Ok(())
+    }
+
+    fn reports_on(&self, post: &str) -> usize { self.social.reports.iter().filter(|r| r.0 == post).count() }
+
+    /// Whether this viewer shouldn't see the post: they reported it, or enough people have and nobody has reviewed it yet.
+    fn hidden_from(&self, p: &Post, viewer: &str) -> bool {
+        if p.author == viewer { return false; }
+        self.social.reports.iter().any(|r| r.0 == p.id && r.1 == viewer) || (!self.social.kept.contains(&p.id) && self.reports_on(&p.id) >= 3)
+    }
+
+    /// The posts waiting on Agape's team, most reported first.
+    pub fn reported_json(&self) -> Vec<Value> {
+        let mut out: Vec<(usize, Value)> = self.social.posts.iter().filter(|p| p.kind != "removed" && !self.social.kept.contains(&p.id)).filter_map(|p| {
+            let rs: Vec<&(String, String, String, i64)> = self.social.reports.iter().filter(|r| r.0 == p.id).collect();
+            if rs.is_empty() { return None; }
+            let mut why: BTreeMap<&str, usize> = BTreeMap::new();
+            for r in &rs { *why.entry(r.2.as_str()).or_insert(0) += 1; }
+            Some((rs.len(), json!({ "post": p.id, "text": p.text, "author": p.author, "who": p.shown_as.clone().or(self.party_name(&p.author)).unwrap_or_else(|| crate::social::handle(&p.author)),
+                "kind": p.kind, "t": p.t, "reports": rs.len(), "why": why, "hidden": rs.len() >= 3, "first": rs.iter().map(|r| r.3).min() })))
+        }).collect();
+        out.sort_by(|a, b| b.0.cmp(&a.0));
+        out.into_iter().map(|x| x.1).collect()
+    }
+
     /// What a person says about themselves: the name others see, a line about them, and their team.
     pub fn set_profile(&mut self, who: &str, name: &str, bio: &str, team: &str) -> Result<(), String> {
         let name: String = name.trim().chars().take(24).collect();
@@ -185,6 +227,14 @@ impl Night {
             let pool = if concert { POST_SHOW } else if ph == "pregame" { POST_PRE } else if ph == "postgame" { POST_AFTER } else { POST_LIVE };
             if let Some(f) = self.sim_fan(t, 23) { let text = self.crowd_words(pick(t, 24, pool)); self.add_post(&f, "fan", text, t); }
         }
+        // once in a while someone in the crowd reports a fan's post, so Agape's team has something to look at
+        if roll(t, 90, 0.004) {
+            let fans: Vec<String> = self.social.posts.iter().rev().take(12).filter(|p| p.kind == "fan" && p.author != YOU && !self.live.contains(&p.author)).map(|p| p.id.clone()).collect();
+            if !fans.is_empty() {
+                let post = fans[(mix(t, 91) % fans.len() as u64) as usize].clone();
+                if let Some(f) = self.sim_fan(t, 92) { let _ = self.report_post(&f, &post, pick(t, 93, &["spam", "abuse", "other"])); }
+            }
+        }
         // the crowd reads recent posts: likes, and now and then a reply
         let n = self.social.posts.len();
         for i in n.saturating_sub(16)..n {
@@ -222,13 +272,13 @@ impl Night {
     /// The feed: everything, newest first, or only the people this viewer follows (and themselves).
     pub fn posts_json(&self, viewer: &str, following_only: bool, n: usize) -> Vec<Value> {
         let follows = self.social.follows.get(viewer);
-        self.social.posts.iter().rev().filter(|p| p.kind != "removed")
+        self.social.posts.iter().rev().filter(|p| p.kind != "removed" && !self.hidden_from(p, viewer))
             .filter(|p| !following_only || p.author == viewer || follows.map_or(false, |f| f.contains(&p.author)))
             .take(n).map(|p| self.post_json(p, viewer)).collect()
     }
 
     pub fn posts_by(&self, author: &str, viewer: &str, n: usize) -> Vec<Value> {
-        self.social.posts.iter().rev().filter(|p| p.author == author && p.kind != "removed").take(n).map(|p| self.post_json(p, viewer)).collect()
+        self.social.posts.iter().rev().filter(|p| p.author == author && p.kind != "removed" && !self.hidden_from(p, viewer)).take(n).map(|p| self.post_json(p, viewer)).collect()
     }
 
     /// Everything for the People space: the feed, your profile, and the market in one place.

@@ -430,7 +430,7 @@ export const LEVELS: { n: number; name: string; line: string; on: string[]; stat
   { n: 4, name: "Beyond the night", line: "Tickets and resale, rides, parking and places nearby", on: ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards", "tickets", "around"], status: "Preview",
     gaps: "Tickets, resale, rides, parking and partner perks work inside the demo. There's also a home for when you're not at a game: what's next, your tickets and your level. Not yet built: a real ticketing or rideshare partner behind them." },
   { n: 5, name: "Community", line: "Posts, profiles, the crowd and the market, with the people you follow", on: ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards", "tickets", "around", "chat", "players"], status: "Preview",
-    gaps: "Posts with likes and comments from fans, players and teams, profiles you write yourself, section chat, following, requests to players, and one market for cards and resale tickets all work in the demo. Not yet built: photos in posts, and reporting a post to a moderator." },
+    gaps: "Posts with likes and comments from fans, players and teams, profiles you write yourself, section chat, following, requests to players, and one market for cards and resale tickets all work in the demo. Fans can report a post, and Agape's team reviews it in HQ. Not yet built: photos in posts." },
 ];
 export const ALL_FEATURES = ["points", "offers", "gifting", "priority", "upgrades", "colors", "predictions", "battle", "cards", "tickets", "around", "chat", "players"];
 export function levelFeatures(n: number): Record<string, boolean> {

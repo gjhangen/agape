@@ -456,7 +456,7 @@ impl Night {
             for (w, a) in &p.paid_by { *by.entry(if w == "agape" { "Agape".into() } else if w == "tax_authority" { "Tax collected".into() } else if w.starts_with("runner") { "Runners".into() } else { "Stands".into() }).or_insert(0) += a; }
             if let crate::care::ProblemState::Remedied { amount, form, .. } = &p.state { if *form == crate::remedy::Form::Credit { credit += amount } else { refund += amount } }
         }
-        json!({ "policy": self.policy, "pay": { "mode": self.terms.pay_mode, "hourly_wage": self.terms.hourly_wage, "runner_pay": self.terms.runner_pay, "offer_hourly": self.terms.offer_hourly,
+        json!({ "reported": self.reported_json(), "policy": self.policy, "pay": { "mode": self.terms.pay_mode, "hourly_wage": self.terms.hourly_wage, "runner_pay": self.terms.runner_pay, "offer_hourly": self.terms.offer_hourly,
                     "free_delivery_over": self.terms.free_delivery_over, "delivery_fee": self.terms.delivery_fee }, "settled": settled, "claims": self.problems.len(),
                 "claim_bps": self.problems.len() as i64 * 10_000 / settled.max(1) as i64,
                 "open": self.problems.iter().filter(|p| p.state == crate::care::ProblemState::Open).count(),

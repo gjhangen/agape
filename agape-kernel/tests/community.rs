@@ -99,3 +99,21 @@ fn on_a_concert_night_the_venue_and_the_acts_post_and_a_sponsor_can_still_write_
     until(&mut n, 80);
     assert!(n.social.posts.iter().any(|p| p.text == "Mara Vale is on now."), "the venue says who's on");
 }
+
+#[test]
+fn a_reported_post_leaves_the_reporters_feed_and_three_reports_hide_it_until_the_team_decides() {
+    let mut n = night();
+    let id = n.social.posts.iter().find(|p| p.kind == "fan").unwrap().id.clone();
+    let seen = |n: &mut Night, who: &str| n.view_fan(who)["community"]["everyone"].as_array().unwrap().iter().any(|p| p["id"] == id.as_str());
+    assert!(seen(&mut n, YOU));
+    n.report_post(YOU, &id, "spam").unwrap();
+    assert!(!seen(&mut n, YOU), "the reporter stops seeing it");
+    assert!(seen(&mut n, "fan3"), "others still do");
+    n.report_post("fan3", &id, "spam").unwrap(); n.report_post("fan4", &id, "abuse").unwrap();
+    assert!(!seen(&mut n, "fan9"), "three reports hide it from everyone");
+    assert_eq!(n.reported_json()[0]["reports"], 3);
+    assert!(api::act(&mut n, YOU, &json!({ "do": "moderate", "post": id, "remove": true }))["ok"] == false, "a fan can't moderate");
+    api::act(&mut n, "hq", &json!({ "do": "moderate", "post": id, "remove": false }));
+    assert!(seen(&mut n, "fan9"), "kept by the team: back for everyone who didn't report it");
+    assert!(n.reported_json().is_empty());
+}
