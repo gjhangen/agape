@@ -2,7 +2,7 @@
 // one screen. The simulation harness (main.tsx) is not part of this build.
 import { React, ReactDOM, useEffect, useRef, useState } from "./r";
 import { kernel, server, setRemoteWorld, world } from "./kernel";
-import { FanApp, FanView, Sheet } from "./fan";
+import { FanApp, FanView, Sheet, pref, setPref } from "./fan";
 import { OpsLens, RunnerLens, StandLens } from "./roles";
 import { BusinessLens, PlayerLens } from "./deals";
 import { BRAND, momentText, venueTime } from "./parts";
@@ -168,7 +168,7 @@ function PilotInfo({ close }: { close: () => void }) {
   );
 }
 
-function Join({ joined, a, signOut }: { joined: () => void; a: Account; signOut: () => void }) {
+function Join({ joined, a, signOut, later }: { joined: () => void; a: Account; signOut: () => void; later: () => void }) {
   useEffect(() => { scrollTo(0, 0); }, []);
   const key = `agape.joined.${a.id}`;
   const back = store.get(key) === "1";
@@ -198,7 +198,7 @@ function Join({ joined, a, signOut }: { joined: () => void; a: Account; signOut:
       </section>}
       {error && <p className="banner warn" role="alert">{error}</p>}
       <div className="join-go"><button className="btn primary big wide" disabled={!seat || busy} onClick={go}>{seat ? `I'm in section ${seat.slice(1)}${row ? `, row ${row.toUpperCase()}` : ""}${place ? `, seat ${place}` : ""}` : "Tap your section"}</button>
-        <small className="join-out">Not at the game yet? <button className="link-inline" onClick={signOut}>Sign out</button> and come back when you're in your seat. Your account and points stay.</small></div>
+        <small className="join-out">Not at the game yet? <button className="link-inline" onClick={later}>Look around without a seat</button>. You can pick your seat whenever you sit down.</small></div>
     </div>
   );
 }
@@ -207,6 +207,7 @@ function Signed({ a, signOut }: { a: Account; signOut: () => void }) {
   // a signed-in fan has an account: the app shows their name, never "Guest"
   if (a.role === "fan") try { const o = JSON.parse(localStorage.getItem("agape.profile") || "{}"); if (o.name !== a.handle || o.guest) localStorage.setItem("agape.profile", JSON.stringify({ ...o, name: a.handle, guest: false })); } catch { /* private mode */ }
   const [, bump] = useState(0);
+  const [looking, setLooking] = useState(() => pref("away", false));
   const [sheet, setSheet] = useState<Sheet>(null);
   const [toasts, setToasts] = useState<{ id: number; text: string }[]>([]);
   const [info, setInfo] = useState(false);
@@ -216,7 +217,7 @@ function Signed({ a, signOut }: { a: Account; signOut: () => void }) {
   const lens = a.role === "fan" ? "fan" : a.role;
   const v = kernel.view(lens as any, "");
   if (v?.error || v?.ok === false) return <div className="gate"><p>{v.error}</p><button className="btn" onClick={signOut}>Sign out</button></div>;
-  if (a.role === "fan" && !(v as FanView).you?.seat) return <Join joined={refresh} a={a} signOut={signOut} />;
+  if (a.role === "fan" && !(v as FanView).you?.seat && !(looking && pref("away", false))) return <Join joined={() => { setPref("away", false); refresh(); }} a={a} signOut={signOut} later={() => { setPref("away", true); setLooking(true); }} />;
   const noop = () => {};
   if (a.role === "fan") {
     const settings = (
@@ -233,7 +234,7 @@ function Signed({ a, signOut }: { a: Account; signOut: () => void }) {
     return (
       <div className="app-shell">
         {rehearsal() && <p className="mode-strip" role="note">Rehearsal · practice orders</p>}
-        <FanApp v={v} refresh={refresh} sheet={sheet} setSheet={setSheet} toast={toast} settings={settings} />
+        <FanApp key={(v as FanView).you?.seat ? "seated" : "away"} v={v} refresh={refresh} sheet={sheet} setSheet={setSheet} toast={toast} settings={settings} onArrive={() => { setPref("away", false); setLooking(false); }} />
         <aside className="desk-side" aria-label="About this page">
           <span className="l-mark">agape</span>
           <p>Agape is made for the phone in your hand at the game. Open <b>agapetoyourseat.com</b> on your phone to use it there, signed in as {a.handle}.</p>

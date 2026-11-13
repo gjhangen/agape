@@ -10,6 +10,7 @@ import { setWorldOverride, worldOverride } from "./kernel";
 import { applyLook, applyMode, savedLook, savedMode, setVenueColor } from "./themes";
 import { LookPicker } from "./lookpicker";
 import { TalkToUs } from "./talk";
+import { Follow } from "./follow";
 void LookPicker;
 
 const SPEEDS = [
@@ -61,13 +62,14 @@ function App() {
   const [parties, setParties] = useState<any>(null);
   const [wide, setWide] = useState(() => matchMedia("(min-width: 1080px)").matches);
   const [tour, setTour] = useState<number | null>(null);
+  const [follow, setFollow] = useState(false);
   const [talk, setTalk] = useState(false);
   const [intro, setIntro] = useState(() => { if (new URLSearchParams(location.search).get("as")) return false; try { return localStorage.getItem("agape.sim.intro") !== "seen"; } catch { return true; } });
   const closeIntro = () => { setIntro(false); try { localStorage.setItem("agape.sim.intro", "seen"); } catch { /* shown again next visit */ } };
   useEffect(() => { try { if (sessionStorage.getItem("agape.badlink")) { sessionStorage.removeItem("agape.badlink"); setTimeout(() => toast("That link didn't open a saved version, so this is the sample venue."), 600); } } catch { /* fine */ } }, []);
   const goTour = (i: number | null) => { setTour(i); if (i != null) setPersp(tourList()[i].persp); };
   // a link straight into the guided tour (the investor page sends people here)
-  useEffect(() => { if (new URLSearchParams(location.search).get("tour")) { const t = setTimeout(() => { setIntro(false); goTour(0); }, 400); return () => clearTimeout(t); } }, []);
+  useEffect(() => { if (new URLSearchParams(location.search).get("tour")) { const t = setTimeout(() => { setIntro(false); setFollow(true); }, 400); return () => clearTimeout(t); } }, []);
   const acc = useRef(0);
   const st = useRef({ persp, runnerId, standId, wide, playerId, bizId });
   st.current = { persp, runnerId, standId, wide, playerId, bizId };
@@ -142,18 +144,18 @@ function App() {
             <select id="skip" className="h-btn" value="" onChange={e => { if (e.target.value === "restart") { location.reload(); return; } skip(e.target.value); e.target.value = ""; }} aria-label="Skip ahead">
               <option value="">Skip to…</option><option value="half">{isConcert() ? "The changeover" : "Halftime"}</option><option value="q4">{isConcert() ? "The finale" : "4th quarter"}</option><option value="final">{isConcert() ? "The end of the show" : "Final"}</option><option value="restart">Start the night again</option>
             </select>
-            <button className="btn h-btn" onClick={() => goTour(0)}>Tour</button>
+            <button className="btn h-btn" onClick={() => { setTour(null); setFollow(true); }}>Tour</button>
             <button className="btn h-btn primary" onClick={() => setTalk(true)}>Talk to us</button>
           </div>
         </div>
         <nav className="persp" aria-label="Whose screen">
           <span className="eyebrow">See it as</span>
           {PERSPECTIVES.filter(([id]) => !(id === "player" && isConcert())).map(([id, label, hint]) => (
-            <button key={id} className={(persp === id ? "on" : "") + (id === "setup" ? " studio" : "")} aria-current={persp === id} title={hint} onClick={() => { setPersp(id); setTour(null); }}><b>{label}</b><small>{hint}</small></button>
+            <button key={id} className={(persp === id ? "on" : "") + (id === "setup" ? " studio" : "")} aria-current={persp === id} title={hint} onClick={() => { setPersp(id); setTour(null); setFollow(false); }}><b>{label}</b><small>{hint}</small></button>
           ))}
         </nav>
       </header>
-      {intro && (
+      {intro && !follow && (
         <section className="sim-intro" aria-label="About the simulator">
           <div>
             <span className="eyebrow">You're looking at a whole night, simulated</span>
@@ -162,7 +164,7 @@ function App() {
             <details className="sim-more"><summary>More about what you're seeing</summary><p>Speed time up, switch features off, or put your own team on it in the Studio. Nothing you do here affects anyone else. Anything tagged with a package name, such as <span className="opt">Deals</span>, is built and working but beyond what Agape launches with; a venue switches it on if it wants it.</p></details>
           </div>
           <div className="sim-intro-acts">
-            <button className="btn primary big" onClick={() => { closeIntro(); goTour(0); }}>Take the 2-minute tour</button>
+            <button className="btn primary big" onClick={() => { closeIntro(); setFollow(true); }}>Take the 2-minute tour</button>
             <button className="btn big" onClick={() => { closeIntro(); setPersp("setup"); }}>{isConcert() ? "Make it your venue" : "Put my team on it"}</button>
             <button className="link-inline" onClick={closeIntro}>Just let me explore</button>
           </div>
@@ -182,7 +184,9 @@ function App() {
           </div>
         </aside>
       )}
-      <main className={"stage " + persp}>
+      {follow && <Follow v={fan} refresh={refresh} exit={() => setFollow(false)} screens={() => { setFollow(false); goTour(0); }}
+        open={(as, ids) => { if (ids?.runner) setRunnerId(ids.runner); if (ids?.stand) setStandId(ids.stand); setPersp(as); setFollow(false); }} />}
+      <main className={"stage " + persp} hidden={follow}>
         {persp === "fan" && (
           <div className="fan-layout">
             <FanApp v={fan} refresh={refresh} sheet={sheet} setSheet={setSheet} toast={toast} />

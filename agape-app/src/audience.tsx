@@ -66,7 +66,15 @@ function Invest() {
     <Flow title="Agape takes the line away" />
     <Money kicker="How the money moves" title="Every dollar flows through Agape" line="Agape keeps its share first, then pays everyone else. Nobody is ever collected from."
       chips={[<><b>A share</b> of every sale</>, <><b>A delivery fee</b> on every order</>, <><b>Sponsors, processing, ads</b> and more as it grows</>]} />
-    <Tiles title="Why Agape wins" items={[["⏱", "Times that come true", "Measured live from every kitchen and runner"], ["↗", "Delivery that pays", "Built around deliveries per runner hour"], ["≡", "One set of books", "Every party, one ledger, to the cent"], ["✓", "Live in an afternoon", "A form, not an integration project"]]} />
+    <section className="site-sec iv2-why">
+      <h2>Why hasn't anyone done this?</h2>
+      <div className="iv2-why-grid">
+        <div><b>The math didn't work</b><p>A runner carrying one order at a time makes only a handful of deliveries an hour. That can't pay the runner and leave a margin, so venues stopped at pickup windows and premium-seat waiters.</p></div>
+        <div><b>The companies inside venues sell pickup</b><p>Concession operators and their checkout systems are built around the counter, and each venue's app is a one-off. Delivery apps can't get past the gate.</p></div>
+        <div className="key"><b>What changes it</b><p>Agape puts orders headed the same way on one trip and sends runners toward a stand before its orders come up. In our simulated arena, the same night runs from about 7 to about 19 deliveries per runner each hour, depending on staffing. <a href="/demo/?tour=1">Run it yourself</a>.</p></div>
+      </div>
+    </section>
+    <Tiles title="Why Agape wins" items={[["⏱", "Times that come true", "Measured live from every kitchen and runner"], ["↗", "Delivery that pays", "Built around deliveries per runner hour"], ["∞", "One network, every venue", "One account, points and history that follow the fan"], ["✓", "Live in an afternoon", "A form, not an integration project"]]} />
     <Web />
     <Built kicker="Built, not slides" title="Six apps, working today" />
     <section className="site-sec iv2-team">

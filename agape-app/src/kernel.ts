@@ -23,8 +23,18 @@ function call(fn: (p: number, n: number) => number, obj: unknown): any {
   new Uint8Array(k.memory.buffer, p, b.length).set(b);
   const n = fn(p, b.length);
   k.dealloc(p, b.length);
-  return JSON.parse(dec.decode(new Uint8Array(k.memory.buffer, k.out_ptr(), n)));
+  return JSON.parse(redate(dec.decode(new Uint8Array(k.memory.buffer, k.out_ptr(), n))));
 }
+
+/** The sample league's coming events carry fixed dates. Shown to people, they are always the next
+ *  Thursday, the Friday after it and the Saturday a week on, so the calendar never looks stale. */
+const DATES: [string, string][] = (() => {
+  const fmt = (d: Date) => d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+  const nextDow = (from: Date, dow: number, min: number) => { const d = new Date(from); d.setDate(d.getDate() + min); while (d.getDay() !== dow) d.setDate(d.getDate() + 1); return d; };
+  const thu = nextDow(new Date(), 4, 2), fri = nextDow(thu, 5, 1), sat = nextDow(fri, 6, 7);
+  return [["Thu, Nov 5", fmt(thu)], ["Fri, Nov 13", fmt(fri)], ["Sat, Nov 21", fmt(sat)]];
+})();
+const redate = (text: string) => DATES.reduce((t, [from, to]) => t.split(from).join(to), text);
 
 /** A venue template being set up, in place of the pilot venue. Survives a reload in this tab only. */
 export function worldOverride(): any { try { const s = sessionStorage.getItem("agape.world"); return s ? JSON.parse(s) : null; } catch { return null; } }
@@ -32,6 +42,9 @@ export function setWorldOverride(w: any) { try { w ? sessionStorage.setItem("aga
 export const setup = {
   check: (world: any) => call(x!.check, { world, template: AGAPE_TEMPLATE }),
   preview: (world: any) => call(x!.preview, { world, template: AGAPE_TEMPLATE, fans: world?.pilot?.fans ?? 3000, runners: world?.pilot?.runners ?? 40 }),
+  /** The same whole night with a different number of runners on the floor. */
+  staffed: (runners: number) => { const world = worldOverride() ?? AGAPE_WORLD; return call(x!.preview, { world, template: AGAPE_TEMPLATE, fans: world?.pilot?.fans ?? 3000, runners }); },
+  runners: () => (worldOverride() ?? AGAPE_WORLD)?.pilot?.runners ?? 40,
 };
 
 export async function boot(seed: number, youSeat: string) {
@@ -42,7 +55,7 @@ export async function boot(seed: number, youSeat: string) {
   return call(x.init, { world: w, template: AGAPE_TEMPLATE, seed, you_seat: youSeat, fans: w?.pilot?.fans ?? 3000, runners: w?.pilot?.runners ?? 40 });
 }
 
-type Lens = "fan" | "runner" | "stand" | "ops" | "page" | "player" | "business" | "parties" | "care" | "glance";
+type Lens = "follow" | "fan" | "runner" | "stand" | "ops" | "page" | "player" | "business" | "parties" | "care" | "glance";
 
 // ---------- remote: the same calls, answered by the venue's server ----------
 // Screens read views synchronously while rendering. Remotely, a view is served from a cache that
@@ -55,11 +68,11 @@ function xhr(path: string, body: unknown): any {
   r.setRequestHeader("content-type", "application/json");
   if (remote.token) r.setRequestHeader("authorization", `Bearer ${remote.token}`);
   r.send(JSON.stringify(body));
-  try { return JSON.parse(r.responseText); } catch { return { ok: false, error: `The venue didn't answer (${r.status})` }; }
+  try { return JSON.parse(redate(r.responseText)); } catch { return { ok: false, error: `The venue didn't answer (${r.status})` }; }
 }
 async function post(path: string, body: unknown): Promise<any> {
   const r = await fetch(path, { method: "POST", headers: { "content-type": "application/json", ...(remote.token ? { authorization: `Bearer ${remote.token}` } : {}) }, body: JSON.stringify(body) });
-  return r.json();
+  return JSON.parse(redate(await r.text()));
 }
 let refreshing = false, again = false, lastRefresh = 0;
 async function refreshRemote() {

@@ -126,7 +126,7 @@ pub fn preview(w: WorldDef, tpl: Template, fans: usize, runners: usize) -> Value
     by_stand.sort_by_key(|x| -x["revenue"].as_i64().unwrap_or(0));
     json!({ "ok": true, "issues": issues, "report": {
         "orders": report.orders, "delivered": pct("Settled"), "wait_p50_s": report.wait_p50_s, "wait_p90_s": report.wait_p90_s, "late": report.late,
-        "cannot_fulfil": pct("StandCannotFulfil"), "balked": report.balked, "runner_hourly": report.runner_hourly, "batch_avg": report.batch_avg, "flows": report.flows, "trips_taken": report.trips_taken, "taken_first": report.taken_first, "trip_pay_avg": report.trip_pay_avg,
+        "cannot_fulfil": pct("StandCannotFulfil"), "balked": report.balked, "runner_hourly": report.runner_hourly, "batch_avg": report.batch_avg, "per_runner_hour": report.per_runner_hour, "peak_per_runner_hour": report.peak_per_runner_hour, "flows": report.flows, "trips_taken": report.trips_taken, "taken_first": report.taken_first, "trip_pay_avg": report.trip_pay_avg,
         "money": report.money, "conserved": report.conserved, "stands": by_stand, "fans": fans, "runners": runners,
     }})
 }

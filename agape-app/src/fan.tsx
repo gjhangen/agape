@@ -84,7 +84,7 @@ const sec = (s: string) => s.slice(1);
 /** Lets anything deep in the app open an item to order. */
 const SheetCtx = React.createContext<((s: Sheet) => void) | null>(null);
 
-export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ctx, "go" | "open" | "setting"> & { sheet: Sheet }) {
+export function FanApp({ v, refresh, sheet, setSheet, toast, settings, onArrive }: Omit<Ctx, "go" | "open" | "setting"> & { sheet: Sheet; onArrive?: () => void }) {
   const [space, setSpace] = useState<Space>("get");
   const [q, setQ] = useState("");
   const body = useRef<HTMLDivElement>(null);
@@ -94,8 +94,8 @@ export function FanApp({ v, refresh, sheet, setSheet, toast, settings }: Omit<Ct
   const [liveOpen, setLiveOpen] = useState(false);
   const [setting, setSetting] = useState<string | null>(null);
   // between events: the app's home is what's next, not tonight's menu
-  const [away, setAway] = useState<boolean>(() => feature("tickets") && pref("away", false));
-  const arrive = () => { setPref("away", false); setAway(false); setSpace("get"); };
+  const [away, setAway] = useState<boolean>(() => pref("away", false) && (feature("tickets") || !v.you.seat));
+  const arrive = () => { setPref("away", false); if (onArrive) { onArrive(); return; } setAway(false); setSpace("get"); };
   // the phone's back button closes what's open (a sheet, a page) instead of leaving the app
   const overlay = (sheet ? 1 : 0) + pages.length + (liveOpen ? 1 : 0) + (setting ? 1 : 0);
   const depth = useRef(0), fromBack = useRef(false), skipPop = useRef(0);
@@ -228,8 +228,8 @@ export function profileName(): string { try { return JSON.parse(localStorage.get
 function setProfile(p: Record<string, unknown>) { try { const o = JSON.parse(localStorage.getItem("agape.profile") || "{}"); localStorage.setItem("agape.profile", JSON.stringify({ ...o, ...p })); } catch { /* kept for this visit only */ } }
 /** A fan using Agape without an account: everything works, and nothing is kept after tonight. */
 export function isGuest(): boolean { try { return !!JSON.parse(localStorage.getItem("agape.profile") || "{}").guest; } catch { return false; } }
-function pref<T>(k: string, d: T): T { try { const o = JSON.parse(localStorage.getItem("agape.prefs") || "{}"); return k in o ? o[k] : d; } catch { return d; } }
-function setPref(k: string, v: unknown) { try { const o = JSON.parse(localStorage.getItem("agape.prefs") || "{}"); o[k] = v; localStorage.setItem("agape.prefs", JSON.stringify(o)); } catch { /* fine */ } }
+export function pref<T>(k: string, d: T): T { try { const o = JSON.parse(localStorage.getItem("agape.prefs") || "{}"); return k in o ? o[k] : d; } catch { return d; } }
+export function setPref(k: string, v: unknown) { try { const o = JSON.parse(localStorage.getItem("agape.prefs") || "{}"); o[k] = v; localStorage.setItem("agape.prefs", JSON.stringify(o)); } catch { /* fine */ } }
 
 /** A first-night hello that leads with the one thing Agape is for: something good, at your seat, soon. */
 function Welcome({ v, setSheet }: Ctx) {
@@ -308,17 +308,18 @@ function Get(ctx: Ctx) {
 function AwayHome(ctx: Ctx & { arrive: () => void }) {
   const { v, open, go, arrive } = ctx;
   const m = v.me;
-  const next = v.get.events[0];
+  const next = v.get.events?.[0];
+  const live = v.clock.phase !== "postgame";
   const posts = v.community ? (v.community.following.length ? v.community.following : v.community.everyone).slice(0, 3) : [];
   return (
     <>
       <section className="block away-hero">
-        <span className="eyebrow">Next at {BRAND.venue}</span>
-        {next ? <><h2>{next.title}</h2><small>{next.date} · {next.time}{next.yours ? ` · you have ${next.yours} ticket${next.yours === 1 ? "" : "s"}` : ` · from ${next.from ? money(next.from) : "sold out"}`}</small></>
+        <span className="eyebrow">{!next && live ? `On now at ${BRAND.venue}` : `Next at ${BRAND.venue}`}</span>
+        {!next && live ? <><h2>{W.matchup}</h2><small>{v.clock.label}. In your seat? Order and we'll bring it to you.</small></> : next ? <><h2>{next.title}</h2><small>{next.date} · {next.time}{next.yours ? ` · you have ${next.yours} ticket${next.yours === 1 ? "" : "s"}` : ` · from ${next.from ? money(next.from) : "sold out"}`}</small></>
           : <h2>Nothing on the calendar yet</h2>}
         <div className="away-acts">
           {next && <button className="btn primary sm" onClick={() => open(next.id)}>{next.yours ? "See your seats" : "Get tickets"}</button>}
-          <button className="btn ghost sm" onClick={arrive}>I'm at a game now</button>
+          <button className={"btn sm " + (!next && live ? "primary" : "ghost")} onClick={arrive}>{v.you.seat ? "I'm at a game now" : "I'm in my seat"}</button>
         </div>
       </section>
       {feature("points") && <section className="block away-pts">
@@ -725,7 +726,7 @@ function Me({ v, refresh, toast, open, settings, setting }: Ctx) {
     <>
       <header className="me-head">
         <span className="me-av big">{name.slice(0, 1)}</span>
-        <div className="grow"><h2>{name}</h2><small>Section {sec(v.you.seat)}{spot ? `, ${spot}` : ""} · {BRAND.venue}</small>{guest && <button className="link-inline small" onClick={() => setting("account")}>Create an account to keep your receipts</button>}{v.community && <button className="link-inline small me-prof" onClick={() => open(v.you.id)}>Your profile</button>}</div>
+        <div className="grow"><h2>{name}</h2><small>{v.you.seat ? `Section ${sec(v.you.seat)}${spot ? `, ${spot}` : ""} · ${BRAND.venue}` : `Not at a game right now · ${BRAND.venue}`}</small>{guest && <button className="link-inline small" onClick={() => setting("account")}>Create an account to keep your receipts</button>}{v.community && <button className="link-inline small me-prof" onClick={() => open(v.you.id)}>Your profile</button>}</div>
         {feature("points") && <LevelBadge tier={m.tier} small />}
       </header>
       {fresh.length > 0 && (
@@ -799,7 +800,7 @@ function Me({ v, refresh, toast, open, settings, setting }: Ctx) {
         <h2>Settings</h2>
         {row("account", "user", "Account", guest ? "Create an account" : name)}
         {row("payment", "card", "Payment", pref<string>("pay", "") || "None yet")}
-        {row("seat", "seat", "Your seat", `Section ${sec(v.you.seat)}${spot ? `, ${spot}` : ""}`)}
+        {v.you.seat && row("seat", "seat", "Your seat", `Section ${sec(v.you.seat)}${spot ? `, ${spot}` : ""}`)}
         {row("notifications", "bell", "Notifications")}
         {row("accessibility", "access", "Accessibility")}
         {row("privacy", "lock", "Privacy")}

@@ -40,8 +40,9 @@ impl From<LedgerError> for SocialError { fn from(e: LedgerError) -> Self { Socia
 
 /// Something posted for everyone here: by a fan, a player or a team.
 #[derive(Clone, Debug)]
-pub struct Post { pub id: String, pub t: i64, pub author: PartyId, /** fan, player, team, or removed */ pub kind: String, pub text: String,
-    pub likes: BTreeSet<PartyId>, pub comments: Vec<(i64, PartyId, String)> }
+pub struct Post { pub id: String, pub t: i64, pub author: PartyId, /** fan, player, team, act, venue, or removed */ pub kind: String, pub text: String,
+    pub likes: BTreeSet<PartyId>, pub comments: Vec<(i64, PartyId, String)>,
+    /** the name shown, when the author is an act or the venue and has no page of its own */ pub shown_as: Option<String> }
 
 /// What a person writes about themselves.
 #[derive(Clone, Debug, Default)]

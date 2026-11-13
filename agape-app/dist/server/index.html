@@ -2388,6 +2388,73 @@ button.l-sim-link { background: none; cursor: pointer; }
 .sp-st { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .05em; padding: 3px 8px; border-radius: 99px; background: var(--sunk); color: var(--ink-2); }
 .sp-st.live { background: var(--accent); color: var(--accent-ink); }
 .sp-n { display: grid; text-align: right; } .sp-n b { font-size: 18px; color: var(--ink); }
+
+/* ---------- The simulator's story: one order, every screen ---------- */
+.fw { max-width: 1320px; margin: 16px auto 40px; padding-inline: max(16px, env(safe-area-inset-left, 0px)); display: grid; gap: 16px; }
+.fw-head, .fw-start { background: var(--board); color: var(--board-ink); border-radius: var(--r-lg); padding: 24px; }
+.fw-head { display: grid; grid-template-columns: 1fr auto; gap: 20px; align-items: center; }
+.fw-start { display: grid; gap: 12px; max-width: 860px; }
+.fw .eyebrow { color: var(--board-clock); }
+.fw-card .eyebrow { color: var(--muted); }
+.fw h1 { font: 800 30px/1.08 var(--display); text-transform: var(--case, uppercase); margin: 6px 0 8px; text-wrap: balance; }
+.fw-head p, .fw-start p { color: color-mix(in srgb, var(--board-ink) 78%, var(--board)); max-width: 68ch; line-height: 1.5; margin: 0; font-size: 16px; }
+.fw-err { color: #FFB4A8 !important; }
+.fw-acts { display: grid; gap: 8px; justify-items: stretch; min-width: 230px; }
+.fw-start .fw-acts { justify-items: start; margin-top: 6px; }
+.fw-acts .link-inline { color: color-mix(in srgb, var(--board-ink) 70%, var(--board)); justify-self: center; }
+.fw-start .fw-acts .link-inline { justify-self: start; }
+.fw-rail { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(6, 1fr); gap: 6px; }
+.fw-rail li { display: grid; grid-template-columns: auto 1fr; column-gap: 8px; align-items: center; padding: 10px 12px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); color: var(--ink-2); }
+.fw-rail i { grid-row: span 2; width: 26px; height: 26px; border-radius: 50%; display: grid; place-items: center; font-style: normal; font-weight: 800; font-size: 12.5px; background: var(--sunk); color: var(--ink-2); }
+.fw-rail b { font-size: 13.5px; color: var(--ink); }
+.fw-rail small { font-size: 12px; min-height: 15px; }
+.fw-rail li.done i { background: var(--ink); color: var(--surface); }
+.fw-rail li.now { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.fw-rail li.now i { background: var(--accent); color: var(--accent-ink); }
+.fw-cols { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; align-items: stretch; }
+.fw-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 16px; display: grid; gap: 10px; align-content: start; transition: opacity .3s, box-shadow .3s; }
+.fw-card.wait { opacity: .55; }
+.fw-card.live { border-color: var(--accent); box-shadow: 0 0 0 2px var(--accent), 0 14px 34px rgb(0 0 0 / .12); opacity: 1; }
+.fw-card header { display: grid; gap: 2px; }
+.fw-card header b { font: 800 20px/1.1 var(--display); text-transform: var(--case, uppercase); color: var(--ink); }
+.fw-big { margin: 0; font-size: 17px; font-weight: 700; color: var(--ink); line-height: 1.3; }
+.fw-n { font: 800 40px/1 var(--display); color: var(--accent); margin-right: 6px; }
+.fw-card dl { margin: 0; display: grid; gap: 6px; }
+.fw-card dl div { display: flex; justify-content: space-between; gap: 12px; font-size: 14px; border-top: 1px solid var(--line); padding-top: 6px; }
+.fw-card dt { color: var(--ink-2); } .fw-card dd { margin: 0; color: var(--ink); font-weight: 600; text-align: right; }
+.fw-note { margin: 0; font-size: 13px; color: var(--ink-2); line-height: 1.45; }
+.fw-card .link-inline { justify-self: start; margin-top: auto; }
+.fw-card .link-inline:disabled { opacity: .5; }
+.fw-split { list-style: none; margin: 0; padding: 0; display: grid; gap: 7px; }
+.fw-split li { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; font-size: 14px; color: var(--ink); }
+.fw-split li span { grid-column: 1; } .fw-split li b { grid-column: 2; grid-row: 1; }
+.fw-split li i { grid-column: 1 / -1; height: 7px; border-radius: 99px; background: var(--ink-2); }
+.fw-split li.agape i { background: var(--accent); } .fw-split li.stand i { background: var(--ink); }
+@media (max-width: 1000px) { .fw-cols { grid-template-columns: 1fr 1fr; } .fw-head { grid-template-columns: 1fr; } .fw-rail { grid-template-columns: repeat(3, 1fr); } }
+@media (max-width: 620px) { .fw-cols { grid-template-columns: 1fr; } .fw h1 { font-size: 24px; } .fw-rail { grid-template-columns: repeat(2, 1fr); } .fw-head, .fw-start { padding: 18px; } .fw-acts { min-width: 0; } }
+.fw-dial { background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); padding: 20px; display: grid; gap: 14px; }
+.fw-dial .eyebrow { color: var(--muted); }
+.fw-dial h2 { font: 800 24px/1.1 var(--display); text-transform: var(--case, uppercase); margin: 4px 0 8px; color: var(--ink); }
+.fw-dial p { margin: 0 0 12px; color: var(--ink-2); max-width: 72ch; line-height: 1.5; }
+.fw-dial-out { overflow-x: auto; }
+.fw-dial table { width: 100%; border-collapse: collapse; font-size: 14.5px; min-width: 640px; }
+.fw-dial th, .fw-dial td { text-align: right; padding: 9px 10px; border-top: 1px solid var(--line); color: var(--ink); }
+.fw-dial thead th { border-top: 0; font-size: 12px; font-weight: 700; color: var(--ink-2); vertical-align: bottom; }
+.fw-dial th:first-child { text-align: left; }
+.fw-dial td b { font-size: 17px; color: var(--accent); }
+.fw-dial .fw-note { margin: 10px 0 0; }
+.fw-head .btn:not(.primary) { background: transparent; color: var(--board-ink); border: 1px solid color-mix(in srgb, var(--board-ink) 45%, var(--board)); }
+.sim-intro .opt, .fw-head .opt, .tour .opt { color: var(--board-ink); border-color: color-mix(in srgb, var(--board-ink) 45%, transparent); }
+.cm-post.act .cm-av, .cm-post.venue .cm-av { background: var(--ink); color: var(--surface); }
+/* ---------- Investor page: why hasn't anyone done this ---------- */
+.iv2-why h2 { margin-bottom: 18px; }
+.iv2-why-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.iv2-why-grid > div { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 20px; display: grid; gap: 8px; align-content: start; }
+.iv2-why-grid > div.key { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
+.iv2-why-grid b { font: 800 20px/1.15 var(--display); text-transform: var(--case, uppercase); color: var(--ink); }
+.iv2-why-grid p { margin: 0; color: var(--ink-2); line-height: 1.5; font-size: 15.5px; }
+@media (max-width: 860px) { .iv2-why-grid { grid-template-columns: 1fr; } }
+.iv2-why-grid a { color: var(--accent); font-weight: 600; }
 </style></head><body><div id="root"><div class="site"><section class="site-hero"><h1>Order from your seat.<br>It comes to you.</h1></section></div></div><script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.3.1/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.3.1/umd/react-dom.production.min.js"></script><script>var AGAPE_WORLD={
  "venue": "arena",

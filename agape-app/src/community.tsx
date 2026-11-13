@@ -4,7 +4,7 @@ import { React, useState } from "./r";
 import { kernel } from "./kernel";
 import { venueTime } from "./parts";
 
-export type PostView = { id: string; t: number; author: string; who: string; kind: "fan" | "player" | "team"; text: string; you: boolean;
+export type PostView = { id: string; t: number; author: string; who: string; kind: "fan" | "player" | "team" | "act" | "venue"; text: string; you: boolean;
   likes: number; liked: boolean; replies: number; comments: { t: number; id: string; who: string; text: string; you: boolean }[]; color: string | null; verified: boolean };
 export type Community = {
   everyone: PostView[]; following: PostView[];
@@ -28,20 +28,27 @@ export function Composer({ toast, refresh }: { toast: (s: string) => void; refre
 export function PostCard({ p, open, toast, refresh }: { p: PostView; open: (id: string) => void; toast: (s: string) => void; refresh: () => void }) {
   const [show, setShow] = useState(false);
   const [text, setText] = useState("");
+  const [reporting, setReporting] = useState(false);
+  const report = (reason: string) => { const r = kernel.act({ do: "report_post", post: p.id, reason }); toast(r.ok ? "Reported. Agape's team will look at it, and you won't see it again." : r.error); setReporting(false); refresh(); };
   const like = () => { const r = kernel.act({ do: "like", post: p.id }); if (!r.ok) toast(r.error); refresh(); };
   const reply = (e: React.FormEvent) => { e.preventDefault(); const r = kernel.act({ do: "comment", post: p.id, text }); if (!r.ok) { toast(r.error); return; } setText(""); refresh(); };
   const remove = () => { const r = kernel.act({ do: "unpost", post: p.id }); toast(r.ok ? "Post taken down" : r.error); refresh(); };
   const shown = show ? p.comments : p.comments.slice(-1);
   return <article className={"cm-post " + p.kind}>
     <header>
-      <button className="cm-av" style={p.color ? { background: p.color } : undefined} onClick={() => !p.you && open(p.author)} aria-label={`${p.who}'s profile`}>{p.who.slice(0, 1)}</button>
+      <button className="cm-av" style={p.color ? { background: p.color } : undefined} onClick={() => !p.you && p.author && open(p.author)} aria-label={p.author ? `${p.who}'s profile` : p.who}>{p.who.slice(0, 1)}</button>
       <div className="grow">
-        {p.you ? <b>You</b> : <button className="link-inline who" onClick={() => open(p.author)}>{p.who}</button>}
-        {p.verified && <i className="cm-tick" title={p.kind === "team" ? "Team account" : "Player"}>{p.kind === "team" ? "Team" : "Player"}</i>}
+        {p.you ? <b>You</b> : p.author ? <button className="link-inline who" onClick={() => open(p.author)}>{p.who}</button> : <b>{p.who}</b>}
+        {p.verified && <i className="cm-tick">{({ team: "Team", player: "Player", act: "Artist", venue: "Venue" } as Record<string, string>)[p.kind] ?? "Official"}</i>}
         <time className="num">{venueTime(p.t)}</time>
       </div>
-      {p.you && <button className="link-inline small" onClick={remove}>Delete</button>}
+      {p.you ? <button className="link-inline small" onClick={remove}>Delete</button>
+        : <button className="cm-more" aria-expanded={reporting} aria-label={`Report ${p.who}'s post`} onClick={() => setReporting(!reporting)}>Report</button>}
     </header>
+    {reporting && <div className="cm-report" role="group" aria-label="Why are you reporting this?">
+      <span>What's wrong with it?</span>
+      {[["spam", "Spam or selling"], ["abuse", "Harassment or hate"], ["unsafe", "Dangerous or illegal"], ["other", "Something else"]].map(([id, label]) => <button key={id} className="btn ghost sm" onClick={() => report(id)}>{label}</button>)}
+    </div>}
     <p>{p.text}</p>
     <footer>
       <button className={"cm-like" + (p.liked ? " on" : "")} aria-pressed={p.liked} onClick={like}>

@@ -138,7 +138,7 @@ impl Night {
         json!({ "id": id, "name": self.party_name(id), "kind": b.map(|b| b.kind.clone()), "blurb": b.map(|b| b.blurb.clone()),
                 "money": { "revenue": revenue, "budget": budget, "spent_on_deals": spent_on_deals, "in_escrow": in_escrow },
                 "passes": passes, "rides": rides, "drivers": drivers, "sales": sales, "deals": self.deals_of(id), "talent": talent,
-                "followers": self.social.followers(id), "sponsor": if self.on("offers") && self.concert().is_none() { self.sponsor_json(id) } else { Value::Null } })
+                "followers": self.social.followers(id), "sponsor": if self.on("offers") { self.sponsor_json(id) } else { Value::Null } })
     }
 
     /// What Agape brought each local business tonight: fans who unlocked its perk or pass, fans who came in and used

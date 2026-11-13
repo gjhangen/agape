@@ -58,7 +58,7 @@ impl Night {
                 "home": self.score.0, "away": self.score.1, "margin": self.engine.measure("margin", self.t) })
     }
 
-    fn order_card(&self, id: usize) -> Value {
+    pub(crate) fn order_card(&self, id: usize) -> Value {
         let o = &self.orders[id];
         let q = &o.c.quote;
         let b = breakdown(q, &self.terms).ok();

@@ -201,6 +201,7 @@ fn phase_of(s: &[(i64, &'static str, i64)], minute: i64) -> (&'static str, f64) 
 #[path = "community.rs"] mod community;
 #[path = "play.rs"] pub mod play;
 #[path = "sponsor.rs"] pub mod sponsor;
+#[path = "follow.rs"] mod follow;
 
 /// One line of what happened, for the feed.
 #[derive(Clone, Debug)]

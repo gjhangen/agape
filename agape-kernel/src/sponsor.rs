@@ -25,7 +25,7 @@ impl Night {
 
     /// A business writes a deal for tonight. Its budget (discount × how many) is set aside now.
     pub fn sponsor_offer(&mut self, who: &str, moment: &str, thing: &str, discount: i64, cap: i64) -> Result<String, String> {
-        if self.concert().is_some() { return Err("Sponsor deals are for games for now".into()); }
+        if self.concert().is_some() && !matches!(moment, "halftime" | "last_call") { return Err("Pick when the deal opens".into()); }
         if !self.world.def.businesses.iter().any(|b| b.id == who) { return Err("Only a business on Agape can write a deal".into()); }
         let when = Self::moment_pattern(moment).ok_or("Pick when the deal opens")?;
         let item = self.world.thing(thing).cloned().ok_or("Pick something from the menu")?;
@@ -51,14 +51,15 @@ impl Night {
             let live: Vec<_> = self.book.offers.values().filter(|l| l.source == d.id).collect();
             let claimed: i64 = live.iter().map(|l| l.claimed).sum();
             let open = live.iter().any(|l| l.closed.is_none());
-            json!({ "id": d.id, "moment": d.moment, "when": MOMENTS.iter().find(|m| m.0 == d.moment).map(|m| m.1), "thing": d.thing,
+            json!({ "id": d.id, "moment": d.moment, "when": if self.concert().is_some() { Some(if d.moment == "halftime" { "At the changeover" } else { "At the finale" }) } else { MOMENTS.iter().find(|m| m.0 == d.moment).map(|m| m.1) }, "thing": d.thing,
                     "name": self.world.thing(&d.thing).map(|t| t.name.clone()), "discount": d.discount, "cap": d.cap, "budget": d.discount * d.cap,
                     "claimed": claimed, "spent": claimed * d.discount, "status": if open { "live" } else if !live.is_empty() { "ended" } else if over { "next" } else { "waiting" } })
         }).collect();
         let menu: Vec<Value> = self.world.def.things.iter().filter(|t| t.price >= 300).map(|t| json!({ "id": t.id, "name": t.name, "price": t.price })).collect();
         let mut seen = BTreeSet::new();
         let menu: Vec<Value> = menu.into_iter().filter(|m| seen.insert(m["name"].as_str().unwrap_or("").to_string())).collect();
-        json!({ "deals": deals, "menu": menu, "next_game": over, "moments": MOMENTS.iter().map(|(id, l)| json!({ "id": id, "label": l })).collect::<Vec<_>>(),
+        json!({ "deals": deals, "menu": menu, "next_game": over, "moments": if self.concert().is_some() { vec![json!({ "id": "halftime", "label": "At the changeover before the headliner" }), json!({ "id": "last_call", "label": "At the start of the finale" })] }
+                           else { MOMENTS.iter().map(|(id, l)| json!({ "id": id, "label": l })).collect::<Vec<_>>() },
                 "budget_set_aside": self.ledger.balance(&acct(who, "promo_budget"), &crate::value::Unit::usd()) })
     }
 }

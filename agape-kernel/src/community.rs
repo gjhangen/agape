@@ -25,6 +25,8 @@ const POST_SHOW: &[&str] = &["Lights just went down. Here we go", "This crowd is
 const POST_AFTER: &[&str] = &["What a night. See you at the next one", "Still can't believe that finish", "My voice is gone and I regret nothing", "Already looking at tickets for the next one"];
 const COMMENTS: &[&str] = &["facts", "same section, wave!", "let's go", "so true", "this", "we're two rows behind you", "{STAR} for MVP", "loudest it's been all year",
     "agreed", "nah you're right", "say it louder", "best night of the season"];
+const COMMENTS_SHOW: &[&str] = &["same", "so good", "this", "we're two rows behind you", "loudest crowd of the tour", "agreed", "say it louder", "best night of the year", "still shaking", "same section, wave!"];
+const BIOS_SHOW: &[&str] = &["Front rail or nothing", "Here for the opener, staying for the encore", "Forty shows and counting", "I came for one song and I know which one", "Balcony, dead centre, every time", "Tour shirt from every year"];
 const TO_YOU: &[&str] = &["welcome to the crew", "facts", "agreed 100%", "see you at the next one", "which section are you in?", "love this", "same here"];
 const BIOS: &[&str] = &["Season ticket holder since the old building", "Here for the nachos and the noise", "Upper deck, loudest section, every night", "Three kids, one jersey each, zero quiet nights",
     "Courtside once. Still talking about it", "Stats nerd. Ask me about {star}'s splits", "Road trips for away games when I can", "First game was 1998. Still my favorite place"];
@@ -34,8 +36,14 @@ pub(super) const POST_LIMIT: usize = 280;
 impl Night {
     fn add_post(&mut self, who: &str, kind: &str, text: String, t: i64) -> String {
         let id = format!("p{}", self.social.posts.len() + 1);
-        self.social.posts.push(Post { id: id.clone(), t, author: who.into(), kind: kind.into(), text, likes: Default::default(), comments: vec![] });
+        self.social.posts.push(Post { id: id.clone(), t, author: who.into(), kind: kind.into(), text, likes: Default::default(), comments: vec![], shown_as: None });
         id
+    }
+
+    /// The venue or an act on tonight's bill posts under its own name.
+    fn add_named_post(&mut self, name: &str, kind: &str, text: String, t: i64) {
+        let id = self.add_post("venue", kind, text, t);
+        if let Some(p) = self.social.posts.iter_mut().find(|p| p.id == id) { p.shown_as = Some(name.to_string()); }
     }
 
     /// A person posts to everyone here.
@@ -89,7 +97,8 @@ impl Night {
         if self.cfg.real || id == YOU || !self.fans.iter().any(|f| f.id == id) { return Profile::default(); }
         let h = mix(id.len() as i64, id.bytes().fold(7u64, |a, b| a.wrapping_mul(31).wrapping_add(b as u64)));
         let team = if h % 5 == 0 { self.league.tonight.away.clone() } else { self.league.tonight.home.clone() };
-        Profile { bio: self.crowd_words(BIOS[((h >> 8) % BIOS.len() as u64) as usize]), team: if self.concert().is_some() { String::new() } else { team } }
+        let pool = if self.concert().is_some() { BIOS_SHOW } else { BIOS };
+        Profile { bio: self.crowd_words(pool[((h >> 8) % pool.len() as u64) as usize]), team: if self.concert().is_some() { String::new() } else { team } }
     }
 
     fn sim_fan(&self, t: i64, salt: u64) -> Option<String> {
@@ -103,7 +112,12 @@ impl Night {
         if self.cfg.real || !self.on("chat") || sim_fans_n(&self.cfg) == 0 { return; }
         let home = self.league.team(&self.league.tonight.home).cloned();
         let away = self.league.team(&self.league.tonight.away).cloned();
-        if self.concert().is_none() {
+        if let Some(c) = self.concert().cloned() {
+            let venue = self.world.def.venue.clone();
+            self.add_named_post(&venue, "venue", format!("Doors are open at {venue}. Order from your seat with Agape and don't miss a song."), 0);
+            if let Some(main) = c.acts.last() { self.add_named_post(main, "act", "Soundcheck done. See you out there tonight.".into(), 0); }
+            if c.acts.len() > 1 { let first = c.acts[0].clone(); self.add_named_post(&first, "act", "First on tonight. Come down early, we're bringing the loud ones.".into(), 0); }
+        } else {
             if let (Some(h), Some(a)) = (&home, &away) {
                 self.add_post(&h.id, "team", format!("Game day. {} host the {} tonight. Order from your seat with Agape and don't miss a play.", h.name, a.short), 0);
                 if let Some(s) = h.roster.iter().find(|m| m.star) { self.add_post(&s.id, "player", "Locked in. Bring the noise tonight.".into(), 0); }
@@ -119,7 +133,7 @@ impl Night {
             let n = 6 + (mix(i as i64, 13) % if self.social.posts[i].kind == "fan" { 20 } else { 140 }) as i64;
             for j in 0..n { if let Some(f) = self.sim_fan(i as i64 * 1000 + j, 14) { self.social.posts[i].likes.insert(f); } }
             for j in 0..(mix(i as i64, 15) % 3) as i64 {
-                if let Some(f) = self.sim_fan(i as i64 * 1000 + j, 16) { let c = self.crowd_words(pick(i as i64 * 7 + j, 17, COMMENTS)); self.social.posts[i].comments.push((0, f, c)); }
+                if let Some(f) = self.sim_fan(i as i64 * 1000 + j, 16) { let c = self.crowd_words(pick(i as i64 * 7 + j, 17, if self.concert().is_some() { COMMENTS_SHOW } else { COMMENTS })); self.social.posts[i].comments.push((0, f, c)); }
             }
         }
     }
@@ -144,6 +158,18 @@ impl Night {
                 let won = if hs >= as_ { &home } else { &away };
                 let star = self.league.team(won).and_then(|g| g.roster.iter().find(|m| m.star)).map(|m| m.id.clone());
                 if let Some(s) = star { self.add_post(&s, "player", "That's a team win. Thank you for the noise tonight, every one of you.".into(), t + TICK); }
+            }
+        }
+        // a concert: the venue says who's on as each act starts, and the headliner signs off
+        if let Some(c) = self.concert().cloned() {
+            let m = t / 60_000;
+            let period = |m: i64| [45, 76, 122, 153].iter().rposition(|s| m >= *s).map(|i| i as i64 + 1).unwrap_or(0);
+            let (now, before) = (period(m), period((t - TICK).max(0) / 60_000));
+            if t > 0 && now != before && now >= 1 && now != 4 {
+                if let Some(act) = self.act_on(now) { let venue = self.world.def.venue.clone(); self.add_named_post(&venue, "venue", format!("{act} is on now."), t); }
+            }
+            if t > 0 && ph == "postgame" && was != "postgame" {
+                if let Some(main) = c.acts.last() { self.add_named_post(main, "act", "Thank you. Every single one of you. Get home safe.".into(), t); }
             }
         }
         // a big moment: the team it belongs to posts it
@@ -176,7 +202,7 @@ impl Night {
             let chance = if yours { if replies < 3 && age >= TICK && age < 5 * 60_000 { 0.22 } else { 0.0 } } else if age < 10 * 60_000 { 0.02 } else { 0.0 };
             if chance > 0.0 && roll(t, 60 + i as u64, chance) {
                 if let Some(f) = self.sim_fan(t, 70 + i as u64) {
-                    let c = self.crowd_words(pick(t, 80 + i as u64, if yours { TO_YOU } else { COMMENTS }));
+                    let c = self.crowd_words(pick(t, 80 + i as u64, if yours { TO_YOU } else if concert { COMMENTS_SHOW } else { COMMENTS }));
                     self.social.posts[i].comments.push((t, f, c));
                 }
             }
@@ -185,9 +211,10 @@ impl Night {
 
     fn post_json(&self, p: &Post, viewer: &str) -> Value {
         let who = |id: &str| if id == viewer { "You".to_string() } else { self.party_name(id).unwrap_or_else(|| crate::social::handle(id)) };
+        let author = p.shown_as.clone().unwrap_or_else(|| who(&p.author));
         let team = if p.kind == "team" { self.league.team(&p.author) } else { self.league.member(&p.author).map(|(g, _)| g) };
         let comments: Vec<Value> = p.comments.iter().rev().take(20).rev().map(|c| json!({ "t": c.0, "id": c.1, "who": who(&c.1), "text": c.2, "you": c.1 == viewer })).collect();
-        json!({ "id": p.id, "t": p.t, "author": p.author, "who": who(&p.author), "kind": p.kind, "text": p.text, "you": p.author == viewer,
+        json!({ "id": p.id, "t": p.t, "author": if p.shown_as.is_some() { "" } else { p.author.as_str() }, "who": author, "kind": p.kind, "text": p.text, "you": p.author == viewer,
                 "likes": p.likes.len(), "liked": p.likes.contains(viewer), "comments": comments, "replies": p.comments.len(),
                 "color": team.map(|g| g.color.clone()), "verified": p.kind != "fan" })
     }

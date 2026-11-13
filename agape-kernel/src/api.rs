@@ -19,6 +19,11 @@ pub fn view(n: &mut Night, who: &str, v: &Value) -> Value {
         Some("business") => n.view_business(id),
         Some("parties") => n.parties(),
         Some("glance") => n.view_glance(),
+        // one order as everyone sees it: the fan who placed it, or the venue and Agape for any order
+        Some("follow") => match id.parse::<usize>() {
+            Ok(i) if who == "agape" || who == "ops" || n.orders.get(i).map_or(false, |o| o.c.quote.fan == who) => n.follow_json(i),
+            _ => json!({ "error": "No such order" }),
+        },
         // the night's books and the game's controls: the venue's console and Agape's team
         Some("night") if who == "agape" || who == "ops" => n.view_night(),
         // what each fan's card owes: the server's payments only

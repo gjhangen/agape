@@ -84,3 +84,18 @@ fn a_sponsor_writes_a_deal_and_its_budget_is_set_aside() {
     assert_ne!(s["deals"][0]["status"], "waiting", "it opened at halftime");
     assert!(balanced(&n));
 }
+
+#[test]
+fn on_a_concert_night_the_venue_and_the_acts_post_and_a_sponsor_can_still_write_a_deal() {
+    let mut w: WorldDef = serde_json::from_str(include_str!("../templates/arena.json")).unwrap();
+    w.event = Some(serde_json::from_value(json!({ "kind": "concert", "title": "Lumen Rivers", "acts": ["Paper Kites Club", "Mara Vale", "Lumen Rivers"] })).unwrap());
+    let t: Template = serde_json::from_str(include_str!("../templates/basketball.json")).unwrap();
+    let mut n = Night::new(w, t, Config { you_seat: Some("s104".into()), ..Config::default() });
+    let posts = n.view_fan(YOU)["community"]["everyone"].as_array().unwrap().clone();
+    assert!(posts.iter().any(|p| p["kind"] == "venue") && posts.iter().any(|p| p["kind"] == "act" && p["who"] == "Lumen Rivers"));
+    assert!(!posts.iter().any(|p| p["kind"] == "team" || p["kind"] == "player"), "no teams at a concert");
+    assert!(n.sponsor_offer("dock-pizza", "home_run", "slice", 300, 50).is_err(), "no game moments at a concert");
+    n.sponsor_offer("dock-pizza", "halftime", "slice", 300, 50).unwrap();
+    until(&mut n, 80);
+    assert!(n.social.posts.iter().any(|p| p.text == "Mara Vale is on now."), "the venue says who's on");
+}
